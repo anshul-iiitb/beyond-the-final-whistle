@@ -228,7 +228,8 @@ export const SPONSORS: SponsorDef[] = [
   { key: 'heineken', name: 'Heineken', emoji: '🍺', minFollowers: 100000n, staminaCost: 5, rewardCoins: 100000n, followerDelta: -50000n },
   { key: 'adidas', name: 'Adidas', emoji: '👟', minFollowers: 1000000n, staminaCost: 10, rewardCoins: 200000n, followerDelta: 0n },
   { key: 'cocacola', name: 'Coca-Cola', emoji: '🥤', minFollowers: 5000000n, staminaCost: 10, rewardCoins: 300000n, followerDelta: -200000n },
-  { key: 'netflix', name: 'Netflix', emoji: '🎬', minFollowers: 6000000n, staminaCost: 30, rewardCoins: 300000n, followerDelta: 50000n }
+  { key: 'netflix', name: 'Netflix', emoji: '🎬', minFollowers: 6000000n, staminaCost: 30, rewardCoins: 300000n, followerDelta: 50000n },
+  { key: 'nike', name: 'Nike', emoji: '✔️', minFollowers: 8000000n, staminaCost: 50, rewardCoins: 500000n, followerDelta: -300000n }
 ];
 
 export const ATTRIBUTES_LIST = [

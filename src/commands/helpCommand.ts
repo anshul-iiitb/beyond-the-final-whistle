@@ -53,9 +53,9 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '📸 Sponsorships & Fan Socials',
         value:
-          '• `-advert` — Opens interactive Brand Sponsorship Menu with 4 buttons:\n' +
-          '  🍺 Heineken (100k 👤) • 👟 Adidas (1M 👤) • 🥤 Coca-Cola (5M 👤) • 🎬 Netflix (6M 👤)\n' +
-          '  *Includes commercial photoshoot image attachment!*\n' +
+          '• `-advert` — Opens interactive Brand Sponsorship Menu with 5 buttons:\n' +
+          '  🍺 Heineken (100k 👤) • 👟 Adidas (1M 👤) • 🥤 Coca-Cola (5M 👤) • 🎬 Netflix (6M 👤) • ✔️ Nike (8M 👤)\n' +
+          '  *Attaches commercial video GIF inside the result box!*\n' +
           '• `-coaching` — Coach academy youth at Local Club (+50k coins, 2h cooldown).\n' +
           '• `-meetgreet` — Sign autographs at Local Club (+50k followers, 2h cooldown).\n' +
           '• `-tweet <text>` / `-chirp` — Post to TwitFeed with blue bird icon and interactive `👍` / `👎` buttons (👍 +100k fans, 👎 -50k fans + DMs).'

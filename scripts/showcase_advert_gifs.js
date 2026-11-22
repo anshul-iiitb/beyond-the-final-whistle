@@ -70,6 +70,15 @@ client.on('ready', async () => {
       delta: '+50k followers 👤',
       file: 'netflix.gif',
       desc: '📸 **Netflix Docuseries Deal Signed!**\nExclusive backstage access football documentary series.'
+    },
+    {
+      key: 'nike',
+      name: 'Nike',
+      emoji: '✔️',
+      coins: '+500k',
+      delta: '-300k followers 👤',
+      file: 'nike.gif',
+      desc: '📸 **Nike Global Football Campaign Signed!**\nHigh-intensity commercial shoot featuring elite street soccer skills.'
     }
   ];
 

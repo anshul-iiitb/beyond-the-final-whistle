@@ -32,7 +32,8 @@ export function buildAdvertSelectionMenu(followers: bigint, guild?: Guild | null
     new ButtonBuilder().setCustomId('sponsor_heineken').setLabel('Heineken (100k 👤)').setEmoji('🍺').setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId('sponsor_adidas').setLabel('Adidas (1M 👤)').setEmoji('👟').setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId('sponsor_cocacola').setLabel('Coca-Cola (5M 👤)').setEmoji('🥤').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('sponsor_netflix').setLabel('Netflix (6M 👤)').setEmoji('🎬').setStyle(ButtonStyle.Success)
+    new ButtonBuilder().setCustomId('sponsor_netflix').setLabel('Netflix (6M 👤)').setEmoji('🎬').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('sponsor_nike').setLabel('Nike (8M 👤)').setEmoji('✔️').setStyle(ButtonStyle.Primary)
   );
 
   return { embed, components: [row] };
