@@ -1,0 +1,29 @@
+name: Render Keep-Alive Watchdog
+
+on:
+  schedule:
+    # Runs every 9 minutes to keep Render / Host Web Service active 24/7
+    - cron: '*/9 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: btfw-keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping-service:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping Beyond The Final Whistle Health Endpoint
+        run: |
+          echo "Pinging Beyond The Final Whistle health endpoint (9min anti-snooze interval)..."
+          TARGET_URL="${{ secrets.KEEP_ALIVE_URL || 'https://beyond-the-final-whistle.onrender.com/' }}"
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 --retry 3 --retry-delay 5 "$TARGET_URL" || echo "000")
+          echo "Received HTTP status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "✅ Beyond The Final Whistle is awake and active!"
+          else
+            echo "⚠️ Ping received status $HTTP_STATUS (Service may still be starting or in local development mode)"
+            exit 0
+          fi

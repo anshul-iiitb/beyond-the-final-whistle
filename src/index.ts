@@ -4,7 +4,7 @@ dotenv.config();
 import { BTFWClient } from './client/BTFWClient.js';
 import { onMessageCreate } from './events/messageCreate.js';
 import { onMessageReactionAdd } from './events/messageReactionAdd.js';
-import { startKeepAliveServer } from './services/keepAliveService.js';
+import { startKeepAliveServer, startKeepAliveWorker } from './services/keepAliveService.js';
 import { startDailyLifecycleWorker } from './services/lifecycleService.js';
 import { logger } from './utils/logger.js';
 
@@ -13,6 +13,7 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3002;
   startKeepAliveServer(port);
+  startKeepAliveWorker(port);
 
   const client = new BTFWClient();
 
