@@ -1,18 +1,22 @@
-import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, TextChannel } from 'discord.js';
+import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, TextChannel, Guild } from 'discord.js';
 import path from 'path';
 import fs from 'fs';
 import { executeSponsorAdvert, executeCoaching, executeMeetGreet } from '../engines/socialEngine.js';
 import { prisma } from '../database/prisma.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
 import { SPONSORS } from '../config/constants.js';
+import { getEmoji } from '../utils/emojiHelper.js';
 
-export function buildAdvertSelectionMenu(followers: bigint) {
+export function buildAdvertSelectionMenu(followers: bigint, guild?: Guild | null) {
+  const coin = getEmoji(guild, 'coin');
+  const stamina = getEmoji(guild, 'stamina');
+  const tick = getEmoji(guild, 'zztick');
   const lines = SPONSORS.map(s => {
-    const eligible = followers >= s.minFollowers ? '✅' : '🔒';
+    const eligible = followers >= s.minFollowers ? tick : '🔒';
     const followerText = s.followerDelta > 0n ? `+${formatK(s.followerDelta)}` : s.followerDelta < 0n ? `${formatK(s.followerDelta)}` : '0';
     return `${eligible} **${s.emoji} ${s.name}** (\`-advert ${s.key}\`)\n` +
-      `• Min Followers: \`${formatK(s.minFollowers)} 👤\` | Stamina Cost: \`${s.staminaCost} ⚡\`\n` +
-      `• Reward: \`+${formatK(s.rewardCoins)} 🪙\` | Followers: \`${followerText} 👤\``;
+      `• Min Followers: \`${formatK(s.minFollowers)} 👤\` | Stamina Cost: \`${s.staminaCost}\` ${stamina}\n` +
+      `• Reward: \`+${formatK(s.rewardCoins)}\` ${coin} | Followers: \`${followerText} 👤\``;
   });
 
   const embed = new EmbedBuilder()
@@ -40,7 +44,7 @@ export async function handleAdvertCommand(message: Message, args: string[]) {
   if (!sponsorKey) {
     const player = await prisma.player.findUnique({ where: { id: message.author.id } });
     const followers = player ? player.followers : 0n;
-    const menu = buildAdvertSelectionMenu(followers);
+    const menu = buildAdvertSelectionMenu(followers, message.guild);
     return await message.reply({ embeds: [menu.embed], components: menu.components });
   }
 
