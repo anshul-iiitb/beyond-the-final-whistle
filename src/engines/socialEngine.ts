@@ -105,8 +105,13 @@ export async function executeSponsorAdvert(playerId: string, sponsorKey?: string
     .setFooter({ text: 'Beyond The Final Whistle • Commercial Hub' });
 
   const files: AttachmentBuilder[] = [];
+  const adGifPath = path.resolve(process.cwd(), `assets/adverts/${sponsor.key}.gif`);
   const bannerPath = path.resolve(process.cwd(), 'assets/photoshoot.png');
-  if (fs.existsSync(bannerPath)) {
+
+  if (fs.existsSync(adGifPath)) {
+    files.push(new AttachmentBuilder(adGifPath, { name: `${sponsor.key}.gif` }));
+    embed.setImage(`attachment://${sponsor.key}.gif`);
+  } else if (fs.existsSync(bannerPath)) {
     files.push(new AttachmentBuilder(bannerPath, { name: 'photoshoot.png' }));
     embed.setImage('attachment://photoshoot.png');
   }
