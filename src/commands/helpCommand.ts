@@ -69,7 +69,9 @@ export async function handleHelpCommand(message: Message) {
           '• `-setup` — Automatically build the 8 Campus channels with bracket logos.\n' +
           '• `-vip add invite/boost @user` — Grant 30 days of VIP status.\n' +
           '• `-additem <item> @user` — Award collectible trophies.\n' +
-          '• `-addvar <var> <val> @user` — Adjust player attributes/coins/stamina.'
+          '• `-addvar <var> <val> @user` — Adjust player attributes/coins/stamina.\n' +
+          '• `-gitpull` — Hot-pull latest commit from GitHub and reload.\n' +
+          '• `-gitpullback` — Emergency restore to previous stable commit.'
       }
     )
     .setFooter({ text: 'Beyond The Final Whistle • Prefix: -' })

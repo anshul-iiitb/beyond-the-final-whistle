@@ -1,0 +1,35 @@
+name: Beyond The Final Whistle CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  validate-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NODE_ENV: test
+      DISCORD_TOKEN: dummy_token_for_ci
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/btfw_test"
+      PORT: "3002"
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: TypeScript Compilation Check
+        run: npx tsc --noEmit

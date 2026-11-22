@@ -7,6 +7,7 @@ import { handleBuyCommand, handleIntelCommand } from '../commands/marketCommands
 import { handleMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand } from '../commands/matchCommands.js';
 import { handleSetupCommand, handleVipCommand, handleAddItemCommand, handleAddVarCommand } from '../commands/adminCommands.js';
 import { handleHelpCommand } from '../commands/helpCommand.js';
+import { handleBTFWGitPull, handleBTFWGitPullBack } from '../services/gitService.js';
 import { logger } from '../utils/logger.js';
 
 const PREFIX = '-';
@@ -136,6 +137,16 @@ export async function onMessageCreate(message: Message) {
         break;
       case 'addvar':
         await handleAddVarCommand(message, args);
+        break;
+
+      // DevOps Hot-Reload
+      case 'gitpull':
+      case 'pull':
+        await handleBTFWGitPull(message, args);
+        break;
+      case 'gitpullback':
+      case 'rollback':
+        await handleBTFWGitPullBack(message);
         break;
 
       // Help
