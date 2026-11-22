@@ -3,6 +3,7 @@ import { CAMPUS_LOCATIONS, VEHICLE_CATALOG } from '../config/constants.js';
 import { travelToLocation, getPlayerTravelCooldown } from '../engines/campusEngine.js';
 import { buyVehicle } from '../engines/marketEngine.js';
 import { formatK } from '../utils/formatHelper.js';
+import { getEmoji } from '../utils/emojiHelper.js';
 
 export async function handleLocationsCommand(message: Message) {
   const lines = Object.values(CAMPUS_LOCATIONS).map(loc => {
@@ -45,16 +46,18 @@ export async function handleTravelCommand(message: Message, args: string[]) {
 
 export async function handleShowroomCommand(message: Message) {
   const { cooldownMinutes, vehicleName } = await getPlayerTravelCooldown(message.author.id);
+  const carEmoji = getEmoji(message.guild, 'car');
+  const coinEmoji = getEmoji(message.guild, 'coin');
 
   const lines = VEHICLE_CATALOG.map(v => {
-    const priceDisplay = Number(v.cost) >= 1000000 ? `${(Number(v.cost) / 1000000).toFixed(Number(v.cost) % 1000000 === 0 ? 0 : 2)}M 🪙` : `${formatK(v.cost)} 🪙`;
+    const priceDisplay = Number(v.cost) >= 1000000 ? `${(Number(v.cost) / 1000000).toFixed(Number(v.cost) % 1000000 === 0 ? 0 : 2)}M ${coinEmoji}` : `${formatK(v.cost)} ${coinEmoji}`;
     return `${v.emoji} **${v.name}** (\`-vehiclebuy ${v.key}\`)\n` +
       `• Cost: **${priceDisplay}** | Cooldown: **${v.cooldownMinutes} min ⏱️**`;
   });
 
   const embed = new EmbedBuilder()
     .setColor('#e11d48')
-    .setTitle('🏎️ Vehicle Showroom — Automotive Dealership')
+    .setTitle(`${carEmoji} Vehicle Showroom — Automotive Dealership`)
     .setDescription(
       `Your current ride: **${vehicleName}** (\`${cooldownMinutes}m cooldown\` ⏱️)\n\n` +
       `Purchasing a vehicle permanently lowers your campus travel cooldown across all locations:\n\n` +

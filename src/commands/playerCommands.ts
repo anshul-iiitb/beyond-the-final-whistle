@@ -41,6 +41,7 @@ export function buildProfileEmbed(
   const coinEmoji = getEmoji(guild, 'coin');
   const tpEmoji = getEmoji(guild, 'tp');
   const followersEmoji = getEmoji(guild, 'followers');
+  const carEmoji = getEmoji(guild, 'car');
 
   let recentForm = ['6.8', '7.2', '7.5', '8.0', '7.4'];
   try {
@@ -52,7 +53,7 @@ export function buildProfileEmbed(
 
   // Collectables symbols
   const itemSymbols = (player.inventory || []).map((i: any) => `${i.emoji} ${i.name}`);
-  const vehicleSymbols = (player.vehicles || []).map((v: any) => `🏎️ ${v.name}`);
+  const vehicleSymbols = (player.vehicles || []).map((v: any) => `${carEmoji} ${v.name}`);
   const allCollectables = [...itemSymbols, ...vehicleSymbols];
   const collectablesText = allCollectables.length > 0 ? allCollectables.join(' • ') : '(empty)';
 
