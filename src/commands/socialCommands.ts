@@ -11,12 +11,21 @@ export function buildAdvertSelectionMenu(followers: bigint, guild?: Guild | null
   const coin = getEmoji(guild, 'coin');
   const stamina = getEmoji(guild, 'stamina');
   const tick = getEmoji(guild, 'zztick');
+  const followersEmoji = getEmoji(guild, 'followers');
+
+  const heinekenEmoji = getEmoji(guild, 'heineken');
+  const adidasEmoji = getEmoji(guild, 'adidas');
+  const cocacolaEmoji = getEmoji(guild, 'cocacola');
+  const netflixEmoji = getEmoji(guild, 'netflix');
+  const nikeEmoji = getEmoji(guild, 'nike');
+
   const lines = SPONSORS.map(s => {
     const eligible = followers >= s.minFollowers ? tick : '🔒';
     const followerText = s.followerDelta > 0n ? `+${formatK(s.followerDelta)}` : s.followerDelta < 0n ? `${formatK(s.followerDelta)}` : '0';
-    return `${eligible} **${s.emoji} ${s.name}** (\`-advert ${s.key}\`)\n` +
-      `• Min Followers: \`${formatK(s.minFollowers)} 👤\` | Stamina Cost: \`${s.staminaCost}\` ${stamina}\n` +
-      `• Reward: \`+${formatK(s.rewardCoins)}\` ${coin} | Followers: \`${followerText} 👤\``;
+    const sponsorBadge = getEmoji(guild, s.key);
+    return `${eligible} **${sponsorBadge} ${s.name}** (\`-advert ${s.key}\`)\n` +
+      `• Min Followers: \`${formatK(s.minFollowers)}\` ${followersEmoji} | Stamina Cost: \`${s.staminaCost}\` ${stamina}\n` +
+      `• Reward: \`+${formatK(s.rewardCoins)}\` ${coin} | Followers: \`${followerText}\` ${followersEmoji}`;
   });
 
   const embed = new EmbedBuilder()
@@ -29,11 +38,11 @@ export function buildAdvertSelectionMenu(followers: bigint, guild?: Guild | null
     .setFooter({ text: 'Beyond The Final Whistle • Commercial Hub' });
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId('sponsor_heineken').setLabel('Heineken (100k 👤)').setEmoji('🍺').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('sponsor_adidas').setLabel('Adidas (1M 👤)').setEmoji('👟').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('sponsor_cocacola').setLabel('Coca-Cola (5M 👤)').setEmoji('🥤').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('sponsor_netflix').setLabel('Netflix (6M 👤)').setEmoji('🎬').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('sponsor_nike').setLabel('Nike (8M 👤)').setEmoji('✔️').setStyle(ButtonStyle.Primary)
+    new ButtonBuilder().setCustomId('sponsor_heineken').setLabel('Heineken (100k)').setEmoji(heinekenEmoji).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('sponsor_adidas').setLabel('Adidas (1M)').setEmoji(adidasEmoji).setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('sponsor_cocacola').setLabel('Coca-Cola (5M)').setEmoji(cocacolaEmoji).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('sponsor_netflix').setLabel('Netflix (6M)').setEmoji(netflixEmoji).setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('sponsor_nike').setLabel('Nike (8M)').setEmoji(nikeEmoji).setStyle(ButtonStyle.Primary)
   );
 
   return { embed, components: [row] };

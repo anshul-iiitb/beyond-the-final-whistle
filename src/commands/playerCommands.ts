@@ -40,6 +40,7 @@ export function buildProfileEmbed(
   const staminaEmoji = getEmoji(guild, 'stamina');
   const coinEmoji = getEmoji(guild, 'coin');
   const tpEmoji = getEmoji(guild, 'tp');
+  const followersEmoji = getEmoji(guild, 'followers');
 
   let recentForm = ['6.8', '7.2', '7.5', '8.0', '7.4'];
   try {
@@ -66,7 +67,7 @@ export function buildProfileEmbed(
         `*"${player.bio || 'Rookie footballer aiming for the World Cup.'}"*\n\n` +
         `📍 **Location:** ${loc.emoji} **${loc.name}**\n` +
         `${staminaEmoji} **Stamina:** \`${player.stamina}/100\` | ${tpEmoji} **Training Points:** \`${player.trainingPoints} TP\`\n` +
-        `${coinEmoji} **Net Worth:** \`${formatK(player.coins)}\` | 👥 **Followers:** \`${formatK(player.followers)} 👤\`\n` +
+        `${coinEmoji} **Net Worth:** \`${formatK(player.coins)}\` | ${followersEmoji} **Followers:** \`${formatK(player.followers)}\`\n` +
         `${bootStatus} | ${intelStatus}`
       )
       .addFields(

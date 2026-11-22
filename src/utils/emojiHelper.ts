@@ -7,6 +7,7 @@ export const EMOJI_FALLBACKS: Record<string, string> = {
   stamina: '⚡',
   coin: '🪙',
   tp: '🤹‍♂️',
+  followers: '👤',
   worldcup: '🏆',
   strika: '⚡',
   passa: '👟',
@@ -14,10 +15,19 @@ export const EMOJI_FALLBACKS: Record<string, string> = {
   zztick: '✅',
   zzcross: '❌',
   motm: '👑',
+  goldenboot: '✨',
+  goldmedal: '🥇',
+  silvermedal: '🥈',
+  heineken: '🍺',
+  adidas: '👟',
+  cocacola: '🥤',
+  netflix: '🎬',
+  nike: '✔️',
   star: '⭐',
   fire: '🔥',
   car: '🏎️',
-  drink: '🧪'
+  drink: '🧪',
+  sd: '🧪'
 };
 
 /**
