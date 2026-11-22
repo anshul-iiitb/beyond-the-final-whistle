@@ -99,6 +99,8 @@ export async function handleVipCommand(message: Message, args: string[]) {
   await message.reply(`✅ **${tierName} Granted** to <@${targetUser.id}> for 30 days! VIP training drills are now unlocked.`);
 }
 
+import { ITEM_CATALOG } from '../config/constants.js';
+
 export async function handleAddItemCommand(message: Message, args: string[]) {
   if (!isAuthorized(message)) {
     return await message.reply('❌ Unauthorized.');
@@ -106,27 +108,47 @@ export async function handleAddItemCommand(message: Message, args: string[]) {
 
   const targetUser = message.mentions.users.first();
   if (!targetUser) {
-    return await message.reply('❌ Usage: `-additem <itemKey> @user`');
+    return await message.reply('❌ Usage: `-additem <itemSymbol/alias> @user`');
   }
 
-  const itemKey = args[0]?.replace(/:/g, '').toLowerCase() || 'trophy';
+  const rawItem = args[0] || ':worldcup:';
+  const cleanKey = rawItem.replace(/[:<>]/g, '').toLowerCase();
+  const knownItem = ITEM_CATALOG[cleanKey];
 
-  await prisma.player.upsert({
+  const symbol = knownItem?.symbol || (rawItem.startsWith('<') ? rawItem : rawItem.startsWith(':') ? rawItem : knownItem?.symbol || '🏆');
+  const itemName = knownItem?.name || cleanKey.toUpperCase();
+
+  const playerBefore = await prisma.player.upsert({
     where: { id: targetUser.id },
     update: {},
-    create: { id: targetUser.id, username: targetUser.username }
+    create: { id: targetUser.id, username: targetUser.username },
+    include: { inventory: true, vehicles: true }
   });
+
+  const beforeItems = [...playerBefore.inventory.map(i => i.emoji), ...playerBefore.vehicles.map(() => '🏎️')];
+  const beforeText = beforeItems.length > 0 ? beforeItems.join(' ') : '(empty)';
 
   await prisma.inventoryItem.create({
     data: {
       playerId: targetUser.id,
-      itemKey,
-      name: itemKey.toUpperCase(),
-      emoji: '🏆'
+      itemKey: cleanKey,
+      name: itemName,
+      emoji: symbol
     }
   });
 
-  await message.reply(`🏆 Added **${itemKey.toUpperCase()}** to <@${targetUser.id}>'s trophy cabinet!`);
+  const playerAfter = await prisma.player.findUnique({
+    where: { id: targetUser.id },
+    include: { inventory: true, vehicles: true }
+  });
+
+  const afterItems = [...(playerAfter?.inventory.map(i => i.emoji) || [symbol]), ...(playerAfter?.vehicles.map(() => '🏎️') || [])];
+  const afterText = afterItems.join(' ');
+
+  await message.reply(
+    `Added ${rawItem} to <@${targetUser.id}>'s inventory!\n` +
+    `(collectables: ${beforeText} → ${afterText})`
+  );
 }
 
 export async function handleAddVarCommand(message: Message, args: string[]) {

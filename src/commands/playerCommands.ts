@@ -1,8 +1,164 @@
-import { Message, EmbedBuilder } from 'discord.js';
+import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, User } from 'discord.js';
 import { prisma } from '../database/prisma.js';
-import { CAMPUS_LOCATIONS, PLAYSTYLES } from '../config/constants.js';
+import { CAMPUS_LOCATIONS, PLAYSTYLES, ITEM_CATALOG } from '../config/constants.js';
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { giveMoney } from '../engines/socialEngine.js';
+import { formatK, getNationFlag } from '../utils/formatHelper.js';
+
+export function buildProfileTabsRow(targetUserId: string, currentTab: 'main' | 'stats' | 'attr') {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`profile_main_${targetUserId}`)
+      .setLabel('Main Profile')
+      .setEmoji('👤')
+      .setStyle(currentTab === 'main' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`profile_stats_${targetUserId}`)
+      .setLabel('Detailed Stats')
+      .setEmoji('📊')
+      .setStyle(currentTab === 'stats' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`profile_attr_${targetUserId}`)
+      .setLabel('Attributes')
+      .setEmoji('🎯')
+      .setStyle(currentTab === 'attr' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+  );
+}
+
+export function buildProfileEmbed(player: any, targetUser: User, tab: 'main' | 'stats' | 'attr' = 'main'): EmbedBuilder {
+  const derived = calculateDerivedRatings(player);
+  const loc = CAMPUS_LOCATIONS[player.currentLocation] || CAMPUS_LOCATIONS.tc;
+  const style = PLAYSTYLES[player.playstyle] || PLAYSTYLES.PCH;
+  const flag = getNationFlag(player.nation);
+  const vipBadge = player.vipTier >= 2 ? '👑 [PREMIUM]' : player.vipTier === 1 ? '⭐ [VIP]' : '';
+
+  let recentForm = ['6.8', '7.2', '7.5', '8.0', '7.4'];
+  try {
+    const parsed = JSON.parse(player.recentRatings || '[]');
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      recentForm = parsed.map((n: number) => n.toFixed(1));
+    }
+  } catch {}
+
+  // Collectables symbols
+  const itemSymbols = (player.inventory || []).map((i: any) => `${i.emoji} ${i.name}`);
+  const vehicleSymbols = (player.vehicles || []).map((v: any) => `🏎️ ${v.name}`);
+  const allCollectables = [...itemSymbols, ...vehicleSymbols];
+  const collectablesText = allCollectables.length > 0 ? allCollectables.join(' • ') : '(empty)';
+
+  if (tab === 'main') {
+    const bootStatus = player.activeBoots ? `👟 Boots: \`${player.activeBoots.toUpperCase()}\`` : '👟 Boots: `None`';
+    const intelStatus = player.intelBonus > 0 ? `🛰️ Intel: \`+${player.intelBonus} ${player.intelStat || 'Boost'}\`` : '🛰️ Intel: `None`';
+
+    return new EmbedBuilder()
+      .setColor('#2b2d31')
+      .setTitle(`⚽ ${player.username} ${flag} Career Profile ${vipBadge}`)
+      .setDescription(
+        `*"${player.bio || 'Rookie footballer aiming for the World Cup.'}"*\n\n` +
+        `📍 **Location:** ${loc.emoji} **${loc.name}**\n` +
+        `⚡ **Stamina:** \`${player.stamina}/100 ⚡\` | 🤹‍♂️ **Training Points:** \`${player.trainingPoints} TP\`\n` +
+        `🪙 **Net Worth:** \`${formatK(player.coins)} 🪙\` | 👥 **Followers:** \`${formatK(player.followers)} 👤\`\n` +
+        `${bootStatus} | ${intelStatus}`
+      )
+      .addFields(
+        {
+          name: '📊 Overall Ratings',
+          value: `🅰️ **ATK:** \`${derived.atk}\` | 🏃 **MID:** \`${derived.mid}\` | 🛡️ **DEF:** \`${derived.def}\``,
+          inline: false
+        },
+        {
+          name: `🎭 Playstyle: ${style.emoji} ${style.name} (${style.position})`,
+          value: `*${style.description}*\n**Key Stats:** ${style.keyStats.map(s => `\`${s.toUpperCase()}\``).join(', ')}`,
+          inline: false
+        },
+        {
+          name: '🛡️ Teams & Nation',
+          value: `• National Team: **${player.nation?.name || 'Free Agent (-joinnation)'}** ${flag}\n• Club: **${player.club?.name || 'Free Agent'}**`,
+          inline: true
+        },
+        {
+          name: '📈 Recent Form (Last 5)',
+          value: `\`${recentForm.join('  •  ')}\``,
+          inline: true
+        },
+        {
+          name: '🎁 Collectables & Garage',
+          value: collectablesText,
+          inline: false
+        }
+      )
+      .setThumbnail(targetUser.displayAvatarURL())
+      .setFooter({ text: 'WITS • Career Player Profile • Tab 1/3' });
+  }
+
+  if (tab === 'stats') {
+    return new EmbedBuilder()
+      .setColor('#2b2d31')
+      .setTitle(`📊 ${player.username} ${flag} Detailed Career Match Stats`)
+      .setDescription(`Career match record for **${player.username}** across all competitions.`)
+      .addFields(
+        {
+          name: '🎯 Attacking & Passing Telemetry',
+          value:
+            `• Matches Played: **${player.matchesPlayed}**\n` +
+            `• Goals Scored: **${player.goalsScored}** ⚽\n` +
+            `• Assists: **${player.assists}** 👟\n` +
+            `• Shots (On Target): **${player.shots}** (**${player.shotsOnTarget}**)\n` +
+            `• Passes (Completed): **${player.passesAttempted}** (**${player.passesCompleted}**)\n` +
+            `• Key Passes: **${player.keyPasses}** | Second Assists: **${player.secondAssists}**\n` +
+            `• Dribbles Attempted: **${player.dribblesAttempted}**`,
+          inline: true
+        },
+        {
+          name: '🛡️ Defending & Discipline',
+          value:
+            `• Dribbles Completed: **${player.dribblesCompleted}**\n` +
+            `• Tackles (Won): **${player.tacklesAttempted}** (**${player.tacklesWon}**)\n` +
+            `• Interceptions: **${player.interceptions}**\n` +
+            `• Clearances: **${player.clearances}**\n` +
+            `• Clean Sheets: **${player.cleanSheets}** 🧤\n` +
+            `• Yellow Cards: **${player.yellowCards}** 🟨 | Red Cards: **${player.redCards}** 🟥\n` +
+            `• MOTM Awards: **${player.motmCount}** 👑`,
+          inline: true
+        }
+      )
+      .setThumbnail(targetUser.displayAvatarURL())
+      .setFooter({ text: 'WITS • Detailed Match Telemetry • Tab 2/3' });
+  }
+
+  // Attributes tab
+  return new EmbedBuilder()
+    .setColor('#2b2d31')
+    .setTitle(`🎯 ${player.username} ${flag} 15 Football Attributes`)
+    .setDescription(
+      `Role: ${style.emoji} **${style.name} (${style.code})** • Position: **${style.position}**\n` +
+      `*Spend TP at the Research Facility (\`-travel rf\` ➔ \`-sptrain <attr>\`)*`
+    )
+    .addFields(
+      {
+        name: '🎯 Attacking Attributes',
+        value: `• Finishing (FIN): \`${player.fin}\`\n• Shot Power (POW): \`${player.pow}\`\n• Heading (HEA): \`${player.hea}\``,
+        inline: true
+      },
+      {
+        name: '🪄 Technical Attributes',
+        value: `• Passing (PAS): \`${player.pas}\`\n• Vision (VIS): \`${player.vis}\`\n• Crossing (CRO): \`${player.cro}\`\n• Dribbling (DRI): \`${player.dri}\``,
+        inline: true
+      },
+      {
+        name: '🛡️ Defending Attributes',
+        value: `• Tackling (TCK): \`${player.tck}\`\n• Interceptions (INT): \`${player.int}\`\n• Marking (MRK): \`${player.mrk}\``,
+        inline: true
+      },
+      {
+        name: '⚡ Physical & Mental',
+        value: `• Pace (PAC): \`${player.pac}\`\n• Physicality (PHY): \`${player.phy}\`\n• Composure (CMP): \`${player.cmp}\`\n• Agility (AGI): \`${player.agi}\`\n• Work Rate (WRK): \`${player.wrk}\``,
+        inline: false
+      }
+    )
+    .setThumbnail(targetUser.displayAvatarURL())
+    .setFooter({ text: 'WITS • Attributes Matrix • Tab 3/3' });
+}
 
 /**
  * Handles -profile [@user]
@@ -32,235 +188,161 @@ export async function handleProfileCommand(message: Message, args: string[]) {
     return await message.reply('❌ That player has not registered on Beyond The Final Whistle yet.');
   }
 
-  const derived = calculateDerivedRatings(player);
-  const loc = CAMPUS_LOCATIONS[player.currentLocation] || CAMPUS_LOCATIONS.tc;
-  const style = PLAYSTYLES[player.playstyle] || PLAYSTYLES.PCH;
+  const embed = buildProfileEmbed(player, targetUser, 'main');
+  const row = buildProfileTabsRow(targetUser.id, 'main');
 
-  const vipBadge = player.vipTier >= 2 ? '👑 [PREMIUM]' : player.vipTier === 1 ? '⭐ [VIP]' : '';
-  const bootStatus = player.activeBoots ? `👟 Boots: \`${player.activeBoots.toUpperCase()}\`` : '👟 Boots: `None`';
-  const intelStatus = player.intelBonus > 0 ? `🛰️ Intel: \`+${player.intelBonus} ${player.intelStat || 'Boost'}\`` : '🛰️ Intel: `None`';
-
-  const embed = new EmbedBuilder()
-    .setColor('#3b82f6')
-    .setTitle(`⚽ ${player.username}'s Football Career Profile ${vipBadge}`)
-    .setDescription(
-      `*"${player.bio}"*\n\n` +
-      `📍 **Current Location:** ${loc.emoji} **${loc.name}**\n` +
-      `⚡ **Stamina:** \`${player.stamina}/100\` | 🏃 **Training Points:** \`${player.trainingPoints} TP\`\n` +
-      `🪙 **Net Worth:** \`${Number(player.coins).toLocaleString()} coins\` | 👥 **Followers:** \`${Number(player.followers).toLocaleString()}\`\n` +
-      `${bootStatus} | ${intelStatus}`
-    )
-    .addFields(
-      {
-        name: '📊 Derived Overall Ratings',
-        value: `🅰️ **ATK:** \`${derived.atk}\` | 🏃 **MID:** \`${derived.mid}\` | 🛡️ **DEF:** \`${derived.def}\``,
-        inline: false
-      },
-      {
-        name: `🎭 Playstyle: ${style.emoji} ${style.name} (${style.position})`,
-        value: `*${style.description}*\n**Key Stats:** ${style.keyStats.map(s => `\`${s.toUpperCase()}\``).join(', ')}`,
-        inline: false
-      },
-      {
-        name: '🎯 Attacking Attributes',
-        value: `• Finishing (FIN): \`${player.fin}\`\n• Shot Power (POW): \`${player.pow}\`\n• Heading (HEA): \`${player.hea}\``,
-        inline: true
-      },
-      {
-        name: '🪄 Technical Attributes',
-        value: `• Passing (PAS): \`${player.pas}\`\n• Vision (VIS): \`${player.vis}\`\n• Crossing (CRO): \`${player.cro}\`\n• Dribbling (DRI): \`${player.dri}\``,
-        inline: true
-      },
-      {
-        name: '🛡️ Defending Attributes',
-        value: `• Tackling (TCK): \`${player.tck}\`\n• Interceptions (INT): \`${player.int}\`\n• Marking (MRK): \`${player.mrk}\``,
-        inline: true
-      },
-      {
-        name: '⚡ Physical & Mental',
-        value: `• Pace (PAC): \`${player.pac}\` | Phys (PHY): \`${player.phy}\`\n• Composure (CMP): \`${player.cmp}\` | Agility (AGI): \`${player.agi}\`\n• Work Rate (WRK): \`${player.wrk}\``,
-        inline: false
-      },
-      {
-        name: '🏆 Individual Career Stats',
-        value: `• Matches: **${player.matchesPlayed}** | Goals: **${player.goalsScored}** ⚽ | Assists: **${player.assists}** 👟\n` +
-               `• Shots: **${player.shots}** | Tackles Won: **${player.tacklesWon}** | Clean Sheets: **${player.cleanSheets}**\n` +
-               `• Yellow: **${player.yellowCards}** 🟨 | Red: **${player.redCards}** 🟥 | MOTM Awards: **${player.motmCount} 👑**`,
-        inline: false
-      },
-      {
-        name: '🛡️ Teams & Garage',
-        value: `• National Team: **${player.nation?.name || 'Free Agent (Use -joinnation)'}**\n` +
-               `• Football Club: **${player.club?.name || 'Free Agent'}**\n` +
-               `• Garage: **${player.vehicles.length} vehicle(s)** owned`,
-        inline: false
-      }
-    )
-    .setThumbnail(targetUser.displayAvatarURL())
-    .setFooter({ text: 'Beyond The Final Whistle (BTFW) Football RPG' })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
+  await message.reply({ embeds: [embed], components: [row] });
 }
 
-/**
- * Handles -setdesc <text>
- */
 export async function handleSetDescCommand(message: Message, args: string[]) {
-  const bio = args.join(' ').trim();
-  if (!bio) {
-    return await message.reply('❌ Please provide a description. Example: `-setdesc Lethal box striker chasing the Golden Boot.`');
+  const newBio = args.join(' ').trim();
+  if (!newBio) {
+    return await message.reply('❌ Usage: `-setdesc <text>` (Max 100 characters)');
   }
 
-  if (bio.length > 100) {
-    return await message.reply(`❌ Description exceeds maximum of 100 characters (Your length: ${bio.length} chars).`);
+  if (newBio.length > 100) {
+    return await message.reply(`❌ Description too long (${newBio.length}/100 max characters).`);
   }
 
   await prisma.player.upsert({
     where: { id: message.author.id },
-    update: { bio },
+    update: { bio: newBio },
     create: {
       id: message.author.id,
       username: message.author.username,
-      bio
+      bio: newBio
     }
   });
 
-  await message.reply(`✅ Your profile description has been updated to:\n*"${bio}"*`);
+  await message.reply(`✅ Updated profile description to: *"${newBio}"*`);
 }
 
-/**
- * Handles -lb [category]
- */
-export async function handleLeaderboardCommand(message: Message, args: string[]) {
-  const category = args[0]?.toLowerCase() || 'goals';
-
-  let title = '⚽ Most Goals Scored';
-  let orderByField: any = { goalsScored: 'desc' };
-  let formatter = (p: any) => `${p.goalsScored} goals (${(p.goalsScored / Math.max(1, p.matchesPlayed)).toFixed(2)} / match)`;
-
-  if (category === 'assists' || category === 'a') {
-    title = '👟 Most Assists';
-    orderByField = { assists: 'desc' };
-    formatter = (p: any) => `${p.assists} assists`;
-  } else if (category === 'motm' || category === 'mvp') {
-    title = '👑 Man of the Match (MOTM) Leaderboard';
-    orderByField = { motmCount: 'desc' };
-    formatter = (p: any) => `${p.motmCount} MOTM awards`;
-  } else if (category === 'wealth' || category === 'coins') {
-    title = '🪙 Wealth Leaderboard';
-    orderByField = { coins: 'desc' };
-    formatter = (p: any) => `${Number(p.coins).toLocaleString()} coins`;
-  } else if (category === 'followers' || category === 'fans') {
-    title = '👥 Fame & Follower Leaderboard';
-    orderByField = { followers: 'desc' };
-    formatter = (p: any) => `${Number(p.followers).toLocaleString()} followers`;
-  } else if (category === 'tp' || category === 'training') {
-    title = '🏃 Training Points (TP) Leaderboard';
-    orderByField = { trainingPoints: 'desc' };
-    formatter = (p: any) => `${p.trainingPoints} TP`;
-  } else if (category === 'matches' || category === 'apps') {
-    title = '🎯 Most Appearances';
-    orderByField = { matchesPlayed: 'desc' };
-    formatter = (p: any) => `${p.matchesPlayed} matches`;
-  }
-
-  const topPlayers = await prisma.player.findMany({
-    orderBy: orderByField,
-    take: 10
-  });
-
-  const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-  const lines = topPlayers.map((p, i) => `${medals[i] || '•'} **${p.username}** — ${formatter(p)}`);
-
-  const embed = new EmbedBuilder()
-    .setColor('#f1c40f')
-    .setTitle(`🏆 Beyond The Final Whistle: ${title}`)
-    .setDescription(lines.length > 0 ? lines.join('\n') : '*No player data recorded yet.*')
-    .setFooter({ text: 'Categories: goals, assists, motm, coins, followers, tp, matches • Usage: -lb <category>' })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
-}
-
-/**
- * Handles -give @user <amount>
- */
 export async function handleGiveCommand(message: Message, args: string[]) {
   const targetUser = message.mentions.users.first();
-  if (!targetUser) {
-    return await message.reply('❌ Usage: `-give @user <amount>`');
+  const amountStr = args[1];
+
+  if (!targetUser || !amountStr) {
+    return await message.reply('❌ Usage: `-give @user <amount>` (e.g. `-give @teammate 50000`)');
   }
 
-  const amountStr = args.find(a => !a.startsWith('<@') && !isNaN(Number(a.replace(/k|m/gi, ''))));
-  if (!amountStr) {
-    return await message.reply('❌ Please specify a valid coin amount. Example: `-give @user 50000` or `-give @user 100k`');
-  }
-
-  let amount = 0n;
-  const clean = amountStr.toLowerCase().trim();
-  if (clean.endsWith('k')) {
-    amount = BigInt(Math.floor(parseFloat(clean.slice(0, -1)) * 1000));
-  } else if (clean.endsWith('m')) {
-    amount = BigInt(Math.floor(parseFloat(clean.slice(0, -1)) * 1000000));
-  } else {
-    amount = BigInt(Math.floor(parseFloat(clean)));
+  const amount = BigInt(amountStr.replace(/[^0-9]/g, ''));
+  if (amount <= 0n) {
+    return await message.reply('❌ Invalid amount.');
   }
 
   const result = await giveMoney(message.author.id, targetUser.id, amount);
   await message.reply(result.message);
 }
 
-/**
- * Handles -joinnation <alias>
- */
+export async function handleLeaderboardCommand(message: Message, args: string[]) {
+  const category = args[0]?.toLowerCase() || 'ovr';
+
+  if (category === 'goals' || category === 'g') {
+    const leaders = await prisma.player.findMany({
+      orderBy: { goalsScored: 'desc' },
+      take: 10,
+      include: { nation: true }
+    });
+    const lines = leaders.map((p, i) => `${i + 1}. **${p.username}** ${getNationFlag(p.nation)} — **${p.goalsScored} goals** ⚽`);
+    const embed = new EmbedBuilder()
+      .setColor('#f59e0b')
+      .setTitle('🏆 Top Goalscorers Leaderboard')
+      .setDescription(lines.join('\n') || 'No goals recorded yet.')
+      .setFooter({ text: 'Beyond The Final Whistle Leaderboards' });
+    return await message.reply({ embeds: [embed] });
+  }
+
+  if (category === 'wealth' || category === 'money' || category === 'coins') {
+    const leaders = await prisma.player.findMany({
+      orderBy: { coins: 'desc' },
+      take: 10,
+      include: { nation: true }
+    });
+    const lines = leaders.map((p, i) => `${i + 1}. **${p.username}** ${getNationFlag(p.nation)} — **${formatK(p.coins)} 🪙**`);
+    const embed = new EmbedBuilder()
+      .setColor('#eab308')
+      .setTitle('🪙 Net Worth & Wealth Leaderboard')
+      .setDescription(lines.join('\n') || 'No wealth recorded.')
+      .setFooter({ text: 'Beyond The Final Whistle Leaderboards' });
+    return await message.reply({ embeds: [embed] });
+  }
+
+  if (category === 'followers' || category === 'fans') {
+    const leaders = await prisma.player.findMany({
+      orderBy: { followers: 'desc' },
+      take: 10,
+      include: { nation: true }
+    });
+    const lines = leaders.map((p, i) => `${i + 1}. **${p.username}** ${getNationFlag(p.nation)} — **${formatK(p.followers)} 👤**`);
+    const embed = new EmbedBuilder()
+      .setColor('#38bdf8')
+      .setTitle('👥 Reputation & Followers Leaderboard')
+      .setDescription(lines.join('\n') || 'No players found.')
+      .setFooter({ text: 'Beyond The Final Whistle Leaderboards' });
+    return await message.reply({ embeds: [embed] });
+  }
+
+  // Default overall ratings leaderboard
+  const allPlayers = await prisma.player.findMany({ include: { nation: true }, take: 100 });
+  const sorted = allPlayers.map(p => {
+    const d = calculateDerivedRatings(p);
+    const ovr = Math.round((d.atk + d.mid + d.def) / 3);
+    return { player: p, ovr, derived: d };
+  }).sort((a, b) => b.ovr - a.ovr).slice(0, 10);
+
+  const lines = sorted.map((s, i) =>
+    `${i + 1}. **${s.player.username}** ${getNationFlag(s.player.nation)} — **${s.ovr} OVR** (🅰️ ${s.derived.atk} | 🏃 ${s.derived.mid} | 🛡️ ${s.derived.def})`
+  );
+
+  const embed = new EmbedBuilder()
+    .setColor('#3b82f6')
+    .setTitle('🏆 World Overall Ratings Leaderboard')
+    .setDescription(
+      lines.join('\n') +
+      `\n\n*Other leaderboards:* \`-lb goals\`, \`-lb wealth\`, \`-lb followers\``
+    )
+    .setFooter({ text: 'Beyond The Final Whistle Leaderboards' });
+
+  await message.reply({ embeds: [embed] });
+}
+
 export async function handleJoinNationCommand(message: Message, args: string[]) {
   const nationAlias = args[0]?.toLowerCase();
-
-  const defaultNations = [
-    { name: 'Germany', flag: '🇩🇪', alias: 'ger' },
-    { name: 'Spain', flag: '🇪🇸', alias: 'esp' },
-    { name: 'Italy', flag: '🇮🇹', alias: 'ita' },
-    { name: 'Croatia', flag: '🇭🇷', alias: 'cro' },
-    { name: 'Morocco', flag: '🇲🇦', alias: 'mar' },
-    { name: 'Brazil', flag: '🇧🇷', alias: 'bra' },
-    { name: 'Belgium', flag: '🇧🇪', alias: 'bel' },
-    { name: 'Portugal', flag: '🇵🇹', alias: 'por' },
-    { name: 'France', flag: '🇫🇷', alias: 'fra' },
-    { name: 'England', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', alias: 'eng' },
-    { name: 'Norway', flag: '🇳🇴', alias: 'nor' },
-    { name: 'Colombia', flag: '🇨🇴', alias: 'col' }
-  ];
-
   if (!nationAlias) {
-    const list = defaultNations.map(n => `• \`${n.alias}\` — ${n.flag} **${n.name}**`).join('\n');
-    return await message.reply(`🌍 **Available National Teams:**\n${list}\n\n*Usage:* \`-joinnation <alias>\` (e.g. \`-joinnation ger\`, \`-joinnation por\`)`);
+    const nations = await prisma.nationalTeam.findMany();
+    const list = nations.map(n => `• **${n.name}** ${n.flag} (\`-joinnation ${n.alias}\`)`).join('\n');
+    return await message.reply(
+      `🌍 **Available National Teams:**\n\n${list || 'No nations created yet.'}\n\n*Usage:* \`-joinnation <alias>\``
+    );
   }
 
-  const target = defaultNations.find(n => n.alias === nationAlias || n.name.toLowerCase() === nationAlias);
-  if (!target) {
-    return await message.reply(`❌ Unknown nation \`${nationAlias}\`. Use \`-joinnation\` without arguments to see the roster.`);
+  const nation = await prisma.nationalTeam.findUnique({ where: { alias: nationAlias } });
+  if (!nation) {
+    return await message.reply(`❌ National team \`${nationAlias}\` not found.`);
   }
 
-  const nationRecord = await prisma.nationalTeam.upsert({
-    where: { alias: target.alias },
-    update: {},
-    create: {
-      name: target.name,
-      flag: target.flag,
-      alias: target.alias
-    }
-  });
+  const player = await prisma.player.findUnique({ where: { id: message.author.id } });
+  const isFirstTime = !player?.nationId;
+
+  const bonusCoins = isFirstTime ? 100000n : 0n;
+  const bonusFollowers = isFirstTime ? 100000n : 0n;
 
   await prisma.player.upsert({
     where: { id: message.author.id },
-    update: { nationId: nationRecord.id },
+    update: {
+      nationId: nation.id,
+      coins: { increment: bonusCoins },
+      followers: { increment: bonusFollowers }
+    },
     create: {
       id: message.author.id,
       username: message.author.username,
-      nationId: nationRecord.id
+      nationId: nation.id,
+      coins: 100000n,
+      followers: 100000n
     }
   });
 
-  await message.reply(`🌍 **Call-Up Confirmed!**\nYou have proudly pledged allegiance to **${target.flag} ${target.name}**!\nYour nation stats and crest are now active.`);
+  const bonusMsg = isFirstTime ? `\n🎁 **Welcome Bonus:** Received **+100k coins 🪙** and **+100k followers 👤** for joining your first National Team!` : '';
+  await message.reply(`🎉 You are now officially capped for **${nation.name}** ${nation.flag}!${bonusMsg}`);
 }

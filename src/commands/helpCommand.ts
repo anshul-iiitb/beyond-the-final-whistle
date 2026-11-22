@@ -10,30 +10,33 @@ export async function handleHelpCommand(message: Message) {
     )
     .addFields(
       {
-        name: '👤 Player Profile & Career',
+        name: '👤 Player Profile & Career Tabs',
         value:
-          '• `-profile [@user]` — View your complete player card, derived ATK/MID/DEF, 15 attributes, and stats.\n' +
+          '• `-profile [@user]` — View complete player card with interactive tab buttons:\n' +
+          '  `👤 Main Profile` • `📊 Detailed Stats` • `🎯 Attributes Matrix`\n' +
           '• `-setdesc <text>` — Set your personal bio (up to 100 characters).\n' +
-          '• `-lb [category]` — View server leaderboards (`goals`, `assists`, `motm`, `coins`, `followers`, `tp`, `matches`).\n' +
+          '• `-lb [category]` — View leaderboards (`goals`, `wealth`, `followers`, `ovr`).\n' +
           '• `-give @user <amount>` — Transfer funds to a teammate.\n' +
-          '• `-joinnation <alias>` — Join a National Team (`ger`, `por`, `esp`, `fra`, `eng`, `bra`, etc.).'
+          '• `-joinnation <alias>` — Join a National Team (`ger`, `por`, `esp`, `fra`, `eng`, `bra`, etc.) and get a **100k 🪙 + 100k 👤** welcome bonus!'
       },
       {
         name: '🏟️ Spatial Football Campus (-locations)',
         value:
-          '• `-travel <alias>` — Move between facilities (20m cooldown, reduced by cars).\n' +
+          '• `-travel <alias>` — Move between facilities (20m base cooldown, reduced by cars).\n' +
           '  `tc`: Training Center • `rf`: Research Facility • `gm`: Global Market\n' +
           '  `ph`: Photoshoot Hall • `ps`: Player Sauna • `lc`: Local Club\n' +
           '  `vs`: Showroom • `ih`: Intel Hub\n' +
           '• `-showroom` — Inspect exotic vehicles catalog.\n' +
-          '• `-vehiclebuy <alias>` — Purchase supercars (slashes travel cooldown down to 1m).'
+          '• `-vehiclebuy <alias>` — Purchase supercars (slashes travel cooldown down to 1 min ⏱️).'
       },
       {
         name: '🏋️ Training & Biomechanics Development',
         value:
-          '• `-train` — Pitch drills at Training Center (+1-2 TP, 30m cooldown, 10 stamina).\n' +
-          '• `-train vip` — VIP masterclass (+6 TP, 6h cooldown, 15 stamina).\n' +
-          '• `-train noeffort` — Instant daily TP (+20 VIP, +50 Premium).\n' +
+          '• `-train` — Opens interactive Training Method picker with 3 buttons:\n' +
+          '  🟢 `⚽ Normal Training` (+1-2 🤹‍♂️ TP, 30m cooldown, 5 ⚡ stamina)\n' +
+          '  🔵 `👑 VIP Training` (+6 🤹‍♂️ TP, 6h cooldown, 5 ⚡ stamina)\n' +
+          '  🔴 `👑 No Effort Training` (+20 🤹‍♂️ VIP / +50 🤹‍♂️ Premium, 50 ⚡ stamina, 1/day)\n' +
+          '  *Training attaches authentic pitch drill photography and updates stats!*\n' +
           '• `-sptrain <attr>` / `-upgrade` — Permanently boost attribute at Research Lab (costs 50 stamina & 3-15 dynamic TP).\n' +
           '• `-convert <playstyle>` — Change tactical role at Research Lab (7-day cooldown).\n' +
           '• `-recovery` — Relax in Sauna to recover +30 stamina (+100 for VIP, 12h cooldown).'
@@ -41,24 +44,27 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '🛍️ Market & Matchday Gear',
         value:
-          '• `-buy sd` — Drink Sports Drink to recover +50 stamina (100k 🪙).\n' +
-          '• `-buy strika` — Equips Strika Boots (+10 ATK next match, 500k 🪙).\n' +
-          '• `-buy passa` — Equips Passa Boots (+10 MID next match, 500k 🪙).\n' +
-          '• `-buy bully` — Equips Bully Boots (+10 DEF next match, 500k 🪙).\n' +
+          '• `-buy sd` — **🧪 Sports Drink** (+50 Stamina | 100k 🪙)\n' +
+          '• `-buy strika` — **⚡ Strika Boots** (+10 Attack for next match | 500k 🪙)\n' +
+          '• `-buy passa` — **👟 Passa Boots** (+10 Midfield for next match | 500k 🪙)\n' +
+          '• `-buy bully` — **🛡️ Bully Boots** (+10 Defence for next match | 500k 🪙)\n' +
           '• `-intel` — Claim opposition scouting report at Intel Hub (+1 to +6 match bonus).'
       },
       {
         name: '📸 Sponsorships & Fan Socials',
         value:
-          '• `-advert [brand]` — Sign commercial deals at Photoshoot Hall (Heineken, Adidas, Coca-Cola, Netflix, 2h cooldown).\n' +
+          '• `-advert` — Opens interactive Brand Sponsorship Menu with 4 buttons:\n' +
+          '  🍺 Heineken (100k 👤) • 👟 Adidas (1M 👤) • 🥤 Coca-Cola (5M 👤) • 🎬 Netflix (6M 👤)\n' +
+          '  *Includes commercial photoshoot image attachment!*\n' +
           '• `-coaching` — Coach academy youth at Local Club (+50k coins, 2h cooldown).\n' +
           '• `-meetgreet` — Sign autographs at Local Club (+50k followers, 2h cooldown).\n' +
-          '• `-chirp <text>` / `-tweet` — Post to TwitFeed (reactions: 👍 +100k fans, 👎 -50k fans).'
+          '• `-tweet <text>` / `-chirp` — Post to TwitFeed with blue bird icon and interactive `👍` / `👎` buttons (👍 +100k fans, 👎 -50k fans + DMs).'
       },
       {
         name: '⚽ AI Match Simulations & Newspaper',
         value:
-          '• `-match [@user]` — Triggers high-octane 90-minute match simulation with play-by-play commentary & AI newspaper article.\n' +
+          '• `-match [@user]` — Triggers 90-minute AI-simulated match with commentary & sports newspaper report.\n' +
+          '  *Mentions `@News Ping` and attaches full matchday telemetry infographic!*\n' +
           '• `-intstats [@user]` — View full international caps, goals, and cards.\n' +
           '• `-clubstats [@user]` — View franchise club record.\n' +
           '• `-roster <alias>` — Inspect team squad lineups.'
@@ -68,7 +74,7 @@ export async function handleHelpCommand(message: Message) {
         value:
           '• `-setup` — Automatically build the 8 Campus channels with bracket logos.\n' +
           '• `-vip add invite/boost @user` — Grant 30 days of VIP status.\n' +
-          '• `-additem <item> @user` — Award collectible trophies.\n' +
+          '• `-additem <symbol> @user` — Award collectible trophies & symbols (e.g. `-additem :worldcup: @user`).\n' +
           '• `-addvar <var> <val> @user` — Adjust player attributes/coins/stamina.\n' +
           '• `-gitpull` — Hot-pull latest commit from GitHub and reload.\n' +
           '• `-gitpullback` — Emergency restore to previous stable commit.'

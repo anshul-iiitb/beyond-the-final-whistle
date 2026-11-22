@@ -1,5 +1,6 @@
 import { Client } from 'discord.js';
 import { prisma } from '../database/prisma.js';
+import { formatK } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
 
 let dailyTimer: NodeJS.Timeout | null = null;
@@ -46,12 +47,12 @@ export async function executeDailyLifecycle(client: Client) {
       // Deliver DM text formatted exactly like WITS bot
       const user = await client.users.fetch(player.id).catch(() => null);
       if (user) {
-        let dmText = `**Daily Change**\n+${staminaRestored} ⚡ Stamina restored (now ${newStamina}/100)`;
-        if (lostFollowers > 0n) {
-          dmText += `\n${Math.round(Number(lostFollowers) / 1000)}k 📉 Followers lost to Lost Relevancy 📵`;
-        }
+        let dmText = `Daily Change\n+${staminaRestored} ⚡ Stamina restored (now ${newStamina}/100)`;
         if (taxDeducted > 0n) {
-          dmText += `\n🏛️ 5% Daily Wealth Tax: -${Number(taxDeducted).toLocaleString()} coins deducted.`;
+          dmText += `\n${formatK(taxDeducted)} 🪙 Income Tax collected 👮🏻‍♂️`;
+        }
+        if (lostFollowers > 0n) {
+          dmText += `\n${formatK(lostFollowers)} 📉 Followers lost to Lost Relevancy 📵`;
         }
         await user.send(dmText).catch(() => {});
       }

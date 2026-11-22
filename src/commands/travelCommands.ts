@@ -2,6 +2,7 @@ import { Message, EmbedBuilder } from 'discord.js';
 import { CAMPUS_LOCATIONS, VEHICLE_CATALOG } from '../config/constants.js';
 import { travelToLocation, getPlayerTravelCooldown } from '../engines/campusEngine.js';
 import { buyVehicle } from '../engines/marketEngine.js';
+import { formatK } from '../utils/formatHelper.js';
 
 export async function handleLocationsCommand(message: Message) {
   const lines = Object.values(CAMPUS_LOCATIONS).map(loc => {
@@ -17,7 +18,7 @@ export async function handleLocationsCommand(message: Message) {
       `Welcome to the Football Campus! You can move between facilities using \`-travel <alias>\`.\n\n` +
       lines.join('\n\n')
     )
-    .setFooter({ text: 'Base cooldown: 20m • Slashed down by vehicles in the showroom' })
+    .setFooter({ text: 'Base cooldown: 20m ⏱️ • Slashed down by vehicles in the showroom' })
     .setTimestamp();
 
   await message.reply({ embeds: [embed] });
@@ -46,15 +47,16 @@ export async function handleShowroomCommand(message: Message) {
   const { cooldownMinutes, vehicleName } = await getPlayerTravelCooldown(message.author.id);
 
   const lines = VEHICLE_CATALOG.map(v => {
+    const priceDisplay = Number(v.cost) >= 1000000 ? `${(Number(v.cost) / 1000000).toFixed(Number(v.cost) % 1000000 === 0 ? 0 : 2)}M 🪙` : `${formatK(v.cost)} 🪙`;
     return `${v.emoji} **${v.name}** (\`-vehiclebuy ${v.key}\`)\n` +
-      `• Cost: \`${Number(v.cost).toLocaleString()} coins\` | Cooldown: \`${v.cooldownMinutes} minutes\``;
+      `• Cost: **${priceDisplay}** | Cooldown: **${v.cooldownMinutes} min ⏱️**`;
   });
 
   const embed = new EmbedBuilder()
     .setColor('#e11d48')
-    .setTitle('🏎️ Luxury Motor Dealership Showroom')
+    .setTitle('🏎️ Vehicle Showroom — Automotive Dealership')
     .setDescription(
-      `Your current ride: **${vehicleName}** (\`${cooldownMinutes}m cooldown\`)\n\n` +
+      `Your current ride: **${vehicleName}** (\`${cooldownMinutes}m cooldown\` ⏱️)\n\n` +
       `Purchasing a vehicle permanently lowers your campus travel cooldown across all locations:\n\n` +
       lines.join('\n\n') +
       `\n\n*Purchase with:* \`-vehiclebuy <alias>\` (e.g. \`-vehiclebuy supra\`, \`-vehiclebuy 911\`)`

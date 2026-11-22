@@ -4,6 +4,7 @@ dotenv.config();
 import { BTFWClient } from './client/BTFWClient.js';
 import { onMessageCreate } from './events/messageCreate.js';
 import { onMessageReactionAdd } from './events/messageReactionAdd.js';
+import { onInteractionCreate } from './events/interactionCreate.js';
 import { startKeepAliveServer, startKeepAliveWorker } from './services/keepAliveService.js';
 import { startDailyLifecycleWorker } from './services/lifecycleService.js';
 import { logger } from './utils/logger.js';
@@ -28,6 +29,10 @@ async function bootstrap() {
 
   client.on('messageReactionAdd', async (reaction, user) => {
     await onMessageReactionAdd(reaction as any, user as any);
+  });
+
+  client.on('interactionCreate', async (interaction) => {
+    await onInteractionCreate(interaction);
   });
 
   await client.start();

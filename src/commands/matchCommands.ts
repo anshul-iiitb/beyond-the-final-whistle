@@ -1,4 +1,6 @@
-import { Message, EmbedBuilder } from 'discord.js';
+import { Message, EmbedBuilder, AttachmentBuilder } from 'discord.js';
+import path from 'path';
+import fs from 'fs';
 import { simulateFullMatch } from '../engines/matchSimulationEngine.js';
 import { prisma } from '../database/prisma.js';
 
@@ -25,15 +27,26 @@ export async function handleMatchCommand(message: Message, args: string[]) {
 
     await loading.edit({ content: '', embeds: [matchEmbed] });
 
-    // 2. Post sensational AI Newspaper Story
+    // 2. Post sensational AI Newspaper Story with @News Ping and Match Infographic
     const newsEmbed = new EmbedBuilder()
       .setColor('#f59e0b')
-      .setTitle('📰 THE DAILY WHISTLE — MATCHDAY EDITION')
+      .setTitle('📰 THE DAILY WHISTLE — MATCHDAY TELEMETRY & REPORT')
       .setDescription(result.newsArticle)
       .setFooter({ text: 'AI Sports Journalism Engine • Beyond The Final Whistle' })
       .setTimestamp();
 
-    await (message.channel as any).send({ embeds: [newsEmbed] });
+    const newsFiles: AttachmentBuilder[] = [];
+    const newsImgPath = path.resolve(process.cwd(), 'assets/match_news.png');
+    if (fs.existsSync(newsImgPath)) {
+      newsFiles.push(new AttachmentBuilder(newsImgPath, { name: 'match_news.png' }));
+      newsEmbed.setImage('attachment://match_news.png');
+    }
+
+    await (message.channel as any).send({
+      content: '📢 **@News Ping**',
+      embeds: [newsEmbed],
+      files: newsFiles
+    });
   } catch (err: any) {
     await loading.edit(`❌ Match simulation error: ${err.message}`);
   }

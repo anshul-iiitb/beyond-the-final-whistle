@@ -248,3 +248,25 @@ export const ATTRIBUTES_LIST = [
   { key: 'agi', name: 'Agility', category: 'Physical & Mental' },
   { key: 'wrk', name: 'Work Rate', category: 'Physical & Mental' }
 ] as const;
+
+export interface ItemDef {
+  key: string;
+  name: string;
+  symbol: string;
+  type: 'consumable' | 'boots' | 'trophy' | 'medal' | 'award' | 'collectable';
+  price?: bigint;
+  effect?: string;
+  position?: 'ATK' | 'MID' | 'DEF';
+}
+
+export const ITEM_CATALOG: Record<string, ItemDef> = {
+  sd: { key: 'sd', name: 'Sports Drink', symbol: '🧪', type: 'consumable', price: 100000n, effect: '+50 Stamina' },
+  strika: { key: 'strika', name: 'Strika Boots', symbol: '⚡', type: 'boots', price: 500000n, effect: '+10 Attack next match', position: 'ATK' },
+  passa: { key: 'passa', name: 'Passa Boots', symbol: '👟', type: 'boots', price: 500000n, effect: '+10 Midfield next match', position: 'MID' },
+  bully: { key: 'bully', name: 'Bully Boots', symbol: '🛡️', type: 'boots', price: 500000n, effect: '+10 Defence next match', position: 'DEF' },
+  worldcup: { key: 'worldcup', name: 'World Cup Trophy', symbol: '🏆', type: 'trophy' },
+  goldmedal: { key: 'goldmedal', name: 'Gold Medal', symbol: '🥇', type: 'medal' },
+  silvermedal: { key: 'silvermedal', name: 'Silver Medal', symbol: '🥈', type: 'medal' },
+  motm: { key: 'motm', name: 'Man of the Match Award', symbol: '👑', type: 'award' },
+  goldenboot: { key: 'goldenboot', name: 'Golden Boot', symbol: '✨', type: 'award' }
+};

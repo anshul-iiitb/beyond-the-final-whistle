@@ -1,13 +1,26 @@
-import { Message, EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, AttachmentBuilder } from 'discord.js';
+import path from 'path';
+import fs from 'fs';
 import { prisma } from '../database/prisma.js';
 import { SPONSORS } from '../config/constants.js';
+import { formatK, getNationFlag } from '../utils/formatHelper.js';
+
+export interface SponsorExecutionResult {
+  success: boolean;
+  message: string;
+  embed?: EmbedBuilder;
+  files?: AttachmentBuilder[];
+}
 
 /**
  * Handles signing commercial brand endorsements at the Photoshooting Hall
  */
-export async function executeSponsorAdvert(playerId: string, sponsorKey?: string): Promise<{ success: boolean; message: string; embed?: EmbedBuilder }> {
-  const player = await prisma.player.findUnique({ where: { id: playerId } });
-  if (!player) return { success: false, message: '❌ Player not found.' };
+export async function executeSponsorAdvert(playerId: string, sponsorKey?: string): Promise<SponsorExecutionResult> {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+    include: { nation: true }
+  });
+  if (!player) return { success: false, message: '❌ Player not found. Run `-profile` first.' };
 
   if (player.currentLocation !== 'ph') {
     return { success: false, message: '❌ You must be at the **📸 Photoshooting Hall** (`-travel ph`) to shoot adverts!' };
@@ -26,20 +39,20 @@ export async function executeSponsorAdvert(playerId: string, sponsorKey?: string
   if (!sponsorKey) {
     const lines = SPONSORS.map(s => {
       const eligible = player.followers >= s.minFollowers ? '✅' : '🔒';
-      const followerText = s.followerDelta > 0n ? `+${Number(s.followerDelta).toLocaleString()}` : s.followerDelta < 0n ? `${Number(s.followerDelta).toLocaleString()}` : '0';
+      const followerText = s.followerDelta > 0n ? `+${formatK(s.followerDelta)}` : s.followerDelta < 0n ? `${formatK(s.followerDelta)}` : '0';
       return `${eligible} **${s.emoji} ${s.name}** (\`-advert ${s.key}\`)\n` +
-        `• Min Followers: \`${Number(s.minFollowers).toLocaleString()}\` | Stamina: \`${s.staminaCost}\`\n` +
-        `• Reward: \`+${Number(s.rewardCoins).toLocaleString()} coins\` | Followers: \`${followerText}\``;
+        `• Min Followers: \`${formatK(s.minFollowers)} 👤\` | Stamina Cost: \`${s.staminaCost} ⚡\`\n` +
+        `• Reward: \`+${formatK(s.rewardCoins)} 🪙\` | Followers Change: \`${followerText} 👤\``;
     });
 
     const embed = new EmbedBuilder()
       .setColor('#f59e0b')
-      .setTitle('📸 Commercial Sponsorship Deals')
+      .setTitle('📸 Commercial Brand Sponsorship Deals')
       .setDescription(
         `Choose a brand partner matching your follower status:\n\n${lines.join('\n\n')}\n\n` +
-        `*Usage:* \`-advert <brand>\` (e.g. \`-advert heineken\`, \`-advert adidas\`)`
+        `*Usage:* Click a button below or run \`-advert <brand>\` (e.g. \`-advert heineken\`, \`-advert adidas\`)`
       )
-      .setFooter({ text: 'Beyond The Final Whistle • Commercial Hub' });
+      .setFooter({ text: 'Beyond The Final Whistle • Commercial Photoshooting Hall' });
 
     return { success: true, message: '', embed };
   }
@@ -53,14 +66,14 @@ export async function executeSponsorAdvert(playerId: string, sponsorKey?: string
   if (player.followers < sponsor.minFollowers) {
     return {
       success: false,
-      message: `👥 Insufficient followers! **${sponsor.name}** requires **${Number(sponsor.minFollowers).toLocaleString()} followers** (You have: ${Number(player.followers).toLocaleString()}).`
+      message: `👥 Insufficient followers! **${sponsor.name}** requires **${formatK(sponsor.minFollowers)} followers** (You have: ${formatK(player.followers)}).`
     };
   }
 
   if (player.stamina < sponsor.staminaCost) {
     return {
       success: false,
-      message: `⚡ Insufficient stamina (${player.stamina}/${sponsor.staminaCost} needed). Take a rest at the sauna or drink a sports drink!`
+      message: `⚡ Insufficient stamina (${player.stamina}/${sponsor.staminaCost} ⚡ needed). Take a rest at the sauna or drink a sports drink!`
     };
   }
 
@@ -72,16 +85,33 @@ export async function executeSponsorAdvert(playerId: string, sponsorKey?: string
       followers: newFollowers,
       stamina: { decrement: sponsor.staminaCost },
       lastAdvertAt: now
-    }
+    },
+    include: { nation: true }
   });
 
-  return {
-    success: true,
-    message: `📸 **Commercial Shoot Complete with ${sponsor.emoji} ${sponsor.name}!**\n` +
-      `🪙 **Earned:** \`+${Number(sponsor.rewardCoins).toLocaleString()} coins\`\n` +
-      `👥 **Followers:** \`${Number(updated.followers).toLocaleString()}\`\n` +
-      `⚡ **Stamina:** \`${updated.stamina}/100\`\n*(2-hour cooldown started)*`
-  };
+  const flag = getNationFlag(player.nation);
+  const followerChangeStr = sponsor.followerDelta > 0n ? `+${formatK(sponsor.followerDelta)}` : sponsor.followerDelta < 0n ? `${formatK(sponsor.followerDelta)}` : '0';
+
+  const embed = new EmbedBuilder()
+    .setColor('#f59e0b')
+    .setTitle(`${player.username} ${flag} signed endorsement with ${sponsor.emoji} ${sponsor.name}!`)
+    .setDescription(
+      `📸 **Commercial Photoshoot Complete!**\n\n` +
+      `🪙 **Earnings:** \`+${formatK(sponsor.rewardCoins)} coins\`\n` +
+      `👥 **Follower Change:** \`${followerChangeStr} followers\` (Total: \`${formatK(updated.followers)} 👤\`)\n` +
+      `⚡ **Stamina:** \`${updated.stamina}/100 ⚡\`\n\n` +
+      `*(2-hour brand photoshoot cooldown active)*`
+    )
+    .setFooter({ text: 'Beyond The Final Whistle • Commercial Hub' });
+
+  const files: AttachmentBuilder[] = [];
+  const bannerPath = path.resolve(process.cwd(), 'assets/photoshoot.png');
+  if (fs.existsSync(bannerPath)) {
+    files.push(new AttachmentBuilder(bannerPath, { name: 'photoshoot.png' }));
+    embed.setImage('attachment://photoshoot.png');
+  }
+
+  return { success: true, message: '', embed, files };
 }
 
 /**
@@ -101,18 +131,19 @@ export async function executeCoaching(playerId: string): Promise<{ success: bool
     const elapsed = now.getTime() - player.lastCoachedAt.getTime();
     if (elapsed < cooldownMs) {
       const remainingMinutes = Math.ceil((cooldownMs - elapsed) / (60 * 1000));
-      return { success: false, message: `⏳ **Coaching Cooldown:** Please wait **${remainingMinutes} minutes** before holding another clinic.` };
+      return { success: false, message: `⏳ **Coaching Cooldown:** The kids are on lunch break! Available again in **${remainingMinutes} minutes**.` };
     }
   }
 
   if (player.stamina < 10) {
-    return { success: false, message: `⚡ Insufficient stamina (10 needed). You have ${player.stamina}/100.` };
+    return { success: false, message: `⚡ Coaching requires **10 Stamina** (You have ${player.stamina}/100). Rest at sauna or drink a sports drink.` };
   }
 
+  const rewardCoins = 50000n;
   const updated = await prisma.player.update({
     where: { id: playerId },
     data: {
-      coins: { increment: 50000n },
+      coins: { increment: rewardCoins },
       stamina: { decrement: 10 },
       lastCoachedAt: now
     }
@@ -120,21 +151,23 @@ export async function executeCoaching(playerId: string): Promise<{ success: bool
 
   return {
     success: true,
-    message: `🏟️ **Youth Coaching Clinic Concluded!**\n` +
-      `You mentored local academy prospects and earned **+50,000 coins**!\n` +
-      `Balance: \`${Number(updated.coins).toLocaleString()} coins\` | Stamina: \`${updated.stamina}/100\``
+    message:
+      `⚽ **Grassroots Academy Coaching Session Complete!**\n\n` +
+      `🪙 Earned: **+${formatK(rewardCoins)} coins**\n` +
+      `⚡ Stamina: \`${updated.stamina}/100 ⚡\`\n` +
+      `*(2-hour coaching cooldown active)*`
   };
 }
 
 /**
- * Handles fan meet & greet at the Local Club
+ * Handles fan autograph and meet & greet session at the Local Club
  */
 export async function executeMeetGreet(playerId: string): Promise<{ success: boolean; message: string }> {
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) return { success: false, message: '❌ Player not found.' };
 
   if (player.currentLocation !== 'lc') {
-    return { success: false, message: '❌ You must be at the **🏟️ Local Club** (`-travel lc`) for fan autograph sessions!' };
+    return { success: false, message: '❌ You must be at the **🏟️ Local Club** (`-travel lc`) to meet your fans!' };
   }
 
   const now = new Date();
@@ -143,18 +176,19 @@ export async function executeMeetGreet(playerId: string): Promise<{ success: boo
     const elapsed = now.getTime() - player.lastMeetGreetAt.getTime();
     if (elapsed < cooldownMs) {
       const remainingMinutes = Math.ceil((cooldownMs - elapsed) / (60 * 1000));
-      return { success: false, message: `⏳ **Meet & Greet Cooldown:** Please wait **${remainingMinutes} minutes** before your next fan session.` };
+      return { success: false, message: `⏳ **Fan Queue Cooldown:** Security is clearing the line! Next meet & greet in **${remainingMinutes} minutes**.` };
     }
   }
 
   if (player.stamina < 10) {
-    return { success: false, message: `⚡ Insufficient stamina (10 needed). You have ${player.stamina}/100.` };
+    return { success: false, message: `⚡ Signing autographs requires **10 Stamina** (You have ${player.stamina}/100). Rest at sauna or drink a sports drink.` };
   }
 
+  const rewardFollowers = 50000n;
   const updated = await prisma.player.update({
     where: { id: playerId },
     data: {
-      followers: { increment: 50000n },
+      followers: { increment: rewardFollowers },
       stamina: { decrement: 10 },
       lastMeetGreetAt: now
     }
@@ -162,35 +196,35 @@ export async function executeMeetGreet(playerId: string): Promise<{ success: boo
 
   return {
     success: true,
-    message: `✍️ **Autograph & Selfie Session Completed!**\n` +
-      `Gained **+50,000 enthusiastic followers**!\n` +
-      `Total Followers: \`${Number(updated.followers).toLocaleString()}\` | Stamina: \`${updated.stamina}/100\``
+    message:
+      `✍️ **Club Autograph & Fan Meet-and-Greet Complete!**\n\n` +
+      `👥 Gained: **+${formatK(rewardFollowers)} followers** (Total: \`${formatK(updated.followers)} 👤\`)\n` +
+      `⚡ Stamina: \`${updated.stamina}/100 ⚡\`\n` +
+      `*(2-hour meet & greet cooldown active)*`
   };
 }
 
 /**
- * Transfers coins between players
+ * Handles peer coin transfer (-give @user <amount>)
  */
-export async function giveMoney(senderId: string, receiverId: string, amount: bigint): Promise<{ success: boolean; message: string }> {
-  if (senderId === receiverId) {
-    return { success: false, message: '❌ You cannot transfer funds to yourself.' };
+export async function giveMoney(senderId: string, recipientId: string, amount: bigint): Promise<{ success: boolean; message: string }> {
+  if (amount <= 0n) {
+    return { success: false, message: '❌ Transfer amount must be greater than zero.' };
   }
 
-  if (amount <= 0n) {
-    return { success: false, message: '❌ Amount must be greater than 0.' };
+  if (senderId === recipientId) {
+    return { success: false, message: '❌ You cannot transfer funds to yourself!' };
   }
 
   const sender = await prisma.player.findUnique({ where: { id: senderId } });
-  if (!sender) return { success: false, message: '❌ You must have a registered player profile to send money.' };
+  if (!sender) return { success: false, message: '❌ Sender profile not found.' };
 
   if (sender.coins < amount) {
-    return { success: false, message: `🪙 Insufficient coins! You have **${Number(sender.coins).toLocaleString()} coins**.` };
+    return { success: false, message: `🪙 Insufficient coins! You have \`${formatK(sender.coins)} coins\`, but tried to transfer \`${formatK(amount)} coins\`.` };
   }
 
-  const receiver = await prisma.player.findUnique({ where: { id: receiverId } });
-  if (!receiver) {
-    return { success: false, message: '❌ The receiving user has not registered on Beyond The Final Whistle yet.' };
-  }
+  const recipient = await prisma.player.findUnique({ where: { id: recipientId } });
+  if (!recipient) return { success: false, message: '❌ Recipient has not registered on BTFW yet.' };
 
   await prisma.$transaction([
     prisma.player.update({
@@ -198,15 +232,13 @@ export async function giveMoney(senderId: string, receiverId: string, amount: bi
       data: { coins: { decrement: amount } }
     }),
     prisma.player.update({
-      where: { id: receiverId },
+      where: { id: recipientId },
       data: { coins: { increment: amount } }
     })
   ]);
 
   return {
     success: true,
-    message: `💸 **Wire Transfer Successful!**\n` +
-      `Sent **${Number(amount).toLocaleString()} coins** to **${receiver.username}**!\n` +
-      `Remaining Balance: \`${Number(sender.coins - amount).toLocaleString()} coins\``
+    message: `💸 **Direct Transfer Successful!**\nSent **${formatK(amount)} 🪙** to <@${recipientId}>.`
   };
 }
