@@ -30,16 +30,54 @@ export const EMOJI_FALLBACKS: Record<string, string> = {
   sd: '🧪'
 };
 
+// Hardcoded map of our official application emoji IDs (guaranteed instant resolution & priority)
+export const APPLICATION_EMOJIS: Record<string, string> = {
+  adidas: '<:adidas:1574132985844867293>',
+  bully: '<:bully:1574132990869643434>',
+  car: '<:car:1574132999027429419>',
+  cocacola: '<:cocacola:1574133004379488478>',
+  coin: '<:coin:1574133021601177641>',
+  followers: '<:followers:1574133027313946634>',
+  goldenboot: '<:goldenboot:1574133032506626258>',
+  goldmedal: '<:goldmedal:1574133037665624138>',
+  heineken: '<:heineken:1574133048713285643>',
+  motm: '<:motm:1574133057051427007>',
+  netflix: '<:netflix:1574133061950640271>',
+  nike: '<:nike:1574133066950123603>',
+  passa: '<:passa:1574133072150921327>',
+  sd: '<:sd:1574133077008187564>',
+  silvermedal: '<:silvermedal:1574133082485821690>',
+  stamina: '<:stamina:1574133087745609899>',
+  strika: '<:strika:1574133093193744474>',
+  tp: '<:tp:1574133098361393293>',
+  worldcup: '<:worldcup:1574133116124012595>',
+  zzcross: '<:zzcross:1574133121228603562>',
+  zztick: '<:zztick:1574133126702170255>'
+};
+
 /**
- * Returns custom Discord emoji (<:name:id>) if available in the guild/bot cache,
+ * Returns custom Discord emoji (<:name:id>) if available in application/guild cache,
  * otherwise returns a clean Unicode fallback emoji.
  */
 export function getEmoji(scope: Guild | Client | null | undefined, name: string): string {
-  if (!scope) return EMOJI_FALLBACKS[name] || '⚽';
+  const lower = name.toLowerCase();
 
-  const emojiCache = 'emojis' in scope ? scope.emojis.cache : undefined;
+  // 1. Primary: Official Application Emojis (The newly edited main emojis)
+  if (APPLICATION_EMOJIS[lower]) {
+    return APPLICATION_EMOJIS[lower];
+  }
+
+  // 2. Client Application Emojis Cache
+  const client = scope && 'client' in scope ? (scope as Guild).client : (scope as Client);
+  if (client?.application?.emojis?.cache) {
+    const appCustom = client.application.emojis.cache.find(e => e.name?.toLowerCase() === lower);
+    if (appCustom) return appCustom.toString();
+  }
+
+  // 3. Guild Emojis Cache
+  const emojiCache = scope && 'emojis' in scope ? scope.emojis.cache : undefined;
   if (emojiCache) {
-    const custom = emojiCache.find(e => e.name?.toLowerCase() === name.toLowerCase());
+    const custom = emojiCache.find(e => e.name?.toLowerCase() === lower);
     if (custom) return custom.toString();
   }
 

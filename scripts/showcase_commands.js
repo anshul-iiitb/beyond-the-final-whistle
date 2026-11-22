@@ -3,6 +3,30 @@ import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilde
 import path from 'path';
 import fs from 'fs';
 
+const APPLICATION_EMOJIS = {
+  adidas: '<:adidas:1574132985844867293>',
+  bully: '<:bully:1574132990869643434>',
+  car: '<:car:1574132999027429419>',
+  cocacola: '<:cocacola:1574133004379488478>',
+  coin: '<:coin:1574133021601177641>',
+  followers: '<:followers:1574133027313946634>',
+  goldenboot: '<:goldenboot:1574133032506626258>',
+  goldmedal: '<:goldmedal:1574133037665624138>',
+  heineken: '<:heineken:1574133048713285643>',
+  motm: '<:motm:1574133057051427007>',
+  netflix: '<:netflix:1574133061950640271>',
+  nike: '<:nike:1574133066950123603>',
+  passa: '<:passa:1574133072150921327>',
+  sd: '<:sd:1574133077008187564>',
+  silvermedal: '<:silvermedal:1574133082485821690>',
+  stamina: '<:stamina:1574133087745609899>',
+  strika: '<:strika:1574133093193744474>',
+  tp: '<:tp:1574133098361393293>',
+  worldcup: '<:worldcup:1574133116124012595>',
+  zzcross: '<:zzcross:1574133121228603562>',
+  zztick: '<:zztick:1574133126702170255>'
+};
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildEmojisAndStickers]
 });
@@ -24,8 +48,7 @@ client.on('ready', async () => {
   console.log('Posting showcase to channel:', channel.name);
 
   const getE = (name) => {
-    const e = guild.emojis.cache.find(x => x.name.toLowerCase() === name.toLowerCase());
-    return e ? e.toString() : '⚽';
+    return APPLICATION_EMOJIS[name.toLowerCase()] || guild.emojis.cache.find(x => x.name.toLowerCase() === name.toLowerCase())?.toString() || '⚽';
   };
 
   const coin = getE('coin');
