@@ -1,0 +1,821 @@
+Library structure:
+- **Know the Game** (in depth guides explaining all know game details)
+- **Welcome!** (for newbies)
+- **Play the Game** (Quick Guide checklist of most important commands)
+- **Summary** (contains links to all in depth guides for faster navigation)
+
+**Intro**
+
+You are playing the role of a football player starting his career.
+You were just called up to the national team and want to give it your best.
+
+So you look for a club where you can train, learn from more experienced players and steadily improve until you get regular matchtime.
+
+Imagine the layout of this game like a campus with several locations. You can only travel between them using the -travel command inside a location.
+
+Each location has own purpose, activities, commands and cooldowns.
+
+Quick overview of most important locations:
+
+Training Center ( -travel tc )
+Global Market ( -travel gm )
+Intel Hub ( -travel ih )
+Photoshooting Hall ( -travel ph )
+Player Sauna ( -travel ps )
+Local Club ( -travel lc )
+Research Facility ( -travel rf )
+Vehicle Showroom ( -travel vs )
+
+The following guides will describe the activities from each location one by one.
+
+**Player Profile & Commands**
+
+Use -profile to view your player's career information, performance and attributes.
+
+You can also check another player's profile in the 
+https://discord.com/channels/1522107605244313621/1522307261765259295) channel using:
+
+**-profile @user**
+
+Any player profile has 3 tabs:
+
+**👤 Main Profile**
+
+**Personal Description**
+
+Set your personal profile description using:
+**-setdesc <text>**
+- Maximum length: 100 characters.
+
+**Team Stats** — National Team and Club Team.
+
+**Individual Stats** — appearances, goals, assists, yellow and red cards, clean sheets and MOTM awards.
+
+**Recent Form** — your last 5 match ratings.
+
+**Player Card** — a quick visual overview of your player, showing:
+
+- Overall ATK, MID and DEF ratings.
+- Money and followers.
+- Nation and Club.
+- Career appearances, goals, assists, cards, clean sheets and MOTM awards.
+
+**Collectables** — your collected items, such as vehicles.
+
+**📊 Detailed Stats**
+
+**Attacking & Passing**
+
+- Shots
+- Shots on target
+- Passes attempted and completed
+- Key passes
+- Second assists
+- Dribbles attempted
+
+**Defending & Discipline**
+
+- Dribbles completed
+- Tackles attempted and won
+- Interceptions
+- Clearances
+- Fouls committed
+- Offsides
+
+**🎯 Attributes**
+
+- Playstyle — your selected playstyle and its description.
+- Key Stats — attributes associated with your playstyle.
+- Derived Ratings — ATK, MID and DEF.
+- Attacking — FIN, POW, HEA.
+- Technical — PAS, VIS, CRO, DRI.
+- Defending — TCK, INT, MRK.
+- Physical & Mental — PAC, PHY, CMP, AGI, WRK.
+
+For full attribute names check out this guide: https://discord.com/channels/1522107605244313621/1522307255670931619/1537754353958522990
+
+**Playstyles**
+
+Your playstyle determines the role your player takes on the pitch. Each playstyle is designed for a specific position and has its own key attributes.
+
+**ATT — Attacker**
+
+🎯 Poacher (PCH)
+
+Description: Box predator with clinical finishing and movement.
+Key Stats: "FIN" (Finishing), "CMP" (Composure), "AGI" (Agility)
+
+⚡ Speedster (SPD)
+
+Description: Explosive counter-attack runner who tears behind defences.
+Key Stats: "PAC" (Pace), "DRI" (Dribbling), "POW" (Shot Power)
+
+🦘 Target Man (TGT)
+
+Description: Physical powerhouse who dominates aerial duels and hold-up play.
+Key Stats: "HEA" (Heading), "PHY" (Physicality), "POW" (Shot Power)
+
+**MID — Midfielder**
+
+🪄 Playmaker (PLM)
+
+Description: Visionary orchestrator who picks passes through compact defensive screens.
+Key Stats: "VIS" (Vision), "PAS" (Passing), "DRI" (Dribbling)
+
+🔋 Box-to-Box (B2B)
+
+Description: Relentless stamina engine who presses the midfield.
+Key Stats: "WRK" (Work Rate), "CMP" (Composure), "TCK" (Tackling)
+
+🛡️ Anchor (ANC)
+
+Description: Deep holding midfielder who cuts off passing lanes.
+Key Stats: —
+
+**DEF — Defender**
+
+🛑 Stopper (STP)
+
+Description: Physical enforcer who overpowers hold-up attackers.
+Key Stats: —
+
+🧹 Sweeper (SWP)
+
+Description: Fast recovery defender who snuffs out through-balls and tracks breakaways.
+Key Stats: "PAC" (Pace), "MRK" (Marking), "CMP" (Composure)
+
+🧠 Ball-Playing Defender (BPD)
+
+Description: Cerebral defender who reads runs and intercepts box entries.
+Key Stats: "INT" (Interceptions), "PAS" (Passing), "CMP" (Composure)
+
+*Important:** Playstyles have a rock-paper-scissors system against each other. 
+
+No further official information was released about this so we need to discover it ourselves.
+You can ping me if you find something out and I can update this guide.
+**Player Attributes**
+
+Your player has 15 individual attributes that influence performance during matches.
+
+Not every attribute is equally useful for every position or playstyle. 
+12 of the 15 attributes can also contribute to your overall increase.
+
+**Attacking**
+ 
+- `FIN` — Finishing
+- `POW` — Shot Power
+- `HEA` — Heading
+
+**Technical**
+ 
+- `PAS` — Passing
+- `VIS` — Vision
+- `CRO` — Crossing
+- `DRI` — Dribbling
+
+**Defending**
+ 
+- `TCK` — Tackling
+- `INT` — Interceptions
+- `MRK` — Marking
+
+**Physical & Mental**
+ 
+- `PAC` — Pace
+- `PHY` — Physicality
+- `CMP` — Composure
+- `AGI` — Agility
+- `WRK` — Work Rate
+
+**How Attributes Affect Your Player**
+
+Some attributes may improve your match performance without increasing your displayed OVR.
+
+For example, a midfielder can improve Marking. It might not increase his displayed rating, but it can still help him defend against opponents and regain possession.
+
+**Derived Ratings**
+
+Your profile displays three derived ratings:
+
+**- ATK — Attack
+- MID — Midfield
+- DEF — Defence**
+Individual attributes contribute differently to these ratings. The exact contribution of each attribute is still being documented.
+
+**Improving Attributes**
+
+Use the Research Facility to spend Training Points on attribute improvements. 
+Here is a full guide on that topic:
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568194134525878305
+
+Check your own attributes using **-profile** → Attributes.
+
+To compare your values with other players, use **-lb** → **Attributes Leaderboard**
+
+For playstyle-specific key stats, check the Playstyles guide:
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568197189744730113
+
+**Training & Player Development**
+
+Training is your main objective and the way to improve as a player.
+
+To start go to the Training Center by using the -travel tc command in any location.
+Once there use the -train command to open the menu.
+
+Your aim is to get as many Training Points (TP) as possible.
+Everybody's TP get reset after every matchday regardless if you play or not.
+
+You can have a maximum of 3 training types:
+
+- Normal Training (gives 1–2 TP/session in the beginning, cooldown 30 minutes)
+- VIP training (gives 6 TP/session, cooldown 6 hrs)
+- No effort training (can be done x1/day, gives 20 TP for VIP or 50 TP for Premium players)
+
+Some training types are only available to VIP members. 
+**Important:** *No Effort* Training blocks both *Normal* and *VIP* Training for the rest of the matchday.
+
+Developing your player
+
+WITS now uses 15 individual attributes to determine how your player performs.
+
+Not every attribute is equally useful for every player. 12 of the 15 can help depending on your position and playstyle. The other 3 do not contribute in the same way.
+
+Some attributes are more important than others, but this doesn't mean the less important ones are useless.
+
+For example, a midfielder can improve his Marking. This might not increase his displayed midfield rating, but it can still help him defend against opposing players and win possession back.
+
+The same applies to other attributes: a skill can affect your performance in a match even if it doesn't increase your OVR.
+
+Spending Training Points
+
+You can use your Training Points to develop individual attributes at the **Research Facility.**
+
+Find out more: 
+[LINK]
+Research Facility — Spending Training Points.
+
+Learn how TP and your attributes affect the match simulation in the following guide.
+
+**Stamina and Recovery**
+
+Your player needs energy to take part in activities. In WITS, that energy is called Stamina.
+
+Your maximum stamina is 100. Activities consume different amounts, so keep an eye on your balance.
+
+You can check your current stamina anytime using the **-profile** command.
+
+**Recovering stamina**
+
+There are three ways to recover stamina:
+
+**1. Daily recovery**
+
+You receive +20 stamina during the daily reset.
+
+**2. Player Sauna**
+
+Travel to the Player Sauna using **-travel ps**, then use:
+
+**-recovery**
+
+- Free recovery.
+- Restores +30 stamina for regular members.
+- Restores full stamina (up to 100) for Premium members.
+- 12-hour cooldown.
+
+**3. Sports Drinks**
+
+Travel to the Global Market using **-travel gm**, then use:
+
+**-buy sd**
+
+- Restores +50 stamina.
+- Costs 100k 🪙.
+- No cooldown.
+
+**Watch your maximum**
+
+*Remember:* max stamina is 100. If you are at 70 stamina and buy a sports drink, you will not get the full +50 you paid for, you will only recover 30. The remaining 20 points are wasted.
+
+**Before a match**
+
+Try to keep at least 50 stamina before playing. Players below 50 are noticeably more likely to suffer an injury during a match.
+
+Managing stamina is part of managing your career. Spending everything on activities can leave you unprepared when matchday arrives.
+
+**Match Preparation**
+
+Your attributes, playstyle and active bonuses shape your performance in WITS' automated match simulations.
+
+**The teams**
+
+Each team has 11 players: 3 human-controlled players (ATT, MID and DEF) and 8 AI players.
+
+- ATT — Attacker
+- MID — Midfielder
+- DEF — Defender, also covering the goal
+
+**How your player affects the match**
+
+The match engine uses your attributes to judge how you perform in different situations.
+
+WITS has 15 attributes, and 12 can help depending on your position and playstyle. Attributes outside your usual role can still matter.
+
+For example, Finishing helps with scoring chances, Shot Power with long-range shots, and defensive attributes in defensive situations. These are examples, not a complete list. The engine considers attributes throughout the match, not just one position rating.
+
+**Playstyles matter too**
+
+Your playstyle affects how your player behaves and can influence matchups. Some styles may perform better against particular opponents. You can change playstyle through conversion, but there's a 7-day cooldown. No universal best combination is confirmed; different builds can work in different situations.
+
+**MATCHDAY BONUSES**
+
+**Intel**
+
+- Use " -intel " at the Intel Hub ( -travel ih )
+- Free, once per matchday.
+- Gives a random +1 to +6 stat boost for the next match.
+- Doesn't stack and resets after matchday.
+
+**Boots**
+
+- Buy them at the Global Market for 500k coins.
+- Last one day and give +10 to the relevant position stat for your next match.
+- Effects don't stack.
+
+**Boot types:**
+
+- "-buy strika" — Attack
+- "-buy passa" — Midfield
+- "-buy bully" — Defence
+
+Intel and boots can be combined.
+
+**Stamina matters**
+
+Arrive with enough stamina. Players below 50 stamina are more likely to suffer an injury.
+
+**Man of the Match**
+
+The match engine awards Man of the Match (MOTM) to the top-rated player. Match best performer gets +2 in a random important attribute and worst performer gets -1 in random important attribute.
+
+**Global Market**
+
+The Global Market is where you can purchase items to support your career.
+
+Travel there using **-travel gm**
+
+Use **-buy <alias>** to purchase an item.
+
+**Sports Drink**
+
+- Command: *,-buy sd,,
+- Effect: Recovers 50 Stamina (up to the maximum of 100).
+- Price: 100k 🪙
+
+**Important:** Maximum Stamina is 100.
+*Example:* If you are at 70 Stamina and buy a Sports Drink, you will not get the full +50 you paid for. You will only recover 30 Stamina.
+The remaining 20 points are wasted.
+
+**Strika Boots**
+
+- Command: -buy strika
+- Effect: +10 Attack boost.
+- Price: 500k 🪙
+
+**Passa Boots**
+
+- Command: -buy passa
+- Effect: +10 Midfield boost.
+- Price: 500k 🪙
+
+**Bully Boots**
+
+- Command: -buy bully
+- Effect: +10 Defence boost.
+- Price: 500k 🪙
+
+The boots' +10 effect resets after the matchday, even if the player doesn't play.
+
+**Important:** Boots effects do not stack and won't appear if you already have a +10 boost in that position.
+
+**Research Facility**
+
+The Research Facility is where you can spend your Training Points to permanently develop your player or change his playstyle.
+
+Travel there using **-travel rf**
+
+**Spending Training Points(TP)**
+
+You can use Training Points to improve your player's individual attributes.
+
+Each improvement costs 50 Stamina and between 3 and 15 TP.
+
+The TP cost is dynamically calculated based on the server leaderboard for that specific attribute:
+
+- The player with the lowest value in an attribute pays 3 TP.
+- The player with the highest value pays 15 TP.
+- Other players pay a cost based on where they stand between those two values.
+
+You can check your own attributes using **-profile**, then opening the **Attributes** tab.
+
+To compare yourself with other players, use **-lb** and select **Attributes Leaderboard**. There you can see who leads each individual attribute.
+
+**Changing your playstyle**
+
+You can also use the Research Facility to change your player's playstyle.
+
+Use **-convert** to initiate a conversion.
+
+- Your attributes remain unchanged.
+- Your playstyle changes.
+- There is a 7-day cooldown between conversions.
+
+The exact conversion rules and available mechanics are still being explored.
+
+Find out more about Playstyles in this guide: https://discord.com/channels/1522107605244313621/1522307255670931619/1537754353958522990
+
+**Reputation & Followers**
+
+An important part of any world-class player's career is managing his public image.
+
+Whether it's sharing content, connecting with fans or choosing the right sponsors, every decision can affect your number of followers.
+
+**Tweets**
+
+One way to gain followers is to share tweets with the player fanbase in the designated Discord channel.
+
+Each reaction affects your followers:
+
+- 👍 Like: +100k followers
+- 👎 Dislike: −50k followers
+
+Tweets don't consume stamina.
+
+Hints:
+
+- Don't take 👎 too hard. You can never please everybody!
+- Your main focus should be an increasing trend: more followers at the end of the day than at the start.
+- Avoid sending blank tweets. Fans want something interesting to react to.
+
+**Meet your fans**
+
+Another way to connect with your fanbase is to visit your Local Club ( **-travel lc** ) and spend some time with them.
+
+Use **-meetgreet** to sign autographs and meet fans.
+
+- Gives +50k followers.
+- Costs 10 stamina.
+- Has a 2-hour cooldown.
+
+**Lost Relevancy**
+
+Just like in real life, fans want fresh content.
+
+Players who don't share anything new and interesting become less relevant. In WITS, this is represented by Followers lost to Lost Relevancy during the overnight reset.
+
+The regular loss is 5% of your followers.
+
+So try to keep things engaging for your fans and focus on steady growth rather than worrying about every lost follower.
+
+**Why reputation matters**
+
+Adverts require a minimum number of followers, so building your reputation early opens the door to better sponsorship opportunities.
+
+You can learn more about sponsors, their requirements and rewards in the Money & Sponsorships guide:
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568220673783111823
+
+**Money & Sponsorships**
+
+Money is an important part of your career. You'll need it to buy items, improve your player and take advantage of opportunities.
+
+One of the main ways to earn money is through sponsorships.
+
+**Sponsorships**
+
+Travel to the Photoshooting Hall using **-travel ph** and use:
+
+**-advert**
+
+You can choose from different sponsors. Each has its own follower requirements, stamina cost and rewards.
+
+Sponsor deals:
+
+**🍺 Heineken**
+
+- Followers needed: 100k
+- Stamina cost: 5
+- Coins earned: +100k
+- Followers change: −50k
+
+**👟 Adidas**
+
+- Followers needed: 1M
+- Stamina cost: 10
+- Coins earned: +200k
+- Followers change: 0
+
+**🥤 Coca-Cola**
+
+- Followers needed: 5M
+- Stamina cost: 10
+- Coins earned: +300k
+- Followers change: −200k
+
+**🎬 Netflix**
+
+- Followers needed: 6M
+- Stamina cost: 30
+- Coins earned: +300k
+- Followers change: +50k
+
+**Important:**
+
+- Adverts have a 2-hour cooldown.
+- Check your follower count before choosing a sponsor.
+- Different sponsors offer different rewards, so consider both the money earned and the stamina spent.
+
+Other ways to earn money
+
+You can also earn money through activities at your Local Club.
+
+**Coaching**
+
+- Use -coaching at the Local Club.
+- Gives +50k coins.
+- Costs 10 stamina.
+- Has a 2-hour cooldown.
+
+**Daily Tax**
+
+If your money balance reaches 1,000k (1 million) or more, you are automatically taxed 5% of your money once every 24 hours.
+
+You'll receive a direct message from the bot when the tax is collected.
+
+**Giving money**
+
+You can send money directly to another player using:
+
+-give @user <amount>
+
+Use this to support teammates or transfer money to other players.
+
+**Vehicles & Travel**
+
+Travel between locations using **-travel <location>**
+ See all locations using the **-locations** command.
+
+Your base travel cooldown is 20 minutes. Owning a vehicle reduces this cooldown. The fastest vehicle you own determines your travel time.
+
+**Buying a Vehicle**
+
+Visit the Vehicle Showroom and use "-vehiclebuy <alias>" to purchase a vehicle.
+
+**Vehicle List**
+
+Vehicle Name —  Cost to Buy 🪙 — Travel Cooldown ⏱️
+
+- Basic Car — 700k 🪙, 16 min ⏱️
+- Honda Civic — 1M 🪙, 14 min ⏱️
+- Toyota Supra — 3M 🪙, 10 min ⏱️
+- Porsche 911 — 5.35M 🪙, 7 min ⏱️
+- Nissan GTR — 6.75M 🪙, 4 min ⏱️
+- Audi R8 — 6.75M 🪙, 4 min ⏱️
+- Lamborghini Huracán — 8.4M 🪙, 3 min ⏱️
+- Rolls Royce Ghost — 10.25M 🪙, 2 min ⏱️
+- Ferrari LaFerrari — 17.7M 🪙, 1 min ⏱️
+- Bugatti Chiron — 20.5M 🪙, 1 min ⏱️
+
+Any vehicle purchased will appear on your player profile.
+For now cars can not be resold to get any money back.
+
+**Career Stats & Leaderboards**
+
+Track your career progress and compare your performance with other players.
+
+Career Statistics
+
+- "-intstats [user]" — View Nation career statistics.
+- "-clubstats [user]" — View Club career statistics.
+
+You can check your own statistics or specify another player.
+
+Leaderboards
+
+Use "-lb" to open the leaderboard selection menu and choose what you want to view:
+
+- ⚽ Goals
+- 👟 Assists
+- 🎯 Matches Played
+- 🟨 Yellow Cards
+- 🟥 Red Cards
+- 🧤 Clean Sheets
+- 👑 MVPs
+- 👤 Followers
+- 🏃 Training Points
+- 🪙 Wealth
+- 🅰️ Attack
+- 🏃 Midfield
+- 🕴️ Defence
+- 📊 Attributes
+
+Command Etiquette
+
+It is recommended to use commands involving other players in the https://discord.com/channels/1522107605244313621/1522307261765259295 channel to spam to a minimum and the general chats easy to read.
+
+**Teams & Clubs**
+
+Nations and Clubs have their own teams, rosters, statistics and management options.
+
+All commands below can be used in the https://discord.com/channels/1522107605244313621/1522307261765259295 or in their respective Nation or Club room if you prefer privacy.
+
+**Nation Management**
+
+Viewing & Statistics
+
+- "-intteam <alias>" — View a Nation's team.
+- "-intstats [user]" — View Nation career statistics.
+- "-roster <alias>" — View a team's roster.
+
+Captain Controls
+
+- "-intlineup" — Manage the Nation lineup.
+- "-intsetpiece" — Set the Nation's set-piece taker.
+- "-tactics nation" — Set Nation tactics.
+
+**Club Management**
+
+Viewing & Statistics
+
+- "-clubteam <alias>" — View a Club's team.
+- "-clubstats [user]" — View Club career statistics.
+- "-roster <alias>" — View a team's roster.
+
+Captain Controls
+
+- "-clublineup" — Manage the Club lineup.
+- "-clubsetpiece" — Set the Club's set-piece taker.
+- "-tactics club" — Set Club tactics.
+- "-teampay" — Distribute prize money to players.
+
+Club Budgets & Player Bonuses
+
+Clubs have a transfer budget, which also covers player wages. The budget is held in the Club Vault.
+
+When a Club wins prize money, it is paid to the captain. The captain decides how to split the prize between players and sends their shares using "-teampay".
+
+**Welcome to WITS!**
+
+Every legend started as a rookie.
+They all began their career with nothing but ambition.
+
+Train hard, earn fans, attract sponsors, and rise through the ranks with every command that shapes your career.
+
+The greatest players aren't made overnight, they're built one matchday at a time.
+
+Getting Started
+
+Before diving into your career, make sure you complete these two first steps:
+
+🌍 Join a Nation
+
+Head to https://discord.com/channels/1522107605244313621/1522307263891636316 and use the **-joinnation** command to join a National Team and become part of the WITS community.
+
+⚽ Choose Your Playstyle
+
+1. Find the **Locations** channel category on the server.
+2. Open the location channel currently visible to you. Only one location is visible at a time.
+3. In your current location channel use **-travel tc** to travel to the Training Center 
+4. Once in the https://discord.com/channels/1522107605244313621/1522307308280090807, use **-train** for your first training session. More info on training here: https://discord.com/channels/1522107605244313621/1522307255670931619/1537751135937499176
+5. This will trigger the playstyle selection menu, where you can choose the role you want to take on the pitch. More details on playstyles here: https://discord.com/channels/1522107605244313621/1522307255670931619/1537752514990968962
+
+Once these steps are done, you're ready to start training and building your career!
+
+Your journey starts now.
+
+Make your name unforgettable.
+
+Good luck, rookie!
+
+**WITS Quick Guide**
+
+**Getting Started**
+- Join a Nation in https://discord.com/channels/1522107605244313621/1522307263891636316⁠ using "-joinnation"
+- Find the Locations channels (only one visible at a time)
+- "-travel tc" → Training Center
+- Use "-train" to select your playstyle (your match role)
+
+**Player Profile**
+- "-profile" — View own profile
+- "-profile @user" — View another player
+- "-setdesc <text>" — Set description, max 100 character
+
+**Playstyles & Attributes**
+- Do "-profile" →  to check own attributes
+- "-lb" → shows leaderboard
+
+**Training**
+- "-train" — Get TP (30-minute cooldown).
+- TP resets every matchday, even if you don't play
+- "-travel rf" → Research Facility; "-sptrain" improves attributes
+
+**Stamina**
+- Maximum: 100; daily reset: +20.
+- "-travel ps" → "-recovery" (Normal +30; Premium +100; 12h cooldown)
+- "-travel gm" → "-buy sd" (Sports Drink: +50, -100k 🪙)
+**Important:** Below 50 stamina, increased injury risk
+
+**Match Preparation**
+- "-travel ih" → "-intel" (random +1 to +6 matchday bonus)
+Important: Intel resets after matchday, even if you don't play
+
+**Global Market**
+- "-travel gm" → "-buy <alias>" to purchase items
+Important: Stamina cap is 100
+Boots effects don't stack and reset after matchday, even if you don't play
+
+**Reputation**
+- "-travel ph" → "-advert" (earn money).
+- "-travel lc" → "-meetgreet" (+50k followers; 10 stamina; 2h cooldown)
+- Followers decrease 5% at daily reset
+
+**Money**
+- "-travel lc" → "-coaching" (+50k 🪙).
+- 5% daily tax if balance is at least 1,000k
+- "-give @user <amount>" to send money
+
+**Vehicles & Travel**
+- "-travel <location>" — Move locations (20-minute base cooldown)
+- "-travel vs" → "-vehiclebuy <alias>" to reduce cooldown
+
+**Career Stats**
+- "-intstats [user]" — Nation stats
+- "-clubstats [user]" — Club stats
+- "-lb" — Leaderboards
+
+**Reminders**
+- Use https://discord.com/channels/1522107605244313621/1522307261765259295 for prompts, don't spam general chat!
+- Check full guides for details:
+
+**Summary**
+--------------
+**Intro**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1537750337404796990
+
+**Player Profile & Commands**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1537751135937499176
+
+**Playstyles**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1537752514990968962
+
+**Player Attributes**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1537754353958522990
+
+**Training & Development**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1537756320051105792
+
+**Stamina & Recovery**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568185603613397047
+
+**Match Preparation**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568189241517809758
+
+**Global Market**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568194134525878305
+
+**Research Facility**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568197189744730113
+
+**Reputation & Followers**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568208390360924252
+
+**Money & Sponsorships**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568220673783111823
+
+**Vehicles & Travel**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568228569140695091
+
+**Career Stats & Leaderboards**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568676062983098382
+
+**Teams & Clubs**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1568676373155807295
+
+**WITS Quick Guide**
+https://discord.com/channels/1522107605244313621/1522307255670931619/1569678673156505671
+--------------
+
+WHAT IS VIP???
+# ⭐ VIP — How to Get It & What You Get
+## How to become VIP:
+**🚀 Boost the server** — instantly claims VIP. Validity: Till boost ends.
+**🎟️ Get someone to join** — invite a friend, and once *they've* joined a nation and a club, and earned **50 TP** within **7 days** of registering, **they** run `-referral @you` — you get VIP automatically, no staff needed. Validity: 14 days.
+**💵 Donation** — you can now get VIP for a month for 2.5$/125rs.
+
+Boosters and donors still need a staff member to confirm — referrals are instant via `-referral`, run by the person you invited.
+## What VIP actually gets you:
+Head to the Training Center and run -train — VIP unlocks two extra training options on top of the normal one:
+
+VIP training
+No effort training
+
+***Also a special <@&1522307145595490486> role 😉***
