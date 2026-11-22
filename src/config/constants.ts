@@ -118,16 +118,16 @@ export interface VehicleDef {
 }
 
 export const VEHICLE_CATALOG: VehicleDef[] = [
-  { key: 'basic_car', name: 'Basic City Car', cost: 700000n, cooldownMinutes: 16, emoji: '🚗' },
-  { key: 'civic', name: 'Honda Civic Type-R', cost: 1000000n, cooldownMinutes: 14, emoji: '🏎️' },
-  { key: 'supra', name: 'Toyota Supra GR', cost: 3000000n, cooldownMinutes: 10, emoji: '🏎️' },
-  { key: '911', name: 'Porsche 911 GT3 RS', cost: 5350000n, cooldownMinutes: 7, emoji: '🏎️' },
-  { key: 'gtr', name: 'Nissan GT-R Nismo', cost: 6750000n, cooldownMinutes: 4, emoji: '🏎️' },
-  { key: 'r8', name: 'Audi R8 V10 Performance', cost: 6750000n, cooldownMinutes: 4, emoji: '🏎️' },
-  { key: 'huracan', name: 'Lamborghini Huracán STO', cost: 8400000n, cooldownMinutes: 3, emoji: '🏎️' },
-  { key: 'ghost', name: 'Rolls Royce Ghost Series II', cost: 10250000n, cooldownMinutes: 2, emoji: '🚘' },
-  { key: 'laferrari', name: 'Ferrari LaFerrari', cost: 17700000n, cooldownMinutes: 1, emoji: '⚡' },
-  { key: 'chiron', name: 'Bugatti Chiron Super Sport', cost: 2050000n, cooldownMinutes: 1, emoji: '👑' }
+  { key: 'basic', name: 'Basic Car', cost: 700000n, cooldownMinutes: 16, emoji: '🚗' },
+  { key: 'honda', name: 'Honda Civic', cost: 1000000n, cooldownMinutes: 14, emoji: '<:hcfront:1574138692295987373><:hcback:1574138697283141734>' },
+  { key: 'toyota', name: 'Toyota Supra', cost: 3000000n, cooldownMinutes: 10, emoji: '<:tsfront:1574138702702186717><:tsback:1574138708024754308>' },
+  { key: 'porsche', name: 'Porsche 911', cost: 5350000n, cooldownMinutes: 7, emoji: '<:p911front:1574138713049403577><:p911back:1574138717931708539>' },
+  { key: 'nissan', name: 'Nissan GTR', cost: 6750000n, cooldownMinutes: 4, emoji: '<:ngtrfront:1574138723589955664><:ngtrback:1574138728644087951>' },
+  { key: 'audi', name: 'Audi R8', cost: 6750000n, cooldownMinutes: 4, emoji: '<:ar8front:1574138734033633343><:ar8back:1574138739721240606>' },
+  { key: 'lamborghini', name: 'Lamborghini Huracan', cost: 8400000n, cooldownMinutes: 3, emoji: '<:lhfront:1574138744653611018><:lhback:1574138749577728222>' },
+  { key: 'rollsroyce', name: 'Rolls Royce Ghost', cost: 10250000n, cooldownMinutes: 2, emoji: '<:rrgfront:1574138754514296833><:rrgback:1574138759711035653>' },
+  { key: 'ferrari', name: 'Ferrari La Ferrari', cost: 17700000n, cooldownMinutes: 1, emoji: '<:ffront:1574138764668706918><:fback:1574138769706328134>' },
+  { key: 'bugatti', name: 'Bugatti Chiron', cost: 20500000n, cooldownMinutes: 1, emoji: '<:bcfront:1574138775083155539><:bcback:1574138781710295060>' }
 ];
 
 export interface PlaystyleDef {

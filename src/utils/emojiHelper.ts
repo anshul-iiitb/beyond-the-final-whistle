@@ -50,9 +50,28 @@ export const APPLICATION_EMOJIS: Record<string, string> = {
   stamina: '<:stamina:1574133087745609899>',
   strika: '<:strika:1574133093193744474>',
   tp: '<:tp:1574133098361393293>',
-  worldcup: '<:worldcup:1574133116124012595>',
+  worldcup: '<:worldcup:1574136906508271828>',
   zzcross: '<:zzcross:1574133121228603562>',
-  zztick: '<:zztick:1574133126702170255>'
+  zztick: '<:zztick:1574133126702170255>',
+  // Vehicle front & back application emojis
+  hcfront: '<:hcfront:1574138692295987373>',
+  hcback: '<:hcback:1574138697283141734>',
+  tsfront: '<:tsfront:1574138702702186717>',
+  tsback: '<:tsback:1574138708024754308>',
+  p911front: '<:p911front:1574138713049403577>',
+  p911back: '<:p911back:1574138717931708539>',
+  ngtrfront: '<:ngtrfront:1574138723589955664>',
+  ngtrback: '<:ngtrback:1574138728644087951>',
+  ar8front: '<:ar8front:1574138734033633343>',
+  ar8back: '<:ar8back:1574138739721240606>',
+  lhfront: '<:lhfront:1574138744653611018>',
+  lhback: '<:lhback:1574138749577728222>',
+  rrgfront: '<:rrgfront:1574138754514296833>',
+  rrgback: '<:rrgback:1574138759711035653>',
+  ffront: '<:ffront:1574138764668706918>',
+  fback: '<:fback:1574138769706328134>',
+  bcfront: '<:bcfront:1574138775083155539>',
+  bcback: '<:bcback:1574138781710295060>'
 };
 
 /**

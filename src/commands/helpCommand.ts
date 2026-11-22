@@ -26,8 +26,8 @@ export async function handleHelpCommand(message: Message) {
           '  `tc`: Training Center • `rf`: Research Facility • `gm`: Global Market\n' +
           '  `ph`: Photoshoot Hall • `ps`: Player Sauna • `lc`: Local Club\n' +
           '  `vs`: Showroom • `ih`: Intel Hub\n' +
-          '• `-showroom` — Inspect exotic vehicles catalog.\n' +
-          '• `-vehiclebuy <alias>` — Purchase supercars (slashes travel cooldown down to 1 min ⏱️).'
+          '• `-showroom` — Inspect exotic vehicles catalog with side-view sprites.\n' +
+          '• `-vehiclebuy <alias>` — Purchase vehicles (`basic`, `honda`, `toyota`, `porsche`, `nissan`, `audi`, `lamborghini`, `rollsroyce`, `ferrari`, `bugatti`). Slashes cooldowns down to 1 min ⏱️.'
       },
       {
         name: '🏋️ Training & Biomechanics Development',

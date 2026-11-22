@@ -1,6 +1,6 @@
 import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, User, Guild } from 'discord.js';
 import { prisma } from '../database/prisma.js';
-import { CAMPUS_LOCATIONS, PLAYSTYLES, ITEM_CATALOG } from '../config/constants.js';
+import { CAMPUS_LOCATIONS, PLAYSTYLES, ITEM_CATALOG, VEHICLE_CATALOG } from '../config/constants.js';
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { giveMoney } from '../engines/socialEngine.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
@@ -53,7 +53,10 @@ export function buildProfileEmbed(
 
   // Collectables symbols
   const itemSymbols = (player.inventory || []).map((i: any) => `${i.emoji} ${i.name}`);
-  const vehicleSymbols = (player.vehicles || []).map((v: any) => `${carEmoji} ${v.name}`);
+  const vehicleSymbols = (player.vehicles || []).map((v: any) => {
+    const vDef = VEHICLE_CATALOG.find(cat => cat.key === v.vehicleKey);
+    return `${vDef?.emoji || carEmoji} ${v.name}`;
+  });
   const allCollectables = [...itemSymbols, ...vehicleSymbols];
   const collectablesText = allCollectables.length > 0 ? allCollectables.join(' • ') : '(empty)';
 

@@ -46,26 +46,28 @@ export async function handleTravelCommand(message: Message, args: string[]) {
 
 export async function handleShowroomCommand(message: Message) {
   const { cooldownMinutes, vehicleName } = await getPlayerTravelCooldown(message.author.id);
-  const carEmoji = getEmoji(message.guild, 'car');
   const coinEmoji = getEmoji(message.guild, 'coin');
 
   const lines = VEHICLE_CATALOG.map(v => {
-    const priceDisplay = Number(v.cost) >= 1000000 ? `${(Number(v.cost) / 1000000).toFixed(Number(v.cost) % 1000000 === 0 ? 0 : 2)}M ${coinEmoji}` : `${formatK(v.cost)} ${coinEmoji}`;
-    return `${carEmoji} **${v.name}**\n` +
+    const millions = Number(v.cost) / 1000000;
+    const priceDisplay = Number(v.cost) >= 1000000
+      ? `${millions % 1 === 0 ? millions : parseFloat(millions.toFixed(2))}M ${coinEmoji}`
+      : `${formatK(v.cost)} ${coinEmoji}`;
+
+    return `${v.emoji} **${v.name}**\n` +
       `• Alias : ${v.key}\n` +
-      `• Price : ${priceDisplay}\n` +
-      `• Travel Cooldown : ${v.cooldownMinutes} min ⏱️`;
+      `• Item info : Decreases travelling cooldown to ${v.cooldownMinutes} minutes.\n` +
+      `• Price : ${priceDisplay}`;
   });
 
   const embed = new EmbedBuilder()
     .setColor('#2b2d31')
     .setTitle('Vehicle Showroom!')
     .setDescription(
-      '```\nUse -vehiclebuy <alias> to purchase a vehicle\n```\n' +
-      `Current Ride : **${vehicleName}** (${cooldownMinutes}m cooldown ⏱️)\n\n` +
+      '```\nUse -vehiclebuy <alias> to buy a vehicle\n```\n' +
       lines.join('\n\n')
     )
-    .setFooter({ text: 'Beyond The Final Whistle • Exotic Dealership' });
+    .setFooter({ text: `Current Ride: ${vehicleName} (${cooldownMinutes}m cooldown) • Beyond The Final Whistle` });
 
   await message.reply({ embeds: [embed] });
 }
