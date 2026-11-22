@@ -73,6 +73,7 @@ export async function handleHelpCommand(message: Message) {
         name: '👑 Admin & Server Management',
         value:
           '• `-setup` — Automatically build the 8 Campus channels with bracket logos.\n' +
+          '• `-setupemojis` (or `-emojis`) — Auto-upload custom high-definition WITS server emojis (:stamina:, :coin:, :tp:, :worldcup:, :strika:, :passa:, :bully:, :zztick:, :zzcross:).\n' +
           '• `-vip add invite/boost @user` — Grant 30 days of VIP status.\n' +
           '• `-additem <symbol> @user` — Award collectible trophies & symbols (e.g. `-additem :worldcup: @user`).\n' +
           '• `-addvar <var> <val> @user` — Adjust player attributes/coins/stamina.\n' +

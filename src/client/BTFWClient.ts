@@ -7,7 +7,8 @@ export class BTFWClient extends Client {
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.GuildMessageReactions
+        GatewayIntentBits.GuildMessageReactions,
+        GatewayIntentBits.GuildEmojisAndStickers
       ],
       partials: [
         Partials.Message,

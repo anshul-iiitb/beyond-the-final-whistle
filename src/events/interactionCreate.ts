@@ -28,7 +28,7 @@ export async function onInteractionCreate(interaction: Interaction) {
         });
       }
 
-      const output = buildTrainingSuccessEmbed(result, interaction.user);
+      const output = buildTrainingSuccessEmbed(result, interaction.user, interaction.guild);
       return await interaction.reply({ embeds: [output.embed], files: output.files });
     }
 
@@ -135,7 +135,7 @@ export async function onInteractionCreate(interaction: Interaction) {
       }
 
       const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => interaction.user);
-      const embed = buildProfileEmbed(player, targetUser, tab);
+      const embed = buildProfileEmbed(player, targetUser, tab, interaction.guild);
       const row = buildProfileTabsRow(targetUserId, tab);
 
       return await interaction.update({ embeds: [embed], components: [row] });

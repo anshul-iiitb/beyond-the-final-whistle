@@ -1,6 +1,7 @@
 import { Message, ChannelType, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import { CAMPUS_LOCATIONS } from '../config/constants.js';
+import { installCustomServerEmojis, getEmoji } from '../utils/emojiHelper.js';
 
 const MASTER_ADMIN = '478599245276905495';
 
@@ -61,9 +62,18 @@ export async function handleSetupCommand(message: Message) {
       createdList.push(`• **${loc.name}**: <#${channel.id}>`);
     }
 
+    // Auto-install custom emojis
+    const emojiResults = await installCustomServerEmojis(guild);
+    const emojiSummary = emojiResults.created.length > 0
+      ? `\n\n✨ **Custom Emojis Installed (${emojiResults.created.length}):** ${emojiResults.created.join(' ')}`
+      : emojiResults.existing.length > 0
+      ? `\n\n✨ **Custom Emojis Active:** ${emojiResults.existing.join(' ')}`
+      : '';
+
     await statusMsg.edit(
       `✅ **Beyond The Final Whistle Football Campus Successfully Initialized!**\n\n` +
       createdList.join('\n') +
+      emojiSummary +
       `\n\n📍 Rookies spawn at \`『🏋️』training-center\`. Players unlock other facilities using \`-travel <alias>\`.`
     );
   } catch (err: any) {
@@ -112,10 +122,13 @@ export async function handleAddItemCommand(message: Message, args: string[]) {
   }
 
   const rawItem = args[0] || ':worldcup:';
-  const cleanKey = rawItem.replace(/[:<>]/g, '').toLowerCase();
+  const cleanKey = rawItem.replace(/[:<>0-9]/g, '').trim().toLowerCase();
   const knownItem = ITEM_CATALOG[cleanKey];
+  const customEmoji = getEmoji(message.guild, cleanKey);
 
-  const symbol = knownItem?.symbol || (rawItem.startsWith('<') ? rawItem : rawItem.startsWith(':') ? rawItem : knownItem?.symbol || '🏆');
+  const symbol = (customEmoji && customEmoji !== '⚽')
+    ? customEmoji
+    : (rawItem.startsWith('<') ? rawItem : rawItem.startsWith(':') ? rawItem : knownItem?.symbol || '🏆');
   const itemName = knownItem?.name || cleanKey.toUpperCase();
 
   const playerBefore = await prisma.player.upsert({
@@ -209,4 +222,31 @@ export async function handleAddVarCommand(message: Message, args: string[]) {
   });
 
   await message.reply(`✅ Updated **${dbField}** by \`${numVal >= 0 ? '+' : ''}${numVal}\` for <@${targetUser.id}>.`);
+}
+
+
+export async function handleSetupEmojisCommand(message: Message) {
+  if (!isAuthorized(message)) {
+    return await message.reply('❌ Unauthorized.');
+  }
+
+  const guild = message.guild;
+  if (!guild) {
+    return await message.reply('❌ This command must be executed within a Discord server.');
+  }
+
+  const loading = await message.reply('✨ **Uploading and initializing custom Beyond The Final Whistle emojis...**');
+
+  const result = await installCustomServerEmojis(guild);
+  const createdMsg = result.created.length > 0 ? `• **New Emojis Created (${result.created.length}):** ${result.created.join(' ')}\n` : '';
+  const existingMsg = result.existing.length > 0 ? `• **Already Installed (${result.existing.length}):** ${result.existing.join(' ')}\n` : '';
+  const failedMsg = result.failed.length > 0 ? `• ⚠️ Failed to upload: ${result.failed.join(', ')}\n` : '';
+
+  await loading.edit(
+    `✨ **Custom Server Emojis Operational!**\n\n` +
+    createdMsg +
+    existingMsg +
+    failedMsg +
+    `\nAll bot embeds, buttons, and notifications will now use these custom emojis!`
+  );
 }

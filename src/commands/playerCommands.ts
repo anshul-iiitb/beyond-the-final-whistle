@@ -1,9 +1,10 @@
-import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, User } from 'discord.js';
+import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, User, Guild } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import { CAMPUS_LOCATIONS, PLAYSTYLES, ITEM_CATALOG } from '../config/constants.js';
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { giveMoney } from '../engines/socialEngine.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
+import { getEmoji } from '../utils/emojiHelper.js';
 
 export function buildProfileTabsRow(targetUserId: string, currentTab: 'main' | 'stats' | 'attr') {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -25,12 +26,20 @@ export function buildProfileTabsRow(targetUserId: string, currentTab: 'main' | '
   );
 }
 
-export function buildProfileEmbed(player: any, targetUser: User, tab: 'main' | 'stats' | 'attr' = 'main'): EmbedBuilder {
+export function buildProfileEmbed(
+  player: any,
+  targetUser: User,
+  tab: 'main' | 'stats' | 'attr' = 'main',
+  guild?: Guild | null
+): EmbedBuilder {
   const derived = calculateDerivedRatings(player);
   const loc = CAMPUS_LOCATIONS[player.currentLocation] || CAMPUS_LOCATIONS.tc;
   const style = PLAYSTYLES[player.playstyle] || PLAYSTYLES.PCH;
   const flag = getNationFlag(player.nation);
   const vipBadge = player.vipTier >= 2 ? '👑 [PREMIUM]' : player.vipTier === 1 ? '⭐ [VIP]' : '';
+  const staminaEmoji = getEmoji(guild, 'stamina');
+  const coinEmoji = getEmoji(guild, 'coin');
+  const tpEmoji = getEmoji(guild, 'tp');
 
   let recentForm = ['6.8', '7.2', '7.5', '8.0', '7.4'];
   try {
@@ -56,8 +65,8 @@ export function buildProfileEmbed(player: any, targetUser: User, tab: 'main' | '
       .setDescription(
         `*"${player.bio || 'Rookie footballer aiming for the World Cup.'}"*\n\n` +
         `📍 **Location:** ${loc.emoji} **${loc.name}**\n` +
-        `⚡ **Stamina:** \`${player.stamina}/100 ⚡\` | 🤹‍♂️ **Training Points:** \`${player.trainingPoints} TP\`\n` +
-        `🪙 **Net Worth:** \`${formatK(player.coins)} 🪙\` | 👥 **Followers:** \`${formatK(player.followers)} 👤\`\n` +
+        `${staminaEmoji} **Stamina:** \`${player.stamina}/100\` | ${tpEmoji} **Training Points:** \`${player.trainingPoints} TP\`\n` +
+        `${coinEmoji} **Net Worth:** \`${formatK(player.coins)}\` | 👥 **Followers:** \`${formatK(player.followers)} 👤\`\n` +
         `${bootStatus} | ${intelStatus}`
       )
       .addFields(
@@ -188,7 +197,7 @@ export async function handleProfileCommand(message: Message, args: string[]) {
     return await message.reply('❌ That player has not registered on Beyond The Final Whistle yet.');
   }
 
-  const embed = buildProfileEmbed(player, targetUser, 'main');
+  const embed = buildProfileEmbed(player, targetUser, 'main', message.guild);
   const row = buildProfileTabsRow(targetUser.id, 'main');
 
   await message.reply({ embeds: [embed], components: [row] });
@@ -253,15 +262,16 @@ export async function handleLeaderboardCommand(message: Message, args: string[])
   }
 
   if (category === 'wealth' || category === 'money' || category === 'coins') {
+    const coinEmoji = getEmoji(message.guild, 'coin');
     const leaders = await prisma.player.findMany({
       orderBy: { coins: 'desc' },
       take: 10,
       include: { nation: true }
     });
-    const lines = leaders.map((p, i) => `${i + 1}. **${p.username}** ${getNationFlag(p.nation)} — **${formatK(p.coins)} 🪙**`);
+    const lines = leaders.map((p, i) => `${i + 1}. **${p.username}** ${getNationFlag(p.nation)} — **${formatK(p.coins)}** ${coinEmoji}`);
     const embed = new EmbedBuilder()
       .setColor('#eab308')
-      .setTitle('🪙 Net Worth & Wealth Leaderboard')
+      .setTitle(`${coinEmoji} Net Worth & Wealth Leaderboard`)
       .setDescription(lines.join('\n') || 'No wealth recorded.')
       .setFooter({ text: 'Beyond The Final Whistle Leaderboards' });
     return await message.reply({ embeds: [embed] });
@@ -343,6 +353,7 @@ export async function handleJoinNationCommand(message: Message, args: string[]) 
     }
   });
 
-  const bonusMsg = isFirstTime ? `\n🎁 **Welcome Bonus:** Received **+100k coins 🪙** and **+100k followers 👤** for joining your first National Team!` : '';
+  const coinEmoji = getEmoji(message.guild, 'coin');
+  const bonusMsg = isFirstTime ? `\n🎁 **Welcome Bonus:** Received **+100k coins** ${coinEmoji} and **+100k followers 👤** for joining your first National Team!` : '';
   await message.reply(`🎉 You are now officially capped for **${nation.name}** ${nation.flag}!${bonusMsg}`);
 }

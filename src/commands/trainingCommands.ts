@@ -1,23 +1,27 @@
-import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, User } from 'discord.js';
+import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, User, Guild } from 'discord.js';
 import path from 'path';
 import fs from 'fs';
 import { executeTraining, upgradeAttribute, convertPlaystyle, executeSaunaRecovery, TrainingResult } from '../engines/trainingEngine.js';
 import { getNationFlag } from '../utils/formatHelper.js';
+import { getEmoji } from '../utils/emojiHelper.js';
 
 /**
  * Builds the exact training success embed matching WhatsApp Image 2026-11-22 at 8.47.46 PM.jpeg
  */
-export function buildTrainingSuccessEmbed(result: TrainingResult, user: User) {
+export function buildTrainingSuccessEmbed(result: TrainingResult, user: User, guild?: Guild | null) {
   const flag = getNationFlag(result.player?.nation);
+  const staminaEmoji = getEmoji(guild, 'stamina');
+  const tpEmoji = getEmoji(guild, 'tp');
+
   const embed = new EmbedBuilder()
     .setColor('#1e1f22')
     .setTitle(`${result.player?.username || user.username} ${flag} trained!`)
     .setDescription(
-      `You gained ${result.tpGained} 🤹‍♂️ Training points!\n\n` +
+      `You gained ${result.tpGained} ${tpEmoji} Training points!\n\n` +
       `You can train again in ${result.cooldownMinutes} minutes.\n\n` +
       `**New Stats!**\n` +
-      `Stamina : ${result.remainingStamina} ⚡\n` +
-      `Training points : ${result.totalTp} 🤹‍♂️`
+      `Stamina : ${result.remainingStamina} ${staminaEmoji}\n` +
+      `Training points : ${result.totalTp} ${tpEmoji}`
     )
     .setFooter({
       text: 'Note : If your stamina goes below 50 there is high chance that you may catch injury during match.'
@@ -36,7 +40,8 @@ export function buildTrainingSuccessEmbed(result: TrainingResult, user: User) {
 /**
  * Builds the Choose Training Method embed matching WhatsApp Image 2026-11-22 at 8.47.45 PM.jpeg
  */
-export function buildTrainingSelectionMenu(user: User) {
+export function buildTrainingSelectionMenu(user: User, guild?: Guild | null) {
+  const tpEmoji = getEmoji(guild, 'tp');
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', {
     month: 'long',
@@ -54,9 +59,9 @@ export function buildTrainingSelectionMenu(user: User) {
     .setThumbnail(user.displayAvatarURL())
     .setDescription(
       `Choose a training method from below to train!\n\n` +
-      `• *Normal Training* - Gives 1 to 2 🤹‍♂️ every 30 minutes *(range scales depending upon your overall)*\n\n` +
-      `• *VIP Training* - Gives 6 🤹‍♂️ every 6 hours\n\n` +
-      `• *No Effort Training* - Gives 20 🤹‍♂️ every matchday *(if used no other training methods can be used in that matchday)*`
+      `• *Normal Training* - Gives 1 to 2 ${tpEmoji} every 30 minutes *(range scales depending upon your overall)*\n\n` +
+      `• *VIP Training* - Gives 6 ${tpEmoji} every 6 hours\n\n` +
+      `• *No Effort Training* - Gives 20 ${tpEmoji} every matchday *(if used no other training methods can be used in that matchday)*`
     )
     .setFooter({ text: dateStr });
 
@@ -86,7 +91,7 @@ export async function handleTrainCommand(message: Message, args: string[]) {
 
   // If no argument, open interactive selection menu
   if (!modeArg) {
-    const menu = buildTrainingSelectionMenu(message.author);
+    const menu = buildTrainingSelectionMenu(message.author, message.guild);
     return await message.reply({ embeds: [menu.embed], components: menu.components });
   }
 
@@ -102,7 +107,7 @@ export async function handleTrainCommand(message: Message, args: string[]) {
     return await message.reply(result.error || result.message || '❌ Training failed.');
   }
 
-  const output = buildTrainingSuccessEmbed(result, message.author);
+  const output = buildTrainingSuccessEmbed(result, message.author, message.guild);
   await message.reply({ embeds: [output.embed], files: output.files });
 }
 

@@ -5,7 +5,7 @@ import { handleTrainCommand, handleSpTrainCommand, handleRecoveryCommand, handle
 import { handleAdvertCommand, handleCoachingCommand, handleMeetGreetCommand, handleChirpCommand } from '../commands/socialCommands.js';
 import { handleBuyCommand, handleIntelCommand } from '../commands/marketCommands.js';
 import { handleMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand } from '../commands/matchCommands.js';
-import { handleSetupCommand, handleVipCommand, handleAddItemCommand, handleAddVarCommand } from '../commands/adminCommands.js';
+import { handleSetupCommand, handleVipCommand, handleAddItemCommand, handleAddVarCommand, handleSetupEmojisCommand } from '../commands/adminCommands.js';
 import { handleHelpCommand } from '../commands/helpCommand.js';
 import { handleBTFWGitPull, handleBTFWGitPullBack } from '../services/gitService.js';
 import { logger } from '../utils/logger.js';
@@ -128,6 +128,10 @@ export async function onMessageCreate(message: Message) {
       case 'setup':
       case 'setupcampus':
         await handleSetupCommand(message);
+        break;
+      case 'setupemojis':
+      case 'emojis':
+        await handleSetupEmojisCommand(message);
         break;
       case 'vip':
         await handleVipCommand(message, args);
