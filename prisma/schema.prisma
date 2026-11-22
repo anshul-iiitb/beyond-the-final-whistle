@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Player {
+  id                    String            @id // Discord User ID
+  username              String            @default("Rookie")
+  discriminator         String?
+  avatar                String?
+  bio                   String?           @default("Rookie footballer aiming for the World Cup.")
+  playstyle             String            @default("PCH") // PCH, SPD, TGT, PLM, B2B, ANC, STP, SWP, BPD
+  position              String            @default("ATT") // ATT, MID, DEF
+  currentLocation       String            @default("tc") // tc, gm, ih, ph, ps, lc, rf, vs
+  travelUntil           DateTime?
+  stamina               Int               @default(100)
+  maxStamina            Int               @default(100)
+  coins                 BigInt            @default(50000)
+  followers             BigInt            @default(1000)
+  trainingPoints        Int               @default(10)
+  vipTier               Int               @default(0) // 0: Regular, 1: VIP, 2: Premium
+  vipExpiresAt          DateTime?
+  intelBonus            Int               @default(0)
+  intelStat             String?
+  activeBoots           String?           // strika, passa, bully
+  lastTrainedAt         DateTime?
+  lastRecoveryAt        DateTime?
+  lastAdvertAt          DateTime?
+  lastCoachedAt         DateTime?
+  lastMeetGreetAt       DateTime?
+  lastIntelAt           DateTime?
+  lastConvertedAt       DateTime?         // 7-day cooldown on playstyle convert
+  lastTaxDeductedAt     DateTime?
+  lastRelevancyDecayAt  DateTime?
+
+  // 15 Granular Football Attributes (1 to 99)
+  fin                   Int               @default(50) // Finishing
+  pow                   Int               @default(50) // Shot Power
+  hea                   Int               @default(50) // Heading
+  pas                   Int               @default(50) // Passing
+  vis                   Int               @default(50) // Vision
+  cro                   Int               @default(50) // Crossing
+  dri                   Int               @default(50) // Dribbling
+  tck                   Int               @default(50) // Tackling
+  int                   Int               @default(50) // Interceptions
+  mrk                   Int               @default(50) // Marking
+  pac                   Int               @default(50) // Pace
+  phy                   Int               @default(50) // Physicality
+  cmp                   Int               @default(50) // Composure
+  agi                   Int               @default(50) // Agility
+  wrk                   Int               @default(50) // Work Rate
+
+  // Career Statistics
+  matchesPlayed         Int               @default(0)
+  goalsScored           Int               @default(0)
+  assists               Int               @default(0)
+  shots                 Int               @default(0)
+  shotsOnTarget         Int               @default(0)
+  keyPasses             Int               @default(0)
+  secondAssists         Int               @default(0)
+  passesAttempted       Int               @default(0)
+  passesCompleted       Int               @default(0)
+  dribblesAttempted     Int               @default(0)
+  dribblesCompleted     Int               @default(0)
+  tacklesAttempted      Int               @default(0)
+  tacklesWon            Int               @default(0)
+  interceptions         Int               @default(0)
+  clearances            Int               @default(0)
+  yellowCards           Int               @default(0)
+  redCards              Int               @default(0)
+  cleanSheets           Int               @default(0)
+  motmCount             Int               @default(0)
+  recentRatings         String            @default("[]") // JSON array of last 5 match ratings
+
+  // Relational Subsystems
+  vehicles              PlayerVehicle[]
+  inventory             InventoryItem[]
+  tweets                PlayerTweet[]
+
+  // Teams & Club
+  clubId                String?
+  club                  FootballClub?     @relation(fields: [clubId], references: [id])
+  nationId              String?
+  nation                NationalTeam?     @relation(fields: [nationId], references: [id])
+
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+}
+
+model PlayerVehicle {
+  id              String    @id @default(cuid())
+  playerId        String
+  player          Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  vehicleKey      String
+  name            String
+  cooldownMinutes Int
+  purchasedAt     DateTime  @default(now())
+
+  @@index([playerId])
+}
+
+model NationalTeam {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  flag            String
+  alias           String    @unique
+  captainId       String?
+  lineup          String    @default("[]")
+  setPieceTakerId String?
+  tactics         String    @default("BALANCED") // ATTACKING, DEFENSIVE, COUNTER, BALANCED
+  matchesPlayed   Int       @default(0)
+  wins            Int       @default(0)
+  draws           Int       @default(0)
+  losses          Int       @default(0)
+  goalsFor        Int       @default(0)
+  goalsAgainst    Int       @default(0)
+  points          Int       @default(0)
+  players         Player[]
+}
+
+model FootballClub {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  alias           String    @unique
+  badge           String
+  vault           BigInt    @default(10000000)
+  captainId       String?
+  lineup          String    @default("[]")
+  setPieceTakerId String?
+  tactics         String    @default("BALANCED")
+  matchesPlayed   Int       @default(0)
+  wins            Int       @default(0)
+  draws           Int       @default(0)
+  losses          Int       @default(0)
+  goalsFor        Int       @default(0)
+  goalsAgainst    Int       @default(0)
+  points          Int       @default(0)
+  players         Player[]
+}
+
+model PlayerTweet {
+  id                String    @id @default(cuid())
+  discordMessageId  String?
+  authorId          String
+  author            Player    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content           String
+  likes             Int       @default(0)
+  dislikes          Int       @default(0)
+  createdAt         DateTime  @default(now())
+
+  @@index([authorId])
+}
+
+model MatchSimulation {
+  id              String    @id @default(cuid())
+  homeTeamName    String
+  awayTeamName    String
+  homeScore       Int
+  awayScore       Int
+  homePossession  Int
+  awayPossession  Int
+  motmPlayerId    String?
+  motmRating      Float?
+  commentaryLogs  String    // JSON serialized play-by-play
+  aiNewsArticle   String?   // AI sports report
+  createdAt       DateTime  @default(now())
+}
+
+model InventoryItem {
+  id              String    @id @default(cuid())
+  playerId        String
+  player          Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  itemKey         String
+  name            String
+  emoji           String
+  acquiredAt      DateTime  @default(now())
+
+  @@index([playerId])
+}

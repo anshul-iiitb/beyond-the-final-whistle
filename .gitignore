@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.log
+.last_known_good_commit
+.btfw_last_commit
+.DS_Store
+generated/
+pnpm-lock.yaml
