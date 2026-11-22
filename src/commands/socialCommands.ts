@@ -23,19 +23,23 @@ export function buildAdvertSelectionMenu(followers: bigint, guild?: Guild | null
     const eligible = followers >= s.minFollowers ? tick : '🔒';
     const followerText = s.followerDelta > 0n ? `+${formatK(s.followerDelta)}` : s.followerDelta < 0n ? `${formatK(s.followerDelta)}` : '0';
     const sponsorBadge = getEmoji(guild, s.key);
-    return `${eligible} **${sponsorBadge} ${s.name}** (\`-advert ${s.key}\`)\n` +
-      `• Min Followers: \`${formatK(s.minFollowers)}\` ${followersEmoji} | Stamina Cost: \`${s.staminaCost}\` ${stamina}\n` +
-      `• Reward: \`+${formatK(s.rewardCoins)}\` ${coin} | Followers: \`${followerText}\` ${followersEmoji}`;
+    return `${eligible} ${sponsorBadge} **${s.name}**\n` +
+      `• Alias : ${s.key}\n` +
+      `• Min Followers : ${formatK(s.minFollowers)} ${followersEmoji}\n` +
+      `• Stamina Cost : ${s.staminaCost} ${stamina}\n` +
+      `• Reward : +${formatK(s.rewardCoins)} ${coin}\n` +
+      `• Follower Delta : ${followerText} ${followersEmoji}`;
   });
 
   const embed = new EmbedBuilder()
-    .setColor('#f59e0b')
-    .setTitle('📸 Commercial Brand Sponsorship Deals')
+    .setColor('#2b2d31')
+    .setTitle('Commercial Sponsorships!')
     .setDescription(
-      `Choose a brand partner matching your follower status:\n\n${lines.join('\n\n')}\n\n` +
-      `*Click a button below or run \`-advert <brand>\`*`
+      '```\nUse -advert <alias> to sign a sponsor contract\n```\n' +
+      '📸 Signing photoshoot deals awards cash earnings and updates social reach.\n\n' +
+      lines.join('\n\n')
     )
-    .setFooter({ text: 'Beyond The Final Whistle • Commercial Hub' });
+    .setFooter({ text: 'Beyond The Final Whistle • Commercial Endorsement Hub' });
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId('sponsor_heineken').setLabel('Heineken (100k)').setEmoji(heinekenEmoji).setStyle(ButtonStyle.Secondary),

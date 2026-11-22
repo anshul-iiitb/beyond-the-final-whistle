@@ -7,20 +7,20 @@ import { getEmoji } from '../utils/emojiHelper.js';
 
 export async function handleLocationsCommand(message: Message) {
   const lines = Object.values(CAMPUS_LOCATIONS).map(loc => {
-    return `### ${loc.emoji} ${loc.name} (\`-travel ${loc.alias}\`)\n` +
-      `*${loc.description}*\n` +
-      `**Activities:**\n${loc.activities.map(a => `• \`${a}\``).join('\n')}`;
+    return `${loc.emoji} **${loc.name}**\n` +
+      `• Alias : \`-travel ${loc.alias}\`\n` +
+      `• Description : *${loc.description}*\n` +
+      `• Activities : ${loc.activities.join(' • ')}`;
   });
 
   const embed = new EmbedBuilder()
-    .setColor('#38bdf8')
-    .setTitle('🗺️ Beyond The Final Whistle: Football Campus Directory')
+    .setColor('#2b2d31')
+    .setTitle('Campus Directory!')
     .setDescription(
-      `Welcome to the Football Campus! You can move between facilities using \`-travel <alias>\`.\n\n` +
+      '```\nUse -travel <alias> to travel to a facility\n```\n' +
       lines.join('\n\n')
     )
-    .setFooter({ text: 'Base cooldown: 20m ⏱️ • Slashed down by vehicles in the showroom' })
-    .setTimestamp();
+    .setFooter({ text: 'Beyond The Final Whistle • Football Campus' });
 
   await message.reply({ embeds: [embed] });
 }
@@ -51,21 +51,21 @@ export async function handleShowroomCommand(message: Message) {
 
   const lines = VEHICLE_CATALOG.map(v => {
     const priceDisplay = Number(v.cost) >= 1000000 ? `${(Number(v.cost) / 1000000).toFixed(Number(v.cost) % 1000000 === 0 ? 0 : 2)}M ${coinEmoji}` : `${formatK(v.cost)} ${coinEmoji}`;
-    return `${v.emoji} **${v.name}** (\`-vehiclebuy ${v.key}\`)\n` +
-      `• Cost: **${priceDisplay}** | Cooldown: **${v.cooldownMinutes} min ⏱️**`;
+    return `${carEmoji} **${v.name}**\n` +
+      `• Alias : ${v.key}\n` +
+      `• Price : ${priceDisplay}\n` +
+      `• Travel Cooldown : ${v.cooldownMinutes} min ⏱️`;
   });
 
   const embed = new EmbedBuilder()
-    .setColor('#e11d48')
-    .setTitle(`${carEmoji} Vehicle Showroom — Automotive Dealership`)
+    .setColor('#2b2d31')
+    .setTitle('Vehicle Showroom!')
     .setDescription(
-      `Your current ride: **${vehicleName}** (\`${cooldownMinutes}m cooldown\` ⏱️)\n\n` +
-      `Purchasing a vehicle permanently lowers your campus travel cooldown across all locations:\n\n` +
-      lines.join('\n\n') +
-      `\n\n*Purchase with:* \`-vehiclebuy <alias>\` (e.g. \`-vehiclebuy supra\`, \`-vehiclebuy 911\`)`
+      '```\nUse -vehiclebuy <alias> to purchase a vehicle\n```\n' +
+      `Current Ride : **${vehicleName}** (${cooldownMinutes}m cooldown ⏱️)\n\n` +
+      lines.join('\n\n')
     )
-    .setFooter({ text: 'Vehicles cannot be resold • Fastest ride automatically applies' })
-    .setTimestamp();
+    .setFooter({ text: 'Beyond The Final Whistle • Exotic Dealership' });
 
   await message.reply({ embeds: [embed] });
 }

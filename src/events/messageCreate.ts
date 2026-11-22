@@ -84,6 +84,8 @@ export async function onMessageCreate(message: Message) {
       // Market & Tactical Scouting
       case 'buy':
       case 'shop':
+      case 'gm':
+      case 'market':
         await handleBuyCommand(message, args);
         break;
       case 'intel':

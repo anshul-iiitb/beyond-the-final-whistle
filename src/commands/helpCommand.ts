@@ -42,12 +42,13 @@ export async function handleHelpCommand(message: Message) {
           '• `-recovery` — Relax in Sauna to recover +30 stamina (+100 for VIP, 12h cooldown).'
       },
       {
-        name: '🛍️ Market & Matchday Gear',
+        name: '🛍️ Market & Matchday Gear (-gm, -shop)',
         value:
-          '• `-buy sd` — **🧪 Sports Drink** (+50 Stamina | 100k 🪙)\n' +
-          '• `-buy strika` — **⚡ Strika Boots** (+10 Attack for next match | 500k 🪙)\n' +
-          '• `-buy passa` — **👟 Passa Boots** (+10 Midfield for next match | 500k 🪙)\n' +
-          '• `-buy bully` — **🛡️ Bully Boots** (+10 Defence for next match | 500k 🪙)\n' +
+          '• `-gm` / `-shop` / `-buy` — Open the Global Market catalog with live gear info!\n' +
+          '• `-buy sd` — **Sports Drink** (Recovers 50 stamina | 100k 🪙)\n' +
+          '• `-buy strika` — **Strika Boots** (+10 Attack for next match | 500k 🪙)\n' +
+          '• `-buy passa` — **Passa Boots** (+10 Midfield for next match | 500k 🪙)\n' +
+          '• `-buy bully` — **Bully Boots** (+10 Defence for next match | 500k 🪙)\n' +
           '• `-intel` — Claim opposition scouting report at Intel Hub (+1 to +6 match bonus).'
       },
       {

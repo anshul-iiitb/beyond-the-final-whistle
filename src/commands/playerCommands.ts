@@ -66,31 +66,34 @@ export function buildProfileEmbed(
       .setTitle(`⚽ ${player.username} ${flag} Career Profile ${vipBadge}`)
       .setDescription(
         `*"${player.bio || 'Rookie footballer aiming for the World Cup.'}"*\n\n` +
-        `📍 **Location:** ${loc.emoji} **${loc.name}**\n` +
-        `${staminaEmoji} **Stamina:** \`${player.stamina}/100\` | ${tpEmoji} **Training Points:** \`${player.trainingPoints} TP\`\n` +
-        `${coinEmoji} **Net Worth:** \`${formatK(player.coins)}\` | ${followersEmoji} **Followers:** \`${formatK(player.followers)}\`\n` +
-        `${bootStatus} | ${intelStatus}`
+        `📍 **Location :** ${loc.emoji} **${loc.name}**\n` +
+        `${staminaEmoji} **Stamina :** \`${player.stamina}/100\`\n` +
+        `${tpEmoji} **Training Points :** \`${player.trainingPoints} TP\`\n` +
+        `${coinEmoji} **Net Worth :** \`${formatK(player.coins)}\`\n` +
+        `${followersEmoji} **Followers :** \`${formatK(player.followers)}\`\n` +
+        `👟 **Active Boots :** \`${player.activeBoots ? player.activeBoots.toUpperCase() : 'None'}\`\n` +
+        `🛰️ **Tactical Intel :** \`${player.intelBonus > 0 ? '+' + player.intelBonus + ' ' + (player.intelStat || 'Boost') : 'None'}\``
       )
       .addFields(
         {
           name: '📊 Overall Ratings',
-          value: `🅰️ **ATK:** \`${derived.atk}\` | 🏃 **MID:** \`${derived.mid}\` | 🛡️ **DEF:** \`${derived.def}\``,
+          value: `• ATK : \`${derived.atk}\`  •  MID : \`${derived.mid}\`  •  DEF : \`${derived.def}\``,
           inline: false
         },
         {
-          name: `🎭 Playstyle: ${style.emoji} ${style.name} (${style.position})`,
-          value: `*${style.description}*\n**Key Stats:** ${style.keyStats.map(s => `\`${s.toUpperCase()}\``).join(', ')}`,
+          name: `🎭 Playstyle : ${style.emoji} ${style.name} (${style.position})`,
+          value: `*${style.description}*\n**Key Stats :** ${style.keyStats.map(s => `\`${s.toUpperCase()}\``).join(', ')}`,
           inline: false
         },
         {
           name: '🛡️ Teams & Nation',
-          value: `• National Team: **${player.nation?.name || 'Free Agent (-joinnation)'}** ${flag}\n• Club: **${player.club?.name || 'Free Agent'}**`,
-          inline: true
+          value: `• National Team : **${player.nation?.name || 'Free Agent (-joinnation)'}** ${flag}\n• Club : **${player.club?.name || 'Free Agent'}**`,
+          inline: false
         },
         {
-          name: '📈 Recent Form (Last 5)',
+          name: '📈 Recent Form (Last 5 Matches)',
           value: `\`${recentForm.join('  •  ')}\``,
-          inline: true
+          inline: false
         },
         {
           name: '🎁 Collectables & Garage',
@@ -111,26 +114,28 @@ export function buildProfileEmbed(
         {
           name: '🎯 Attacking & Passing Telemetry',
           value:
-            `• Matches Played: **${player.matchesPlayed}**\n` +
-            `• Goals Scored: **${player.goalsScored}** ⚽\n` +
-            `• Assists: **${player.assists}** 👟\n` +
-            `• Shots (On Target): **${player.shots}** (**${player.shotsOnTarget}**)\n` +
-            `• Passes (Completed): **${player.passesAttempted}** (**${player.passesCompleted}**)\n` +
-            `• Key Passes: **${player.keyPasses}** | Second Assists: **${player.secondAssists}**\n` +
-            `• Dribbles Attempted: **${player.dribblesAttempted}**`,
-          inline: true
+            `• Matches Played : **${player.matchesPlayed}** 🎯\n` +
+            `• Goals Scored : **${player.goalsScored}** ⚽\n` +
+            `• Assists : **${player.assists}** 👟\n` +
+            `• Shots (On Target) : **${player.shots}** (**${player.shotsOnTarget}**)\n` +
+            `• Passes (Completed) : **${player.passesAttempted}** (**${player.passesCompleted}**)\n` +
+            `• Key Passes : **${player.keyPasses}**\n` +
+            `• Second Assists : **${player.secondAssists}**\n` +
+            `• Dribbles Attempted : **${player.dribblesAttempted}**`,
+          inline: false
         },
         {
           name: '🛡️ Defending & Discipline',
           value:
-            `• Dribbles Completed: **${player.dribblesCompleted}**\n` +
-            `• Tackles (Won): **${player.tacklesAttempted}** (**${player.tacklesWon}**)\n` +
-            `• Interceptions: **${player.interceptions}**\n` +
-            `• Clearances: **${player.clearances}**\n` +
-            `• Clean Sheets: **${player.cleanSheets}** 🧤\n` +
-            `• Yellow Cards: **${player.yellowCards}** 🟨 | Red Cards: **${player.redCards}** 🟥\n` +
-            `• MOTM Awards: **${player.motmCount}** 👑`,
-          inline: true
+            `• Dribbles Completed : **${player.dribblesCompleted}**\n` +
+            `• Tackles (Won) : **${player.tacklesAttempted}** (**${player.tacklesWon}**)\n` +
+            `• Interceptions : **${player.interceptions}**\n` +
+            `• Clearances : **${player.clearances}**\n` +
+            `• Clean Sheets : **${player.cleanSheets}** 🧤\n` +
+            `• Yellow Cards : **${player.yellowCards}** 🟨\n` +
+            `• Red Cards : **${player.redCards}** 🟥\n` +
+            `• MOTM Awards : **${player.motmCount}** 👑`,
+          inline: false
         }
       )
       .setThumbnail(targetUser.displayAvatarURL())

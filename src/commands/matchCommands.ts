@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { simulateFullMatch } from '../engines/matchSimulationEngine.js';
 import { prisma } from '../database/prisma.js';
+import { getEmoji } from '../utils/emojiHelper.js';
 
 export async function handleMatchCommand(message: Message, args: string[]) {
   const opponent = message.mentions.users.first();
@@ -63,17 +64,20 @@ export async function handleIntStatsCommand(message: Message, args: string[]) {
     return await message.reply('❌ Player not found.');
   }
 
+  const motmEmoji = getEmoji(message.guild, 'motm');
+
   const embed = new EmbedBuilder()
-    .setColor('#0284c7')
+    .setColor('#2b2d31')
     .setTitle(`🌍 ${player.username}'s International Career Record`)
-    .setDescription(`Representing: **${player.nation?.flag || '🏴'} ${player.nation?.name || 'Free Agent'}**`)
-    .addFields(
-      { name: '⚽ Goals', value: `\`${player.goalsScored}\``, inline: true },
-      { name: '👟 Assists', value: `\`${player.assists}\``, inline: true },
-      { name: '🎯 Caps (Matches)', value: `\`${player.matchesPlayed}\``, inline: true },
-      { name: '👑 MOTM Honors', value: `\`${player.motmCount}\``, inline: true },
-      { name: '🟨 Discipline', value: `Yellow: \`${player.yellowCards}\` | Red: \`${player.redCards}\``, inline: true },
-      { name: '🧤 Clean Sheets', value: `\`${player.cleanSheets}\``, inline: true }
+    .setDescription(
+      `Representing : **${player.nation?.flag || '🏴'} ${player.nation?.name || 'Free Agent'}**\n\n` +
+      `• Matches (Caps) : **${player.matchesPlayed}** 🎯\n` +
+      `• Goals Scored : **${player.goalsScored}** ⚽\n` +
+      `• Total Assists : **${player.assists}** 👟\n` +
+      `• MOTM Awards : **${player.motmCount}** ${motmEmoji}\n` +
+      `• Yellow Cards : **${player.yellowCards}** 🟨\n` +
+      `• Red Cards : **${player.redCards}** 🟥\n` +
+      `• Clean Sheets : **${player.cleanSheets}** 🧤`
     )
     .setFooter({ text: 'Beyond The Final Whistle • International Federation' });
 
@@ -91,15 +95,17 @@ export async function handleClubStatsCommand(message: Message, args: string[]) {
     return await message.reply('❌ Player not found.');
   }
 
+  const motmEmoji = getEmoji(message.guild, 'motm');
+
   const embed = new EmbedBuilder()
-    .setColor('#9333ea')
+    .setColor('#2b2d31')
     .setTitle(`🏟️ ${player.username}'s Club Career Record`)
-    .setDescription(`Signed with: **${player.club?.name || 'Free Agent'}**`)
-    .addFields(
-      { name: '⚽ Club Goals', value: `\`${player.goalsScored}\``, inline: true },
-      { name: '👟 Club Assists', value: `\`${player.assists}\``, inline: true },
-      { name: '🎯 Appearances', value: `\`${player.matchesPlayed}\``, inline: true },
-      { name: '👑 MOTM Trophies', value: `\`${player.motmCount}\``, inline: true }
+    .setDescription(
+      `Club : **${player.club?.name || 'Free Agent'}**\n\n` +
+      `• Appearances : **${player.matchesPlayed}** 🎯\n` +
+      `• Club Goals : **${player.goalsScored}** ⚽\n` +
+      `• Club Assists : **${player.assists}** 👟\n` +
+      `• MOTM Trophies : **${player.motmCount}** ${motmEmoji}`
     )
     .setFooter({ text: 'Beyond The Final Whistle • Club Roster' });
 

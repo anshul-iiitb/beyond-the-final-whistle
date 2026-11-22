@@ -48,40 +48,45 @@ client.on('ready', async () => {
   });
 
   // 1. Profile Command Result
+  const car = getE('car');
+  const followers = getE('followers');
   const profileEmbed = new EmbedBuilder()
     .setColor('#2b2d31')
     .setTitle('⚽ Anshul 🇮🇳 Career Profile ⭐ [VIP]')
     .setDescription(
       '*Rookie footballer aiming for the World Cup with Beyond The Final Whistle.*\n\n' +
-      '📍 **Location:** 🏋️ **Training Center**\n' +
-      `${stamina} **Stamina:** \`85/100\` | ${tp} **Training Points:** \`14 TP\`\n` +
-      `${coin} **Net Worth:** \`750k\` | 👥 **Followers:** \`1,250k 👤\`\n` +
-      `👟 Boots: \`STRIKA\` ${strika} | 🛰️ Intel: \`+4 PAC\``
+      '📍 **Location :** 🏋️ **Training Center**\n' +
+      `${stamina} **Stamina :** \`85/100\`\n` +
+      `${tp} **Training Points :** \`14 TP\`\n` +
+      `${coin} **Net Worth :** \`750k\`\n` +
+      `${followers} **Followers :** \`1,250k\`\n` +
+      `👟 **Active Boots :** \`STRIKA\` ${strika}\n` +
+      `🛰️ **Tactical Intel :** \`+4 PAC\``
     )
     .addFields(
       {
         name: '📊 Overall Ratings',
-        value: '🅰️ **ATK:** `82` | 🏃 **MID:** `76` | 🛡️ **DEF:** `64`',
+        value: '• ATK : `82`  •  MID : `76`  •  DEF : `64`',
         inline: false
       },
       {
-        name: '🎭 Playstyle: ⚡ Speedster (ATT)',
-        value: '*Explosive counter-attack runner who incinerates high backlines with blistering pace.*\n**Key Stats:** `PAC`, `DRI`, `POW`',
+        name: '🎭 Playstyle : ⚡ Speedster (ATT)',
+        value: '*Explosive counter-attack runner who incinerates high backlines with blistering pace.*\n**Key Stats :** `PAC`, `DRI`, `POW`',
         inline: false
       },
       {
         name: '🛡️ Teams & Nation',
-        value: '• National Team: **India** 🇮🇳\n• Club: **Royal Bengal FC**',
-        inline: true
+        value: '• National Team : **India** 🇮🇳\n• Club : **Royal Bengal FC**',
+        inline: false
       },
       {
-        name: '📈 Recent Form (Last 5)',
+        name: '📈 Recent Form (Last 5 Matches)',
         value: '`7.8  •  8.2  •  7.5  •  8.6  •  8.0`',
-        inline: true
+        inline: false
       },
       {
         name: '🎁 Collectables & Garage',
-        value: `${worldcup} World Cup Trophy • ${goldenboot} Golden Boot • ${goldmedal} Asian Cup Gold • 🏎️ Toyota Supra`,
+        value: `${worldcup} World Cup Trophy • ${goldenboot} Golden Boot • ${goldmedal} Asian Cup Gold • ${car} Toyota Supra`,
         inline: false
       }
     )
@@ -158,47 +163,91 @@ client.on('ready', async () => {
   await channel.send({ content: '### 3️⃣ `-tweet` Command Result:', embeds: [tweetEmbed], components: [tweetRow], files: twitterFiles });
 
   // 4. Global Market Catalog Command Result
-  const marketEmbed = new EmbedBuilder()
-    .setColor('#10b981')
-    .setTitle('🛍️ Global Market Catalog & Equipment')
-    .setDescription(
-      `Welcome to the Global Market! Purchase boots, potions, and gear with your match earnings:\n\n` +
-      `• \`-buy sd\` — **${sd} Sports Drink** (+50 Stamina) | **100k ${coin}**\n` +
-      `• \`-buy strika\` — **${strika} Strika Boots** (+10 Attack for next match) | **500k ${coin}**\n` +
-      `• \`-buy passa\` — **${passa} Passa Boots** (+10 Midfield for next match) | **500k ${coin}**\n` +
-      `• \`-buy bully\` — **${bully} Bully Boots** (+10 Defence for next match) | **500k ${coin}**\n\n` +
-      `*Travel here using \`-travel gm\` to purchase equipment.*`
-    )
-    .setFooter({ text: 'Beyond The Final Whistle • Global Market' });
+  const cartImgPath = path.resolve('assets/cart.png');
+  const cartFiles = fs.existsSync(cartImgPath) ? [new AttachmentBuilder(cartImgPath, { name: 'cart.png' })] : [];
 
-  await channel.send({ content: '### 4️⃣ `-buy` / Global Market Catalog Result:', embeds: [marketEmbed] });
+  const marketEmbed = new EmbedBuilder()
+    .setColor('#2b2d31')
+    .setTitle('Global Market!')
+    .setThumbnail('attachment://cart.png')
+    .setDescription(
+      '```\nUse -buy <alias> to buy an item\n```\n' +
+      '⚠️⚠️ Boots effects won\'t appear if you already have +10 boost in that position.\n\n' +
+      `${sd} **Sports Drink**\n` +
+      `• Alias : sd\n` +
+      `• Item info : Recovers 50 stamina ${stamina} (Upto 100)\n` +
+      `• Price : 100k ${coin}\n\n` +
+      `${strika} **Strika Boots**\n` +
+      `• Alias : strika\n` +
+      `• Item info : Gives an additional +10 attack boost for one match. (Note : This boots effects will worn off after user plays one match as attacker.)\n` +
+      `• Price : 500k ${coin}\n\n` +
+      `${passa} **Passa Boots**\n` +
+      `• Alias : passa\n` +
+      `• Item info : Gives an additional +10 midfield boost for one match. (Note : This boots effects will worn off after user plays one match as midfielder.)\n` +
+      `• Price : 500k ${coin}\n\n` +
+      `${bully} **Bully Boots**\n` +
+      `• Alias : bully\n` +
+      `• Item info : Gives an additional +10 defence boost for one match. (Note : This boots effects will worn off after user plays one match as defender.)\n` +
+      `• Price : 500k ${coin}`
+    );
+
+  await channel.send({ content: '### 4️⃣ `-buy` / Global Market Catalog Result:', embeds: [marketEmbed], files: cartFiles });
 
   // 5. Commercial Sponsorships Command Result
-  const photoImgPath = path.resolve('assets/photoshoot.png');
-  const photoFiles = fs.existsSync(photoImgPath) ? [new AttachmentBuilder(photoImgPath, { name: 'photoshoot.png' })] : [];
+  const heinekenBadge = getE('heineken');
+  const adidasBadge = getE('adidas');
+  const cocacolaBadge = getE('cocacola');
+  const netflixBadge = getE('netflix');
+  const nikeBadge = getE('nike');
 
   const advertEmbed = new EmbedBuilder()
-    .setColor('#f59e0b')
-    .setTitle('📸 Commercial Brand Sponsorship Deals')
+    .setColor('#2b2d31')
+    .setTitle('Commercial Sponsorships!')
     .setDescription(
-      `Choose a brand partner matching your follower status:\n\n` +
-      `${tick} **🍺 Heineken** (\`-advert heineken\`)\n• Min Followers: \`100k 👤\` | Stamina Cost: \`5\` ${stamina}\n• Reward: \`+100k\` ${coin} | Followers: \`-50k 👤\`\n\n` +
-      `${tick} **👟 Adidas** (\`-advert adidas\`)\n• Min Followers: \`1,000k 👤\` | Stamina Cost: \`10\` ${stamina}\n• Reward: \`+200k\` ${coin} | Followers: \`0 👤\`\n\n` +
-      `🔒 **🥤 Coca-Cola** (\`-advert cocacola\`)\n• Min Followers: \`5,000k 👤\` | Stamina Cost: \`10\` ${stamina}\n• Reward: \`+300k\` ${coin} | Followers: \`-200k 👤\`\n\n` +
-      `🔒 **🎬 Netflix** (\`-advert netflix\`)\n• Min Followers: \`6,000k 👤\` | Stamina Cost: \`30\` ${stamina}\n• Reward: \`+300k\` ${coin} | Followers: \`+50k 👤\`\n\n` +
-      `*Click a button below to sign an endorsement contract:*`
+      '```\nUse -advert <alias> to sign a sponsor contract\n```\n' +
+      '📸 Signing photoshoot deals awards cash earnings and updates social reach.\n\n' +
+      `${tick} ${heinekenBadge} **Heineken**\n` +
+      `• Alias : heineken\n` +
+      `• Min Followers : 100k ${followers}\n` +
+      `• Stamina Cost : 5 ${stamina}\n` +
+      `• Reward : +100k ${coin}\n` +
+      `• Follower Delta : -50k ${followers}\n\n` +
+      `${tick} ${adidasBadge} **Adidas**\n` +
+      `• Alias : adidas\n` +
+      `• Min Followers : 1M ${followers}\n` +
+      `• Stamina Cost : 15 ${stamina}\n` +
+      `• Reward : +200k ${coin}\n` +
+      `• Follower Delta : 0 ${followers}\n\n` +
+      `🔒 ${cocacolaBadge} **Coca-Cola**\n` +
+      `• Alias : cocacola\n` +
+      `• Min Followers : 5M ${followers}\n` +
+      `• Stamina Cost : 25 ${stamina}\n` +
+      `• Reward : +300k ${coin}\n` +
+      `• Follower Delta : -200k ${followers}\n\n` +
+      `🔒 ${netflixBadge} **Netflix**\n` +
+      `• Alias : netflix\n` +
+      `• Min Followers : 6M ${followers}\n` +
+      `• Stamina Cost : 30 ${stamina}\n` +
+      `• Reward : +300k ${coin}\n` +
+      `• Follower Delta : +50k ${followers}\n\n` +
+      `🔒 ${nikeBadge} **Nike**\n` +
+      `• Alias : nike\n` +
+      `• Min Followers : 8M ${followers}\n` +
+      `• Stamina Cost : 50 ${stamina}\n` +
+      `• Reward : +500k ${coin}\n` +
+      `• Follower Delta : -300k ${followers}`
     )
-    .setImage('attachment://photoshoot.png')
-    .setFooter({ text: 'Beyond The Final Whistle • Commercial Hub' });
+    .setFooter({ text: 'Beyond The Final Whistle • Commercial Endorsement Hub' });
 
   const advertRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('sponsor_heineken').setLabel('Heineken (100k 👤)').setEmoji('🍺').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('sponsor_adidas').setLabel('Adidas (1M 👤)').setEmoji('👟').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId('sponsor_cocacola').setLabel('Coca-Cola (5M 👤)').setEmoji('🥤').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId('sponsor_netflix').setLabel('Netflix (6M 👤)').setEmoji('🎬').setStyle(ButtonStyle.Success)
+    new ButtonBuilder().setCustomId('sponsor_heineken').setLabel('Heineken (100k)').setEmoji(heinekenBadge).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('sponsor_adidas').setLabel('Adidas (1M)').setEmoji(adidasBadge).setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId('sponsor_cocacola').setLabel('Coca-Cola (5M)').setEmoji(cocacolaBadge).setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('sponsor_netflix').setLabel('Netflix (6M)').setEmoji(netflixBadge).setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('sponsor_nike').setLabel('Nike (8M)').setEmoji(nikeBadge).setStyle(ButtonStyle.Primary)
   );
 
-  await channel.send({ content: '### 5️⃣ `-advert` Sponsorship Endorsements Result:', embeds: [advertEmbed], components: [advertRow], files: photoFiles });
+  await channel.send({ content: '### 5️⃣ `-advert` Sponsorship Endorsements Result:', embeds: [advertEmbed], components: [advertRow] });
 
   // 6. Match Telemetry & Newspaper Command Result
   const matchImgPath = path.resolve('assets/match_news.png');
