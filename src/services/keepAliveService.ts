@@ -28,8 +28,8 @@ export function startKeepAliveServer(port: number | string = 3002): http.Server 
     }));
   });
 
-  server.listen(port, () => {
-    logger.info(`BTFW Health check HTTP server listening on port ${port}`);
+  server.listen(Number(port), '0.0.0.0', () => {
+    logger.info(`BTFW Health check HTTP server listening on port ${port} (0.0.0.0)`);
   });
 
   return server;
