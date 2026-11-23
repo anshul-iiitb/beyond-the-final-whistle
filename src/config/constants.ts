@@ -226,10 +226,10 @@ export interface SponsorDef {
 
 export const SPONSORS: SponsorDef[] = [
   { key: 'heineken', name: 'Heineken', emoji: '<:heineken:1574441095511937045>', minFollowers: 100000n, staminaCost: 5, rewardCoins: 100000n, followerDelta: -50000n },
-  { key: 'adidas', name: 'Adidas', emoji: '<:adidas:1574128365110173817>', minFollowers: 1000000n, staminaCost: 10, rewardCoins: 200000n, followerDelta: 0n },
-  { key: 'cocacola', name: 'Coca-Cola', emoji: '<:cocacola:1574128399914369044>', minFollowers: 5000000n, staminaCost: 10, rewardCoins: 300000n, followerDelta: -200000n },
-  { key: 'netflix', name: 'Netflix', emoji: '<:netflix:1574122957809393764>', minFollowers: 6000000n, staminaCost: 30, rewardCoins: 300000n, followerDelta: 50000n },
-  { key: 'nike', name: 'Nike', emoji: '<:nike:1574122968412590252>', minFollowers: 8000000n, staminaCost: 50, rewardCoins: 500000n, followerDelta: -300000n }
+  { key: 'adidas', name: 'Adidas', emoji: '<:adidas:1574453812675088515>', minFollowers: 1000000n, staminaCost: 10, rewardCoins: 200000n, followerDelta: 0n },
+  { key: 'cocacola', name: 'Coca-Cola', emoji: '<:cocacola:1574453824171671633>', minFollowers: 5000000n, staminaCost: 10, rewardCoins: 300000n, followerDelta: -200000n },
+  { key: 'netflix', name: 'Netflix', emoji: '<:netflix:1574453835148169269>', minFollowers: 6000000n, staminaCost: 30, rewardCoins: 300000n, followerDelta: 50000n },
+  { key: 'nike', name: 'Nike', emoji: '<:nike:1574453846812397578>', minFollowers: 8000000n, staminaCost: 50, rewardCoins: 500000n, followerDelta: -300000n }
 ];
 
 export const ATTRIBUTES_LIST = [
@@ -261,13 +261,13 @@ export interface ItemDef {
 }
 
 export const ITEM_CATALOG: Record<string, ItemDef> = {
-  sd: { key: 'sd', name: 'Sports Drink', symbol: '<:sd:1574122998162784486>', type: 'consumable', price: 100000n, effect: '+50 Stamina' },
-  strika: { key: 'strika', name: 'Strika Boots', symbol: '<:strika:1574123035751878790>', type: 'boots', price: 500000n, effect: '+10 Attack next match', position: 'ATK' },
-  passa: { key: 'passa', name: 'Passa Boots', symbol: '<:passa:1574122982190751914>', type: 'boots', price: 500000n, effect: '+10 Midfield next match', position: 'MID' },
-  bully: { key: 'bully', name: 'Bully Boots', symbol: '<:bully:1574128376111824988>', type: 'boots', price: 500000n, effect: '+10 Defence next match', position: 'DEF' },
-  worldcup: { key: 'worldcup', name: 'World Cup Trophy', symbol: '<:worldcup:1574441152176853032>', type: 'trophy' },
-  goldmedal: { key: 'goldmedal', name: 'Gold Medal', symbol: '<:goldmedal:1574128453404590236>', type: 'medal' },
-  silvermedal: { key: 'silvermedal', name: 'Silver Medal', symbol: '<:silvermedal:1574123011039174738>', type: 'medal' },
-  motm: { key: 'motm', name: 'Man of the Match Award', symbol: '<:motm:1574122946547556405>', type: 'award' },
-  goldenboot: { key: 'goldenboot', name: 'Golden Boot', symbol: '<:goldenboot:1574128433724784772>', type: 'award' }
+  sd: { key: 'sd', name: 'Sports Drink', symbol: '<:sd:1574453670198902784>', type: 'consumable', price: 100000n, effect: '+50 Stamina' },
+  strika: { key: 'strika', name: 'Strika Boots', symbol: '<:strika:1574453680709566594>', type: 'boots', price: 500000n, effect: '+10 Attack next match', position: 'ATK' },
+  passa: { key: 'passa', name: 'Passa Boots', symbol: '<:passa:1574453692646563950>', type: 'boots', price: 500000n, effect: '+10 Midfield next match', position: 'MID' },
+  bully: { key: 'bully', name: 'Bully Boots', symbol: '<:bully:1574453703514263713>', type: 'boots', price: 500000n, effect: '+10 Defence next match', position: 'DEF' },
+  worldcup: { key: 'worldcup', name: 'World Cup Trophy', symbol: '<:worldcup:1574454369338925219>', type: 'trophy' },
+  goldmedal: { key: 'goldmedal', name: 'Gold Medal', symbol: '<:goldmedal:1574453777497464913>', type: 'medal' },
+  silvermedal: { key: 'silvermedal', name: 'Silver Medal', symbol: '<:silvermedal:1574453789157752907>', type: 'medal' },
+  motm: { key: 'motm', name: 'Man of the Match Award', symbol: '<:motm:1574453801287557251>', type: 'award' },
+  goldenboot: { key: 'goldenboot', name: 'Golden Boot', symbol: '<:goldenboot:1574453765698879639>', type: 'award' }
 };
