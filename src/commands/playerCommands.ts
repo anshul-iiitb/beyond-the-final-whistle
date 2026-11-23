@@ -105,10 +105,11 @@ export function buildProfileEmbed(
         }
       )
       .setThumbnail(targetUser.displayAvatarURL())
-      .setFooter({ text: 'WITS • Career Player Profile • Tab 1/3' });
+      .setFooter({ text: 'Beyond The Final Whistle • Career Player Profile • Tab 1/3' });
   }
 
   if (tab === 'stats') {
+    const motmEmoji = getEmoji(guild, 'motm');
     return new EmbedBuilder()
       .setColor('#2b2d31')
       .setTitle(`📊 ${player.username} ${flag} Detailed Career Match Stats`)
@@ -137,12 +138,12 @@ export function buildProfileEmbed(
             `• Clean Sheets : **${player.cleanSheets}** 🧤\n` +
             `• Yellow Cards : **${player.yellowCards}** 🟨\n` +
             `• Red Cards : **${player.redCards}** 🟥\n` +
-            `• MOTM Awards : **${player.motmCount}** 👑`,
+            `• MOTM Awards : **${player.motmCount}** ${motmEmoji}`,
           inline: false
         }
       )
       .setThumbnail(targetUser.displayAvatarURL())
-      .setFooter({ text: 'WITS • Detailed Match Telemetry • Tab 2/3' });
+      .setFooter({ text: 'Beyond The Final Whistle • Detailed Match Telemetry • Tab 2/3' });
   }
 
   // Attributes tab
@@ -176,7 +177,7 @@ export function buildProfileEmbed(
       }
     )
     .setThumbnail(targetUser.displayAvatarURL())
-    .setFooter({ text: 'WITS • Attributes Matrix • Tab 3/3' });
+    .setFooter({ text: 'Beyond The Final Whistle • Attributes Matrix • Tab 3/3' });
 }
 
 /**

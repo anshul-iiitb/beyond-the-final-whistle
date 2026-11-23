@@ -42,7 +42,7 @@ export async function executeTraining(playerId: string, type: 'normal' | 'vip' |
       return { success: false, error: `⚡ Insufficient stamina (${player.stamina}/50 needed for No Effort Training).` };
     }
 
-    const earnedTp = player.vipTier >= 2 ? 50 : 20;
+    const earnedTp = 20;
     const updated = await prisma.player.update({
       where: { id: playerId },
       data: {
@@ -296,7 +296,7 @@ export async function executeSaunaRecovery(playerId: string) {
     return { success: false, message: '⚡ Your stamina is already at the maximum of 100!' };
   }
 
-  const recoveryAmount = player.vipTier >= 2 ? 100 : 30;
+  const recoveryAmount = player.vipTier >= 1 ? 100 : 30;
   const newStamina = Math.min(100, player.stamina + recoveryAmount);
 
   await prisma.player.update({

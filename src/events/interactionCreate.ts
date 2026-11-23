@@ -144,7 +144,7 @@ export async function onInteractionCreate(interaction: Interaction) {
     // 4. Commercial Sponsor Endorsements: sponsor_heineken, sponsor_adidas, etc.
     if (customId.startsWith('sponsor_')) {
       const sponsorKey = customId.replace('sponsor_', '');
-      const result = await executeSponsorAdvert(interaction.user.id, sponsorKey);
+      const result = await executeSponsorAdvert(interaction.user.id, sponsorKey, interaction.guild);
 
       if (!result.success) {
         return await interaction.reply({ content: result.message, ephemeral: true });

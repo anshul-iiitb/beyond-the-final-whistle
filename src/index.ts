@@ -18,8 +18,12 @@ async function bootstrap() {
 
   const client = new BTFWClient();
 
-  client.on('ready', () => {
+  client.on('ready', async () => {
     logger.info(`⚽ Beyond The Final Whistle is LIVE as ${client.user?.tag}! Ready for kickoff.`);
+    // Fetch and warm up server emojis across all guilds
+    for (const guild of client.guilds.cache.values()) {
+      await guild.emojis.fetch().catch(() => {});
+    }
     startDailyLifecycleWorker(client);
   });
 

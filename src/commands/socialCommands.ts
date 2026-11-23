@@ -62,7 +62,7 @@ export async function handleAdvertCommand(message: Message, args: string[]) {
     return await message.reply({ embeds: [menu.embed], components: menu.components });
   }
 
-  const result = await executeSponsorAdvert(message.author.id, sponsorKey);
+  const result = await executeSponsorAdvert(message.author.id, sponsorKey, message.guild);
   if (result.embed) {
     await message.reply({ embeds: [result.embed], files: result.files || [] });
   } else {
@@ -125,7 +125,7 @@ export async function handleChirpCommand(message: Message, args: string[]) {
     .addFields(
       { name: `Followers 👤 : ${formattedFollowers}`, value: '0 🗨️  0 🔁', inline: false }
     )
-    .setFooter({ text: 'WITS TwitFeed • Fan Engagement Network' });
+    .setFooter({ text: 'Beyond The Final Whistle TwitFeed • Fan Engagement Network' });
 
   const files: AttachmentBuilder[] = [];
   const twitterImgPath = path.resolve(process.cwd(), 'assets/twitter.png');

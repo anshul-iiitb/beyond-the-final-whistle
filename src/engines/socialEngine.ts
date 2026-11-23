@@ -1,9 +1,10 @@
-import { EmbedBuilder, AttachmentBuilder } from 'discord.js';
+import { EmbedBuilder, AttachmentBuilder, Guild } from 'discord.js';
 import path from 'path';
 import fs from 'fs';
 import { prisma } from '../database/prisma.js';
 import { SPONSORS } from '../config/constants.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
+import { getEmoji } from '../utils/emojiHelper.js';
 
 export interface SponsorExecutionResult {
   success: boolean;
@@ -15,7 +16,11 @@ export interface SponsorExecutionResult {
 /**
  * Handles signing commercial brand endorsements at the Photoshooting Hall
  */
-export async function executeSponsorAdvert(playerId: string, sponsorKey?: string): Promise<SponsorExecutionResult> {
+export async function executeSponsorAdvert(playerId: string, sponsorKey?: string, guild?: Guild | null): Promise<SponsorExecutionResult> {
+  const coinEmoji = getEmoji(guild, 'coin');
+  const staminaEmoji = getEmoji(guild, 'stamina');
+  const fansEmoji = getEmoji(guild, 'followers');
+
   const player = await prisma.player.findUnique({
     where: { id: playerId },
     include: { nation: true }
@@ -41,8 +46,8 @@ export async function executeSponsorAdvert(playerId: string, sponsorKey?: string
       const eligible = player.followers >= s.minFollowers ? '✅' : '🔒';
       const followerText = s.followerDelta > 0n ? `+${formatK(s.followerDelta)}` : s.followerDelta < 0n ? `${formatK(s.followerDelta)}` : '0';
       return `${eligible} **${s.emoji} ${s.name}** (\`-advert ${s.key}\`)\n` +
-        `• Min Followers: \`${formatK(s.minFollowers)} 👤\` | Stamina Cost: \`${s.staminaCost} ⚡\`\n` +
-        `• Reward: \`+${formatK(s.rewardCoins)} 🪙\` | Followers Change: \`${followerText} 👤\``;
+        `• Min Followers: \`${formatK(s.minFollowers)} ${fansEmoji}\` | Stamina Cost: \`${s.staminaCost} ${staminaEmoji}\`\n` +
+        `• Reward: \`+${formatK(s.rewardCoins)} ${coinEmoji}\` | Followers Change: \`${followerText} ${fansEmoji}\``;
     });
 
     const embed = new EmbedBuilder()
@@ -73,7 +78,7 @@ export async function executeSponsorAdvert(playerId: string, sponsorKey?: string
   if (player.stamina < sponsor.staminaCost) {
     return {
       success: false,
-      message: `⚡ Insufficient stamina (${player.stamina}/${sponsor.staminaCost} ⚡ needed). Take a rest at the sauna or drink a sports drink!`
+      message: `⚡ Insufficient stamina (${player.stamina}/${sponsor.staminaCost} ${staminaEmoji} needed). Take a rest at the sauna or drink a sports drink!`
     };
   }
 
@@ -97,9 +102,9 @@ export async function executeSponsorAdvert(playerId: string, sponsorKey?: string
     .setTitle(`${player.username} ${flag} signed endorsement with ${sponsor.emoji} ${sponsor.name}!`)
     .setDescription(
       `📸 **Commercial Photoshoot Complete!**\n\n` +
-      `🪙 **Earnings:** \`+${formatK(sponsor.rewardCoins)} coins\`\n` +
-      `👥 **Follower Change:** \`${followerChangeStr} followers\` (Total: \`${formatK(updated.followers)} 👤\`)\n` +
-      `⚡ **Stamina:** \`${updated.stamina}/100 ⚡\`\n\n` +
+      `${coinEmoji} **Earnings:** \`+${formatK(sponsor.rewardCoins)} coins\`\n` +
+      `${fansEmoji} **Follower Change:** \`${followerChangeStr} followers\` (Total: \`${formatK(updated.followers)}\`)\n` +
+      `${staminaEmoji} **Stamina:** \`${updated.stamina}/100\`\n\n` +
       `*(2-hour brand photoshoot cooldown active)*`
     )
     .setFooter({ text: 'Beyond The Final Whistle • Commercial Hub' });

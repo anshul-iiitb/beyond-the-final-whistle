@@ -22,7 +22,7 @@ model Player {
   coins                 BigInt            @default(50000)
   followers             BigInt            @default(1000)
   trainingPoints        Int               @default(10)
-  vipTier               Int               @default(0) // 0: Regular, 1: VIP, 2: Premium
+  vipTier               Int               @default(0) // 0: Regular, 1: VIP
   vipExpiresAt          DateTime?
   intelBonus            Int               @default(0)
   intelStat             String?

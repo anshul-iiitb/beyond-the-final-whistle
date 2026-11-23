@@ -13,13 +13,14 @@ export async function handleMatchCommand(message: Message, args: string[]) {
     const result = await simulateFullMatch(message.author.id, opponent?.id);
 
     // 1. Post Match Commentary Highlights Embed
+    const motmEmoji = getEmoji(message.guild, 'motm');
     const highlightLines = result.commentaryEvents.map(e => `**[${e.minute}'] ${e.header}**\n${e.text}`);
     const matchEmbed = new EmbedBuilder()
       .setColor('#16a34a')
       .setTitle(`⚽ FULL TIME: ${result.homeTeamName} ${result.homeScore} – ${result.awayScore} ${result.awayTeamName}`)
       .setDescription(
         `📊 **Possession:** ${result.homeTeamName} \`${result.homePossession}%\` | \`${result.awayPossession}%\` ${result.awayTeamName}\n` +
-        `👑 **MOTM:** **${result.motmPlayerName}** (\`${result.motmRating} Rating\`)\n\n` +
+        `${motmEmoji} **MOTM:** **${result.motmPlayerName}** (\`${result.motmRating} Rating\`)\n\n` +
         `━━━━━━━━━━━━━━━━━━━━\n` +
         highlightLines.slice(0, 5).join('\n\n')
       )

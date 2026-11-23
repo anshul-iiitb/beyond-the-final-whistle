@@ -119,15 +119,15 @@ export interface VehicleDef {
 
 export const VEHICLE_CATALOG: VehicleDef[] = [
   { key: 'basic', name: 'Basic Car', cost: 700000n, cooldownMinutes: 16, emoji: '🚗' },
-  { key: 'honda', name: 'Honda Civic', cost: 1000000n, cooldownMinutes: 14, emoji: '<:hcfront:1574145982218637443><:hcback:1574145991353966643>' },
-  { key: 'toyota', name: 'Toyota Supra', cost: 3000000n, cooldownMinutes: 10, emoji: '<:tsfront:1574146000724033697><:tsback:1574146010345775265>' },
-  { key: 'porsche', name: 'Porsche 911', cost: 5350000n, cooldownMinutes: 7, emoji: '<:p911front:1574146019740885033><:p911back:1574146028884463857>' },
-  { key: 'nissan', name: 'Nissan GTR', cost: 6750000n, cooldownMinutes: 4, emoji: '<:ngtrfront:1574146038296617141><:ngtrback:1574146047499047014>' },
-  { key: 'audi', name: 'Audi R8', cost: 6750000n, cooldownMinutes: 4, emoji: '<:ar8front:1574146057233760256><:ar8back:1574146066180345996>' },
-  { key: 'lamborghini', name: 'Lamborghini Huracan', cost: 8400000n, cooldownMinutes: 3, emoji: '<:lhfront:1574146075101499583><:lhback:1574146085767876669>' },
-  { key: 'rollsroyce', name: 'Rolls Royce Ghost', cost: 10250000n, cooldownMinutes: 2, emoji: '<:rrgfront:1574146094797955122><:rrgback:1574146104113496237>' },
-  { key: 'ferrari', name: 'Ferrari La Ferrari', cost: 17700000n, cooldownMinutes: 1, emoji: '<:ffront:1574146113232179303><:fback:1574146122472095798>' },
-  { key: 'bugatti', name: 'Bugatti Chiron', cost: 20500000n, cooldownMinutes: 1, emoji: '<:bcfront:1574146131578060930><:bcback:1574146142613012530>' }
+  { key: 'honda', name: 'Honda Civic', cost: 1000000n, cooldownMinutes: 14, emoji: '<:hcfront:1574441090503938158><:hcback:1574441085294616640>' },
+  { key: 'toyota', name: 'Toyota Supra', cost: 3000000n, cooldownMinutes: 10, emoji: '<:tsfront:1574441146850082917><:tsback:1574441142022570014>' },
+  { key: 'porsche', name: 'Porsche 911', cost: 5350000n, cooldownMinutes: 7, emoji: '<:p911front:1574441127464014015><:p911back:1574441122716065923>' },
+  { key: 'nissan', name: 'Nissan GTR', cost: 6750000n, cooldownMinutes: 4, emoji: '<:ngtrfront:1574441117662052483><:ngtrback:1574441112632958999>' },
+  { key: 'audi', name: 'Audi R8', cost: 6750000n, cooldownMinutes: 4, emoji: '<:ar8front:1574441060116074632><:ar8back:1574441055099813898>' },
+  { key: 'lamborghini', name: 'Lamborghini Huracan', cost: 8400000n, cooldownMinutes: 3, emoji: '<:lhfront:1574441105301315615><:lhback:1574441100280602727>' },
+  { key: 'rollsroyce', name: 'Rolls Royce Ghost', cost: 10250000n, cooldownMinutes: 2, emoji: '<:rrgfront:1574441137098195125><:rrgback:1574441132413292725>' },
+  { key: 'ferrari', name: 'Ferrari La Ferrari', cost: 17700000n, cooldownMinutes: 1, emoji: '<:ffront:1574441080403787816><:fback:1574441075366564000>' },
+  { key: 'bugatti', name: 'Bugatti Chiron', cost: 20500000n, cooldownMinutes: 1, emoji: '<:bcfront:1574441070484394104><:bcback:1574441065535246396>' }
 ];
 
 export interface PlaystyleDef {
@@ -225,11 +225,11 @@ export interface SponsorDef {
 }
 
 export const SPONSORS: SponsorDef[] = [
-  { key: 'heineken', name: 'Heineken', emoji: '🍺', minFollowers: 100000n, staminaCost: 5, rewardCoins: 100000n, followerDelta: -50000n },
-  { key: 'adidas', name: 'Adidas', emoji: '👟', minFollowers: 1000000n, staminaCost: 10, rewardCoins: 200000n, followerDelta: 0n },
-  { key: 'cocacola', name: 'Coca-Cola', emoji: '🥤', minFollowers: 5000000n, staminaCost: 10, rewardCoins: 300000n, followerDelta: -200000n },
-  { key: 'netflix', name: 'Netflix', emoji: '🎬', minFollowers: 6000000n, staminaCost: 30, rewardCoins: 300000n, followerDelta: 50000n },
-  { key: 'nike', name: 'Nike', emoji: '✔️', minFollowers: 8000000n, staminaCost: 50, rewardCoins: 500000n, followerDelta: -300000n }
+  { key: 'heineken', name: 'Heineken', emoji: '<:heineken:1574441095511937045>', minFollowers: 100000n, staminaCost: 5, rewardCoins: 100000n, followerDelta: -50000n },
+  { key: 'adidas', name: 'Adidas', emoji: '<:adidas:1574128365110173817>', minFollowers: 1000000n, staminaCost: 10, rewardCoins: 200000n, followerDelta: 0n },
+  { key: 'cocacola', name: 'Coca-Cola', emoji: '<:cocacola:1574128399914369044>', minFollowers: 5000000n, staminaCost: 10, rewardCoins: 300000n, followerDelta: -200000n },
+  { key: 'netflix', name: 'Netflix', emoji: '<:netflix:1574122957809393764>', minFollowers: 6000000n, staminaCost: 30, rewardCoins: 300000n, followerDelta: 50000n },
+  { key: 'nike', name: 'Nike', emoji: '<:nike:1574122968412590252>', minFollowers: 8000000n, staminaCost: 50, rewardCoins: 500000n, followerDelta: -300000n }
 ];
 
 export const ATTRIBUTES_LIST = [
@@ -261,13 +261,13 @@ export interface ItemDef {
 }
 
 export const ITEM_CATALOG: Record<string, ItemDef> = {
-  sd: { key: 'sd', name: 'Sports Drink', symbol: '🧪', type: 'consumable', price: 100000n, effect: '+50 Stamina' },
-  strika: { key: 'strika', name: 'Strika Boots', symbol: '⚡', type: 'boots', price: 500000n, effect: '+10 Attack next match', position: 'ATK' },
-  passa: { key: 'passa', name: 'Passa Boots', symbol: '👟', type: 'boots', price: 500000n, effect: '+10 Midfield next match', position: 'MID' },
-  bully: { key: 'bully', name: 'Bully Boots', symbol: '🛡️', type: 'boots', price: 500000n, effect: '+10 Defence next match', position: 'DEF' },
-  worldcup: { key: 'worldcup', name: 'World Cup Trophy', symbol: '🏆', type: 'trophy' },
-  goldmedal: { key: 'goldmedal', name: 'Gold Medal', symbol: '🥇', type: 'medal' },
-  silvermedal: { key: 'silvermedal', name: 'Silver Medal', symbol: '🥈', type: 'medal' },
-  motm: { key: 'motm', name: 'Man of the Match Award', symbol: '👑', type: 'award' },
-  goldenboot: { key: 'goldenboot', name: 'Golden Boot', symbol: '✨', type: 'award' }
+  sd: { key: 'sd', name: 'Sports Drink', symbol: '<:sd:1574122998162784486>', type: 'consumable', price: 100000n, effect: '+50 Stamina' },
+  strika: { key: 'strika', name: 'Strika Boots', symbol: '<:strika:1574123035751878790>', type: 'boots', price: 500000n, effect: '+10 Attack next match', position: 'ATK' },
+  passa: { key: 'passa', name: 'Passa Boots', symbol: '<:passa:1574122982190751914>', type: 'boots', price: 500000n, effect: '+10 Midfield next match', position: 'MID' },
+  bully: { key: 'bully', name: 'Bully Boots', symbol: '<:bully:1574128376111824988>', type: 'boots', price: 500000n, effect: '+10 Defence next match', position: 'DEF' },
+  worldcup: { key: 'worldcup', name: 'World Cup Trophy', symbol: '<:worldcup:1574441152176853032>', type: 'trophy' },
+  goldmedal: { key: 'goldmedal', name: 'Gold Medal', symbol: '<:goldmedal:1574128453404590236>', type: 'medal' },
+  silvermedal: { key: 'silvermedal', name: 'Silver Medal', symbol: '<:silvermedal:1574123011039174738>', type: 'medal' },
+  motm: { key: 'motm', name: 'Man of the Match Award', symbol: '<:motm:1574122946547556405>', type: 'award' },
+  goldenboot: { key: 'goldenboot', name: 'Golden Boot', symbol: '<:goldenboot:1574128433724784772>', type: 'award' }
 };
