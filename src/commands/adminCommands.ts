@@ -91,7 +91,7 @@ export async function handleVipCommand(message: Message, args: string[]) {
     return await message.reply('❌ Usage: `-vip add invite @user` or `-vip add boost @user`');
   }
 
-  const tier = args.includes('premium') || args.includes('boost') ? 2 : 1;
+  const tier = 1;
   const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
   await prisma.player.upsert({
@@ -105,7 +105,7 @@ export async function handleVipCommand(message: Message, args: string[]) {
     }
   });
 
-  const tierName = tier === 2 ? '👑 PREMIUM' : '⭐ VIP';
+  const tierName = '⭐ VIP';
   await message.reply(`✅ **${tierName} Granted** to <@${targetUser.id}> for 30 days! VIP training drills are now unlocked.`);
 }
 

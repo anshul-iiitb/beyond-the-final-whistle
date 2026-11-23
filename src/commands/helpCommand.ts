@@ -35,7 +35,7 @@ export async function handleHelpCommand(message: Message) {
           '• `-train` — Opens interactive Training Method picker with 3 buttons:\n' +
           '  🟢 `⚽ Normal Training` (+1-2 🤹‍♂️ TP, 30m cooldown, 5 ⚡ stamina)\n' +
           '  🔵 `👑 VIP Training` (+6 🤹‍♂️ TP, 6h cooldown, 5 ⚡ stamina)\n' +
-          '  🔴 `👑 No Effort Training` (+20 🤹‍♂️ VIP / +50 🤹‍♂️ Premium, 50 ⚡ stamina, 1/day)\n' +
+          '  🔴 `👑 No Effort Training` (+20 🤹‍♂️ VIP, 50 ⚡ stamina, 1/day)\n' +
           '  *Training attaches authentic pitch drill photography and updates stats!*\n' +
           '• `-sptrain <attr>` / `-upgrade` — Permanently boost attribute at Research Lab (costs 50 stamina & 3-15 dynamic TP).\n' +
           '• `-convert <playstyle>` — Change tactical role at Research Lab (7-day cooldown).\n' +

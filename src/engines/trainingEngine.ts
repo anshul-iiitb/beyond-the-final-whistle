@@ -33,7 +33,7 @@ export async function executeTraining(playerId: string, type: 'normal' | 'vip' |
 
   if (type === 'noeffort') {
     if (player.vipTier < 1) {
-      return { success: false, error: '⭐ **No Effort Training** requires VIP or Premium status! Boost the server or donate to unlock.' };
+      return { success: false, error: '⭐ **No Effort Training** requires VIP status! Boost the server or invite friends to unlock.' };
     }
     if (player.lastTrainedAt && player.lastTrainedAt.toDateString() === now.toDateString()) {
       return { success: false, error: '⏳ You have already performed your daily **No Effort Training** session today.' };

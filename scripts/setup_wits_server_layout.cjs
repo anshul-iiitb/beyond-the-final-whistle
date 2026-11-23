@@ -81,7 +81,6 @@ client.once('clientReady', async () => {
     // Trophies & Prestige
     { name: '🏆 World Champion', color: '#ffd700', hoist: true, mentionable: false },
     { name: '⭐ Ballon d\'Or Winner', color: '#fef08a', hoist: true, mentionable: false },
-    { name: '💎 Premium Footballer', color: '#c084fc', hoist: true, mentionable: false },
     { name: '👑 VIP Footballer', color: '#fbbf24', hoist: true, mentionable: false },
     { name: '👟 Pro Footballer', color: '#10b981', hoist: true, mentionable: false },
     { name: '⚽ Rookie Footballer', color: '#94a3b8', hoist: true, mentionable: false },

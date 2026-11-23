@@ -36,7 +36,7 @@ export function buildProfileEmbed(
   const loc = CAMPUS_LOCATIONS[player.currentLocation] || CAMPUS_LOCATIONS.tc;
   const style = PLAYSTYLES[player.playstyle] || PLAYSTYLES.PCH;
   const flag = getNationFlag(player.nation);
-  const vipBadge = player.vipTier >= 2 ? '👑 [PREMIUM]' : player.vipTier === 1 ? '⭐ [VIP]' : '';
+  const vipBadge = player.vipTier >= 1 ? '👑 [VIP]' : '';
   const staminaEmoji = getEmoji(guild, 'stamina');
   const coinEmoji = getEmoji(guild, 'coin');
   const tpEmoji = getEmoji(guild, 'tp');

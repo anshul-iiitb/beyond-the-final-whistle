@@ -283,7 +283,7 @@ client.once('clientReady', async () => {
       `VIP status elevates your football career with enhanced training options and accelerated development.\n\n` +
       `**✨ VIP Perks:**\n` +
       `• **VIP Training:** Run \`-train\` and select VIP mode for **+6 Training Points ${E.tp}** (6h cooldown).\n` +
-      `• **No Effort Training:** Instant **+20 TP** (+50 TP for Premium) once per day!\n` +
+      `• **No Effort Training:** Instant **+20 TP** once per day!\n` +
       `• **Sauna Full Recharge:** \`-recovery\` restores **100% full stamina ${E.stamina}** up to max cap!\n` +
       `• **Exclusive Role:** Golden \`@👑 VIP Footballer\` hoisted role.\n\n` +
       `**🎟️ How to Acquire VIP:**\n` +

@@ -19,7 +19,7 @@ export const CAMPUS_LOCATIONS: Record<string, LocationDef> = {
     activities: [
       '-train (Earn Training Points, 30m cooldown)',
       '-train vip (VIP drill: +6 TP, 6h cooldown)',
-      '-train noeffort (VIP: +20 TP, Premium: +50 TP)'
+      '-train noeffort (VIP: +20 TP, 1/day)'
     ]
   },
   rf: {
@@ -67,7 +67,7 @@ export const CAMPUS_LOCATIONS: Record<string, LocationDef> = {
     emoji: '🧖',
     description: 'Cryotherapy and steam sauna to soothe fatigue and restore stamina.',
     activities: [
-      '-recovery (Free stamina recovery: +30 Regular, +100 Premium, 12h cooldown)'
+      '-recovery (Free stamina recovery: +30 Regular, +100 VIP, 12h cooldown)'
     ]
   },
   lc: {
