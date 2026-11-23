@@ -81,7 +81,14 @@ export const APPLICATION_EMOJIS: Record<string, string> = {
 export function getEmoji(scope: Guild | Client | null | undefined, name: string): string {
   const lower = name.toLowerCase();
 
-  // 1. Primary: Official Application Emojis (The newly edited main emojis)
+  // 1. Primary: Guild Emojis Cache (Server emojis work for ALL bots and members without Nitro)
+  const emojiCache = scope && 'emojis' in scope ? (scope as Guild).emojis.cache : undefined;
+  if (emojiCache) {
+    const custom = emojiCache.find(e => e.name?.toLowerCase() === lower);
+    if (custom) return custom.toString();
+  }
+
+  // 2. Secondary: Official Application Emojis
   if (APPLICATION_EMOJIS[lower]) {
     return APPLICATION_EMOJIS[lower];
   }
@@ -93,12 +100,6 @@ export function getEmoji(scope: Guild | Client | null | undefined, name: string)
     if (appCustom) return appCustom.toString();
   }
 
-  // 3. Guild Emojis Cache
-  const emojiCache = scope && 'emojis' in scope ? scope.emojis.cache : undefined;
-  if (emojiCache) {
-    const custom = emojiCache.find(e => e.name?.toLowerCase() === lower);
-    if (custom) return custom.toString();
-  }
 
   return EMOJI_FALLBACKS[name] || '⚽';
 }
