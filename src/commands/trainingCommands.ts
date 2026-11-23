@@ -4,28 +4,34 @@ import fs from 'fs';
 import { executeTraining, upgradeAttribute, convertPlaystyle, executeSaunaRecovery, TrainingResult } from '../engines/trainingEngine.js';
 import { getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
+import { THEME_COLORS, UI, makeProgressBar, subtext } from '../utils/themeHelper.js';
 
 /**
- * Builds the exact training success embed matching WhatsApp Image 2026-11-22 at 8.47.46 PM.jpeg
+ * Builds the themed training success embed
  */
 export function buildTrainingSuccessEmbed(result: TrainingResult, user: User, guild?: Guild | null) {
   const flag = getNationFlag(result.player?.nation);
   const staminaEmoji = getEmoji(guild, 'stamina');
   const tpEmoji = getEmoji(guild, 'tp');
+  const remainingStam = result.remainingStamina ?? 0;
+  const staminaBar = makeProgressBar(remainingStam, 100, 10);
 
   const embed = new EmbedBuilder()
-    .setColor('#1e1f22')
-    .setTitle(`${result.player?.username || user.username} ${flag} trained!`)
+    .setColor(THEME_COLORS.CYAN)
+    .setTitle(`⚡ ${result.player?.username || user.username} ${flag} Session Completed!`)
     .setDescription(
-      `You gained ${result.tpGained} ${tpEmoji} Training points!\n\n` +
-      `You can train again in ${result.cooldownMinutes} minutes.\n\n` +
-      `**New Stats!**\n` +
-      `Stamina : ${result.remainingStamina} ${staminaEmoji}\n` +
-      `Training points : ${result.totalTp} ${tpEmoji}`
+      `### 🎯 DRILL BIOMETRIC SUMMARY\n` +
+      `• **Training Points Earned:** \`+${result.tpGained ?? 0} TP\` ${tpEmoji}\n` +
+      `• **Total TP Reserve:** \`${result.totalTp ?? 0} TP\` ${tpEmoji}\n` +
+      `• **Session Cooldown:** Ready in \`${result.cooldownMinutes ?? 30} minutes\` ⏱️\n\n` +
+      `### ⚡ CURRENT STAMINA\n` +
+      `${staminaEmoji} \`${remainingStam}/100\`\n` +
+      `${staminaBar} **${remainingStam}%**\n\n` +
+      `${UI.DIVIDER}\n` +
+      subtext('⚠️ Injury Risk: If stamina drops below 50, matchday injury chances rise significantly. Restore at the Sauna: `-recovery`.')
     )
-    .setFooter({
-      text: 'Note : If your stamina goes below 50 there is high chance that you may catch injury during match.'
-    });
+    .setFooter({ text: 'Beyond The Final Whistle • Training Ground' })
+    .setTimestamp();
 
   const files: AttachmentBuilder[] = [];
   const trainingImgPath = path.resolve(process.cwd(), 'assets/training.png');
@@ -38,32 +44,35 @@ export function buildTrainingSuccessEmbed(result: TrainingResult, user: User, gu
 }
 
 /**
- * Builds the Choose Training Method embed matching WhatsApp Image 2026-11-22 at 8.47.45 PM.jpeg
+ * Builds the themed Choose Training Method interactive menu
  */
 export function buildTrainingSelectionMenu(user: User, guild?: Guild | null) {
   const tpEmoji = getEmoji(guild, 'tp');
-  const now = new Date();
-  const dateStr = now.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric'
-  }) + ' ' + now.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
+  const staminaEmoji = getEmoji(guild, 'stamina');
 
   const embed = new EmbedBuilder()
-    .setColor('#1e1f22')
-    .setTitle('Choose Training Method!')
+    .setColor(THEME_COLORS.CYAN)
+    .setTitle('🏋️ Training Ground — Select Session Regimen')
     .setThumbnail(user.displayAvatarURL())
     .setDescription(
-      `Choose a training method from below to train!\n\n` +
-      `• *Normal Training* - Gives 1 to 2 ${tpEmoji} every 30 minutes *(range scales depending upon your overall)*\n\n` +
-      `• *VIP Training* - Gives 6 ${tpEmoji} every 6 hours\n\n` +
-      `• *No Effort Training* - Gives 20 ${tpEmoji} every matchday *(if used no other training methods can be used in that matchday)*`
+      `Select an on-pitch training regimen below to accumulate Training Points (${tpEmoji}) and enhance your biomechanical attributes:\n\n` +
+      `⚽ **Standard Pitch Drills**\n` +
+      `> Tactical ball drills focusing on positional fundamentals.\n` +
+      `• **Yield:** \`+1 to +2 TP\` ${tpEmoji} (Scales with player overall)\n` +
+      `• **Cooldown:** \`30 minutes\` • **Stamina Cost:** \`5\` ${staminaEmoji}\n\n` +
+      `👑 **VIP Elite Performance**\n` +
+      `> High-intensity bespoke biometric training for VIP footballers.\n` +
+      `• **Yield:** \`+6 TP\` ${tpEmoji}\n` +
+      `• **Cooldown:** \`6 hours\` • **Stamina Cost:** \`5\` ${staminaEmoji}\n\n` +
+      `⚡ **No Effort Intensive Prep**\n` +
+      `> Instant matchday intensive tactical prep.\n` +
+      `• **Yield:** \`+20 TP\` ${tpEmoji}\n` +
+      `• **Cooldown:** \`1 per matchday\` • **Stamina Cost:** \`50\` ${staminaEmoji}\n\n` +
+      `${UI.DIVIDER}\n` +
+      subtext('💡 Click a button below to begin your training session.')
     )
-    .setFooter({ text: dateStr });
+    .setFooter({ text: 'Beyond The Final Whistle • Training Ground' })
+    .setTimestamp();
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
@@ -73,12 +82,12 @@ export function buildTrainingSelectionMenu(user: User, guild?: Guild | null) {
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId('train_vip')
-      .setLabel('VIP Training')
+      .setLabel('VIP Training (+6 TP)')
       .setEmoji('👑')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId('train_noeffort')
-      .setLabel('No Effort Training')
+      .setLabel('No Effort (+20 TP)')
       .setEmoji('👑')
       .setStyle(ButtonStyle.Danger)
   );

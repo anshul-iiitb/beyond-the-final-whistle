@@ -5,22 +5,23 @@ import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { giveMoney } from '../engines/socialEngine.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
+import { THEME_COLORS, UI, makeProgressBar, subtext } from '../utils/themeHelper.js';
 
 export function buildProfileTabsRow(targetUserId: string, currentTab: 'main' | 'stats' | 'attr') {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`profile_main_${targetUserId}`)
-      .setLabel('Main Profile')
+      .setLabel('Overview')
       .setEmoji('👤')
       .setStyle(currentTab === 'main' ? ButtonStyle.Primary : ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(`profile_stats_${targetUserId}`)
-      .setLabel('Detailed Stats')
+      .setLabel('Match Telemetry')
       .setEmoji('📊')
       .setStyle(currentTab === 'stats' ? ButtonStyle.Primary : ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId(`profile_attr_${targetUserId}`)
-      .setLabel('Attributes')
+      .setLabel('Biomechanics (15)')
       .setEmoji('🎯')
       .setStyle(currentTab === 'attr' ? ButtonStyle.Primary : ButtonStyle.Secondary)
   );
@@ -36,7 +37,8 @@ export function buildProfileEmbed(
   const loc = CAMPUS_LOCATIONS[player.currentLocation] || CAMPUS_LOCATIONS.tc;
   const style = PLAYSTYLES[player.playstyle] || PLAYSTYLES.PCH;
   const flag = getNationFlag(player.nation);
-  const vipBadge = player.vipTier >= 1 ? '👑 [VIP]' : '';
+  const isVip = player.vipTier >= 1;
+  const vipBadge = isVip ? '👑 `[ VIP ]`' : '';
   const staminaEmoji = getEmoji(guild, 'stamina');
   const coinEmoji = getEmoji(guild, 'coin');
   const tpEmoji = getEmoji(guild, 'tp');
@@ -52,132 +54,161 @@ export function buildProfileEmbed(
   } catch {}
 
   // Collectables symbols
-  const itemSymbols = (player.inventory || []).map((i: any) => `${i.emoji} ${i.name}`);
+  const itemSymbols = (player.inventory || []).map((i: any) => `${i.emoji} \`${i.name}\``);
   const vehicleSymbols = (player.vehicles || []).map((v: any) => {
     const vDef = VEHICLE_CATALOG.find(cat => cat.key === v.vehicleKey);
-    return `${vDef?.emoji || carEmoji} ${v.name}`;
+    return `${vDef?.emoji || carEmoji} \`${v.name}\``;
   });
   const allCollectables = [...itemSymbols, ...vehicleSymbols];
-  const collectablesText = allCollectables.length > 0 ? allCollectables.join(' • ') : '(empty)';
+  const collectablesText = allCollectables.length > 0 ? allCollectables.join(' • ') : '*(empty - visit `-showroom` & `-gm`)*';
 
   if (tab === 'main') {
-    const bootStatus = player.activeBoots ? `👟 Boots: \`${player.activeBoots.toUpperCase()}\`` : '👟 Boots: `None`';
-    const intelStatus = player.intelBonus > 0 ? `🛰️ Intel: \`+${player.intelBonus} ${player.intelStat || 'Boost'}\`` : '🛰️ Intel: `None`';
+    const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
+    const staminaBar = makeProgressBar(player.stamina, 100, 10);
+    const color = isVip ? THEME_COLORS.GOLD : THEME_COLORS.PRIMARY;
 
     return new EmbedBuilder()
-      .setColor('#2b2d31')
-      .setTitle(`⚽ ${player.username} ${flag} Career Profile ${vipBadge}`)
+      .setColor(color)
+      .setTitle(`⚽ ${player.username} ${flag} Career Dossier ${vipBadge}`)
       .setDescription(
-        `*"${player.bio || 'Rookie footballer aiming for the World Cup.'}"*\n\n` +
-        `📍 **Location :** ${loc.emoji} **${loc.name}**\n` +
-        `${staminaEmoji} **Stamina :** \`${player.stamina}/100\`\n` +
-        `${tpEmoji} **Training Points :** \`${player.trainingPoints} TP\`\n` +
-        `${coinEmoji} **Net Worth :** \`${formatK(player.coins)}\`\n` +
-        `${followersEmoji} **Followers :** \`${formatK(player.followers)}\`\n` +
-        `👟 **Active Boots :** \`${player.activeBoots ? player.activeBoots.toUpperCase() : 'None'}\`\n` +
-        `🛰️ **Tactical Intel :** \`${player.intelBonus > 0 ? '+' + player.intelBonus + ' ' + (player.intelStat || 'Boost') : 'None'}\``
+        `> *"${player.bio || 'Rising football prodigy aiming for the World Cup trophy.'}"*\n\n` +
+        `### ⚡ BIOMETRIC STATUS & VITALS\n` +
+        `${staminaEmoji} **Stamina:** \`${player.stamina}/100\`\n` +
+        `${staminaBar} **${player.stamina}%**\n` +
+        `${tpEmoji} **Training Points:** \`${player.trainingPoints} TP\`\n` +
+        `📍 **Campus Facility:** ${loc.emoji} **${loc.name}** \`(-travel ${loc.alias})\`\n\n` +
+        `### 💰 FINANCIALS & CLOUT\n` +
+        `${coinEmoji} **Net Worth:** \`${formatK(player.coins)}\`\n` +
+        `${followersEmoji} **Global Fans:** \`${formatK(player.followers)}\`\n` +
+        `👟 **Active Boots:** \`${player.activeBoots ? player.activeBoots.toUpperCase() + ' (+10 Boost)' : 'Standard Cleats'}\`\n` +
+        `🛰️ **Tactical Intel:** \`${player.intelBonus > 0 ? '+' + player.intelBonus + ' ' + (player.intelStat || 'Boost') : 'None (-intel)'}\``
       )
       .addFields(
         {
-          name: '📊 Overall Ratings',
-          value: `• ATK : \`${derived.atk}\`  •  MID : \`${derived.mid}\`  •  DEF : \`${derived.def}\``,
+          name: '📊 Tactical Ratings Matrix',
+          value:
+            '```\n' +
+            `🎯 ATK: ${derived.atk.toString().padEnd(3)}   •   🪄 MID: ${derived.mid.toString().padEnd(3)}   •   🛡️ DEF: ${derived.def.toString().padEnd(3)}   •   ⭐ OVR: ${ovr}\n` +
+            '```',
           inline: false
         },
         {
-          name: `🎭 Playstyle : ${style.emoji} ${style.name} (${style.position})`,
-          value: `*${style.description}*\n**Key Stats :** ${style.keyStats.map(s => `\`${s.toUpperCase()}\``).join(', ')}`,
+          name: `🎭 Tactical Role: ${style.emoji} ${style.name} (${style.position})`,
+          value: `*${style.description}*\n**Key Biometrics:** ${style.keyStats.map(s => `\`${s.toUpperCase()}\``).join(' • ')}`,
           inline: false
         },
         {
-          name: '🛡️ Teams & Nation',
-          value: `• National Team : **${player.nation?.name || 'Free Agent (-joinnation)'}** ${flag}\n• Club : **${player.club?.name || 'Free Agent'}**`,
-          inline: false
+          name: '🛡️ Affiliations & Squad',
+          value: `• **National Team:** **${player.nation?.name || 'Free Agent (-joinnation)'}** ${flag}\n• **Club Franchise:** **${player.club?.name || 'Free Agent'}**`,
+          inline: true
         },
         {
-          name: '📈 Recent Form (Last 5 Matches)',
+          name: '📈 Recent Form (5 Matches)',
           value: `\`${recentForm.join('  •  ')}\``,
-          inline: false
+          inline: true
         },
         {
-          name: '🎁 Collectables & Garage',
+          name: '🎁 Fleet & Trophy Cabinet',
           value: collectablesText,
           inline: false
         }
       )
       .setThumbnail(targetUser.displayAvatarURL())
-      .setFooter({ text: 'Beyond The Final Whistle • Career Player Profile • Tab 1/3' });
+      .setFooter({ text: 'Beyond The Final Whistle • Career Dossier • Tab 1/3' })
+      .setTimestamp();
   }
 
   if (tab === 'stats') {
     const motmEmoji = getEmoji(guild, 'motm');
     return new EmbedBuilder()
-      .setColor('#2b2d31')
-      .setTitle(`📊 ${player.username} ${flag} Detailed Career Match Stats`)
-      .setDescription(`Career match record for **${player.username}** across all competitions.`)
+      .setColor(THEME_COLORS.TURF)
+      .setTitle(`📊 ${player.username} ${flag} Career Match Telemetry`)
+      .setDescription(
+        `Comprehensive on-pitch performance records for **${player.username}** across all competitions.\n` +
+        `${UI.DIVIDER}`
+      )
       .addFields(
         {
-          name: '🎯 Attacking & Passing Telemetry',
+          name: '🎯 Attacking & Playmaking Telemetry',
           value:
-            `• Matches Played : **${player.matchesPlayed}** 🎯\n` +
-            `• Goals Scored : **${player.goalsScored}** ⚽\n` +
-            `• Assists : **${player.assists}** 👟\n` +
-            `• Shots (On Target) : **${player.shots}** (**${player.shotsOnTarget}**)\n` +
-            `• Passes (Completed) : **${player.passesAttempted}** (**${player.passesCompleted}**)\n` +
-            `• Key Passes : **${player.keyPasses}**\n` +
-            `• Second Assists : **${player.secondAssists}**\n` +
-            `• Dribbles Attempted : **${player.dribblesAttempted}**`,
-          inline: false
+            `• **Matches Played:** \`${player.matchesPlayed}\` 🎯\n` +
+            `• **Goals Scored:** \`${player.goalsScored}\` ⚽\n` +
+            `• **Assists Provided:** \`${player.assists}\` 👟\n` +
+            `• **Shots (On Target):** \`${player.shots}\` (\`${player.shotsOnTarget}\` on target)\n` +
+            `• **Passes (Completed):** \`${player.passesAttempted}\` (\`${player.passesCompleted}\` completed)\n` +
+            `• **Key Chances Created:** \`${player.keyPasses}\` 🪄\n` +
+            `• **Second Assists:** \`${player.secondAssists}\`\n` +
+            `• **Dribbles Attempted:** \`${player.dribblesAttempted}\``,
+          inline: true
         },
         {
           name: '🛡️ Defending & Discipline',
           value:
-            `• Dribbles Completed : **${player.dribblesCompleted}**\n` +
-            `• Tackles (Won) : **${player.tacklesAttempted}** (**${player.tacklesWon}**)\n` +
-            `• Interceptions : **${player.interceptions}**\n` +
-            `• Clearances : **${player.clearances}**\n` +
-            `• Clean Sheets : **${player.cleanSheets}** 🧤\n` +
-            `• Yellow Cards : **${player.yellowCards}** 🟨\n` +
-            `• Red Cards : **${player.redCards}** 🟥\n` +
-            `• MOTM Awards : **${player.motmCount}** ${motmEmoji}`,
-          inline: false
+            `• **Dribbles Won:** \`${player.dribblesCompleted}\`\n` +
+            `• **Tackles (Won):** \`${player.tacklesAttempted}\` (\`${player.tacklesWon}\` won) 🛑\n` +
+            `• **Interceptions:** \`${player.interceptions}\` 🧠\n` +
+            `• **Defensive Clearances:** \`${player.clearances}\` 🧹\n` +
+            `• **Clean Sheets:** \`${player.cleanSheets}\` 🧤\n` +
+            `• **Yellow Cards:** \`${player.yellowCards}\` 🟨\n` +
+            `• **Red Cards:** \`${player.redCards}\` 🟥\n` +
+            `• **MOTM Accolades:** \`${player.motmCount}\` ${motmEmoji}`,
+          inline: true
         }
       )
       .setThumbnail(targetUser.displayAvatarURL())
-      .setFooter({ text: 'Beyond The Final Whistle • Detailed Match Telemetry • Tab 2/3' });
+      .setFooter({ text: 'Beyond The Final Whistle • Match Telemetry • Tab 2/3' })
+      .setTimestamp();
   }
 
   // Attributes tab
   return new EmbedBuilder()
-    .setColor('#2b2d31')
-    .setTitle(`🎯 ${player.username} ${flag} 15 Football Attributes`)
+    .setColor(THEME_COLORS.CYAN)
+    .setTitle(`🎯 ${player.username} ${flag} Biomechanical Attributes (15)`)
     .setDescription(
       `Role: ${style.emoji} **${style.name} (${style.code})** • Position: **${style.position}**\n` +
-      `*Spend TP at the Research Facility (\`-travel rf\` ➔ \`-sptrain <attr>\`)*`
+      subtext('Spend TP at the Research Facility: `-travel rf` ➔ `-sptrain <attr>` to permanently level up stats.') + '\n' +
+      `${UI.DIVIDER}`
     )
     .addFields(
       {
         name: '🎯 Attacking Attributes',
-        value: `• Finishing (FIN): \`${player.fin}\`\n• Shot Power (POW): \`${player.pow}\`\n• Heading (HEA): \`${player.hea}\``,
+        value:
+          `• Finishing (FIN): \`${player.fin}\` ${makeProgressBar(player.fin, 99, 5)}\n` +
+          `• Shot Power (POW): \`${player.pow}\` ${makeProgressBar(player.pow, 99, 5)}\n` +
+          `• Heading (HEA): \`${player.hea}\` ${makeProgressBar(player.hea, 99, 5)}`,
         inline: true
       },
       {
         name: '🪄 Technical Attributes',
-        value: `• Passing (PAS): \`${player.pas}\`\n• Vision (VIS): \`${player.vis}\`\n• Crossing (CRO): \`${player.cro}\`\n• Dribbling (DRI): \`${player.dri}\``,
+        value:
+          `• Passing (PAS): \`${player.pas}\` ${makeProgressBar(player.pas, 99, 5)}\n` +
+          `• Vision (VIS): \`${player.vis}\` ${makeProgressBar(player.vis, 99, 5)}\n` +
+          `• Crossing (CRO): \`${player.cro}\` ${makeProgressBar(player.cro, 99, 5)}\n` +
+          `• Dribbling (DRI): \`${player.dri}\` ${makeProgressBar(player.dri, 99, 5)}`,
         inline: true
       },
       {
         name: '🛡️ Defending Attributes',
-        value: `• Tackling (TCK): \`${player.tck}\`\n• Interceptions (INT): \`${player.int}\`\n• Marking (MRK): \`${player.mrk}\``,
+        value:
+          `• Tackling (TCK): \`${player.tck}\` ${makeProgressBar(player.tck, 99, 5)}\n` +
+          `• Interceptions (INT): \`${player.int}\` ${makeProgressBar(player.int, 99, 5)}\n` +
+          `• Marking (MRK): \`${player.mrk}\` ${makeProgressBar(player.mrk, 99, 5)}`,
         inline: true
       },
       {
-        name: '⚡ Physical & Mental',
-        value: `• Pace (PAC): \`${player.pac}\`\n• Physicality (PHY): \`${player.phy}\`\n• Composure (CMP): \`${player.cmp}\`\n• Agility (AGI): \`${player.agi}\`\n• Work Rate (WRK): \`${player.wrk}\``,
+        name: '⚡ Physical & Mental Attributes',
+        value:
+          `• Pace (PAC): \`${player.pac}\` ${makeProgressBar(player.pac, 99, 6)}\n` +
+          `• Physicality (PHY): \`${player.phy}\` ${makeProgressBar(player.phy, 99, 6)}\n` +
+          `• Composure (CMP): \`${player.cmp}\` ${makeProgressBar(player.cmp, 99, 6)}\n` +
+          `• Agility (AGI): \`${player.agi}\` ${makeProgressBar(player.agi, 99, 6)}\n` +
+          `• Work Rate (WRK): \`${player.wrk}\` ${makeProgressBar(player.wrk, 99, 6)}`,
         inline: false
       }
     )
     .setThumbnail(targetUser.displayAvatarURL())
-    .setFooter({ text: 'Beyond The Final Whistle • Attributes Matrix • Tab 3/3' });
+    .setFooter({ text: 'Beyond The Final Whistle • Biomechanics Matrix • Tab 3/3' })
+    .setTimestamp();
 }
 
 /**
@@ -263,12 +294,16 @@ export async function handleLeaderboardCommand(message: Message, args: string[])
       take: 10,
       include: { nation: true }
     });
-    const lines = leaders.map((p, i) => `${i + 1}. **${p.username}** ${getNationFlag(p.nation)} — **${p.goalsScored} goals** ⚽`);
+    const lines = leaders.map((p, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `\`#${i + 1}\``;
+      return `${medal} **${p.username}** ${getNationFlag(p.nation)} ➔ \`${p.goalsScored} Goals\` ⚽`;
+    });
     const embed = new EmbedBuilder()
-      .setColor('#f59e0b')
-      .setTitle('🏆 Top Goalscorers Leaderboard')
+      .setColor(THEME_COLORS.GOLD)
+      .setTitle('🏆 World Golden Boot Leaderboard — Top Scorers')
       .setDescription(lines.join('\n') || 'No goals recorded yet.')
-      .setFooter({ text: 'Beyond The Final Whistle Leaderboards' });
+      .setFooter({ text: 'Beyond The Final Whistle • Global Standings' })
+      .setTimestamp();
     return await message.reply({ embeds: [embed] });
   }
 
@@ -279,12 +314,16 @@ export async function handleLeaderboardCommand(message: Message, args: string[])
       take: 10,
       include: { nation: true }
     });
-    const lines = leaders.map((p, i) => `${i + 1}. **${p.username}** ${getNationFlag(p.nation)} — **${formatK(p.coins)}** ${coinEmoji}`);
+    const lines = leaders.map((p, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `\`#${i + 1}\``;
+      return `${medal} **${p.username}** ${getNationFlag(p.nation)} ➔ \`${formatK(p.coins)}\` ${coinEmoji}`;
+    });
     const embed = new EmbedBuilder()
-      .setColor('#eab308')
-      .setTitle(`${coinEmoji} Net Worth & Wealth Leaderboard`)
+      .setColor(THEME_COLORS.GOLD)
+      .setTitle(`${coinEmoji} World Wealth & Net Worth Leaderboard`)
       .setDescription(lines.join('\n') || 'No wealth recorded.')
-      .setFooter({ text: 'Beyond The Final Whistle Leaderboards' });
+      .setFooter({ text: 'Beyond The Final Whistle • Global Standings' })
+      .setTimestamp();
     return await message.reply({ embeds: [embed] });
   }
 
@@ -294,12 +333,16 @@ export async function handleLeaderboardCommand(message: Message, args: string[])
       take: 10,
       include: { nation: true }
     });
-    const lines = leaders.map((p, i) => `${i + 1}. **${p.username}** ${getNationFlag(p.nation)} — **${formatK(p.followers)} 👤**`);
+    const lines = leaders.map((p, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `\`#${i + 1}\``;
+      return `${medal} **${p.username}** ${getNationFlag(p.nation)} ➔ \`${formatK(p.followers)}\` 👤`;
+    });
     const embed = new EmbedBuilder()
-      .setColor('#38bdf8')
-      .setTitle('👥 Reputation & Followers Leaderboard')
+      .setColor(THEME_COLORS.PURPLE)
+      .setTitle('👥 Global Fan Following & Clout Leaderboard')
       .setDescription(lines.join('\n') || 'No players found.')
-      .setFooter({ text: 'Beyond The Final Whistle Leaderboards' });
+      .setFooter({ text: 'Beyond The Final Whistle • Global Standings' })
+      .setTimestamp();
     return await message.reply({ embeds: [embed] });
   }
 
@@ -311,18 +354,20 @@ export async function handleLeaderboardCommand(message: Message, args: string[])
     return { player: p, ovr, derived: d };
   }).sort((a, b) => b.ovr - a.ovr).slice(0, 10);
 
-  const lines = sorted.map((s, i) =>
-    `${i + 1}. **${s.player.username}** ${getNationFlag(s.player.nation)} — **${s.ovr} OVR** (🅰️ ${s.derived.atk} | 🏃 ${s.derived.mid} | 🛡️ ${s.derived.def})`
-  );
+  const lines = sorted.map((s, i) => {
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `\`#${i + 1}\``;
+    return `${medal} **${s.player.username}** ${getNationFlag(s.player.nation)} ➔ **${s.ovr} OVR** \`[ A:${s.derived.atk} | M:${s.derived.mid} | D:${s.derived.def} ]\``;
+  });
 
   const embed = new EmbedBuilder()
-    .setColor('#3b82f6')
+    .setColor(THEME_COLORS.PRIMARY)
     .setTitle('🏆 World Overall Ratings Leaderboard')
     .setDescription(
       lines.join('\n') +
-      `\n\n*Other leaderboards:* \`-lb goals\`, \`-lb wealth\`, \`-lb followers\``
+      `\n\n${subtext('💡 Other leaderboards: `-lb goals`, `-lb wealth`, `-lb followers`')}`
     )
-    .setFooter({ text: 'Beyond The Final Whistle Leaderboards' });
+    .setFooter({ text: 'Beyond The Final Whistle • Global Standings' })
+    .setTimestamp();
 
   await message.reply({ embeds: [embed] });
 }

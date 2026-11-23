@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { buyMarketItem, claimIntelScouting } from '../engines/marketEngine.js';
 import { getEmoji } from '../utils/emojiHelper.js';
+import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
 
 export function buildGlobalMarketEmbed(guild?: Guild | null) {
   const coin = getEmoji(guild, 'coin');
@@ -13,28 +14,31 @@ export function buildGlobalMarketEmbed(guild?: Guild | null) {
   const bully = getEmoji(guild, 'bully');
 
   const embed = new EmbedBuilder()
-    .setColor('#2b2d31')
-    .setTitle('Global Market!')
+    .setColor(THEME_COLORS.EMERALD)
+    .setTitle('🛍️ Global Marketplace — Matchday Gear & Stamina')
     .setDescription(
-      '```\nUse -buy <alias> to buy an item\n```\n' +
-      '⚠️⚠️ Boots effects won\'t appear if you already have +10 boost in that position.\n\n' +
-      `${sd} **Sports Drink**\n` +
-      `• Alias : sd\n` +
-      `• Item info : Recovers 50 stamina ${stamina} (Upto 100)\n` +
-      `• Price : 100k ${coin}\n\n` +
-      `${strika} **Strika Boots**\n` +
-      `• Alias : strika\n` +
-      `• Item info : Gives an additional +10 attack boost for one match. (Note : This boots effects will worn off after user plays one match as attacker.)\n` +
-      `• Price : 500k ${coin}\n\n` +
-      `${passa} **Passa Boots**\n` +
-      `• Alias : passa\n` +
-      `• Item info : Gives an additional +10 midfield boost for one match. (Note : This boots effects will worn off after user plays one match as midfielder.)\n` +
-      `• Price : 500k ${coin}\n\n` +
-      `${bully} **Bully Boots**\n` +
-      `• Alias : bully\n` +
-      `• Item info : Gives an additional +10 defence boost for one match. (Note : This boots effects will worn off after user plays one match as defender.)\n` +
-      `• Price : 500k ${coin}`
-    );
+      `Equip matchday performance cleats and sports drinks to maximize match ratings!\n\n` +
+      `${sd} **SPORTS DRINK** \`[ alias: sd ]\`\n` +
+      `> *Instant bio-electrolyte hydration restoring player stamina.*\n` +
+      `• **Restores:** \`+50\` ${stamina} Stamina (up to 100 max)\n` +
+      `• **Price:** \`100k\` ${coin}\n\n` +
+      `${strika} **STRIKA BOOTS** \`[ alias: strika ]\`\n` +
+      `> *Precision carbon-plate cleats giving lethal attacking instinct.*\n` +
+      `• **Match Boost:** \`+10 Attack\` (Applied next match as Attacker)\n` +
+      `• **Price:** \`500k\` ${coin}\n\n` +
+      `${passa} **PASSA BOOTS** \`[ alias: passa ]\`\n` +
+      `> *High-friction textured boots engineered for pinpoint ball distribution.*\n` +
+      `• **Match Boost:** \`+10 Midfield\` (Applied next match as Midfielder)\n` +
+      `• **Price:** \`500k\` ${coin}\n\n` +
+      `${bully} **BULLY BOOTS** \`[ alias: bully ]\`\n` +
+      `> *Reinforced composite studs for dominating physical challenges & tackles.*\n` +
+      `• **Match Boost:** \`+10 Defence\` (Applied next match as Defender)\n` +
+      `• **Price:** \`500k\` ${coin}\n\n` +
+      `${UI.DIVIDER}\n` +
+      subtext('💡 Quick Buy: Run `-buy <alias>` (e.g. `-buy sd` or `-buy strika`). Boots reset after matchday.')
+    )
+    .setFooter({ text: 'Beyond The Final Whistle • Global Market' })
+    .setTimestamp();
 
   const cartPath = path.resolve('assets/cart.png');
   const files: AttachmentBuilder[] = [];

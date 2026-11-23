@@ -6,6 +6,7 @@ import { prisma } from '../database/prisma.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
 import { SPONSORS } from '../config/constants.js';
 import { getEmoji } from '../utils/emojiHelper.js';
+import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
 
 export function buildAdvertSelectionMenu(followers: bigint, guild?: Guild | null) {
   const coin = getEmoji(guild, 'coin');
@@ -23,23 +24,22 @@ export function buildAdvertSelectionMenu(followers: bigint, guild?: Guild | null
     const eligible = followers >= s.minFollowers ? tick : '🔒';
     const followerText = s.followerDelta > 0n ? `+${formatK(s.followerDelta)}` : s.followerDelta < 0n ? `${formatK(s.followerDelta)}` : '0';
     const sponsorBadge = getEmoji(guild, s.key);
-    return `${eligible} ${sponsorBadge} **${s.name}**\n` +
-      `• Alias : ${s.key}\n` +
-      `• Min Followers : ${formatK(s.minFollowers)} ${followersEmoji}\n` +
-      `• Stamina Cost : ${s.staminaCost} ${stamina}\n` +
-      `• Reward : +${formatK(s.rewardCoins)} ${coin}\n` +
-      `• Follower Delta : ${followerText} ${followersEmoji}`;
+    return `${eligible} ${sponsorBadge} **${s.name.toUpperCase()}** \`[ alias: ${s.key} ]\`\n` +
+      `• **Min Fans:** \`${formatK(s.minFollowers)}\` ${followersEmoji}   •   **Stamina:** \`${s.staminaCost}\` ${stamina}\n` +
+      `• **Payout:** \`+${formatK(s.rewardCoins)}\` ${coin}   •   **Fan Delta:** \`${followerText}\` ${followersEmoji}`;
   });
 
   const embed = new EmbedBuilder()
-    .setColor('#2b2d31')
-    .setTitle('Commercial Sponsorships!')
+    .setColor(THEME_COLORS.PURPLE)
+    .setTitle('📸 Commercial Brand Endorsements — Photoshoot Hall')
     .setDescription(
-      '```\nUse -advert <alias> to sign a sponsor contract\n```\n' +
-      '📸 Signing photoshoot deals awards cash earnings and updates social reach.\n\n' +
-      lines.join('\n\n')
+      `Sign lucrative brand deals with global sponsors to earn massive coin payouts and build social reach!\n\n` +
+      lines.join('\n\n') +
+      `\n\n${UI.DIVIDER}\n` +
+      subtext('💡 Click a brand button below to sign an endorsement contract and produce campaign media.')
     )
-    .setFooter({ text: 'Beyond The Final Whistle • Commercial Endorsement Hub' });
+    .setFooter({ text: 'Beyond The Final Whistle • Commercial Endorsement Hub' })
+    .setTimestamp();
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId('sponsor_heineken').setLabel('Heineken (100k)').setEmoji(heinekenEmoji).setStyle(ButtonStyle.Secondary),
@@ -82,12 +82,11 @@ export async function handleMeetGreetCommand(message: Message) {
 
 /**
  * Handles -tweet <message> and -chirp <message>
- * Matches WITS: Screenshot 2026-11-21 155242.png and 155353.png
  */
 export async function handleChirpCommand(message: Message, args: string[]) {
   const tweetText = args.join(' ').trim();
   if (!tweetText) {
-    return await message.reply('❌ Please write what you want to tweet! Example: `-tweet nothing to do i m fixing some bugs in my own bot`');
+    return await message.reply('❌ Please write what you want to tweet! Example: `-tweet fixing some tactical drills before matchday`');
   }
 
   const player = await prisma.player.findUnique({
@@ -99,68 +98,35 @@ export async function handleChirpCommand(message: Message, args: string[]) {
     return await message.reply('❌ Register with `-profile` before tweeting.');
   }
 
-  // 1. Reply to the author: "Successfully Sent Tweet!"
-  await message.reply('Successfully Sent Tweet!');
-
-  // 2. Find target twitter channel
-  const guild = message.guild;
-  let targetChannel: TextChannel = message.channel as TextChannel;
-  if (guild) {
-    const twitterChan = guild.channels.cache.find(
-      c => c.isTextBased() && (c.name.toLowerCase().includes('twitter') || c.name.toLowerCase().includes('twitt'))
-    ) as TextChannel | undefined;
-    if (twitterChan) {
-      targetChannel = twitterChan;
-    }
-  }
-
   const flag = getNationFlag(player.nation);
-  const formattedFollowers = formatK(player.followers);
+  const followersEmoji = getEmoji(message.guild, 'followers');
 
-  // 3. Build authentic WITS Tweet embed
   const embed = new EmbedBuilder()
-    .setColor('#1d9bf0')
-    .setTitle(`${player.username} ${flag} Tweeted!`)
-    .setDescription(`His/Her Tweet :\n"${tweetText}"`)
-    .addFields(
-      { name: `Followers 👤 : ${formattedFollowers}`, value: '0 🗨️  0 🔁', inline: false }
+    .setColor(THEME_COLORS.PRIMARY)
+    .setAuthor({
+      name: `${player.username} ${flag} (@${player.username.toLowerCase()})`,
+      iconURL: message.author.displayAvatarURL()
+    })
+    .setDescription(
+      `"${tweetText}"\n\n` +
+      `${UI.SUB_DIVIDER}\n` +
+      `👥 **Followers:** \`${formatK(player.followers)}\` ${followersEmoji} • 💬 **TwitFeed Post**`
     )
-    .setFooter({ text: 'Beyond The Final Whistle TwitFeed • Fan Engagement Network' });
-
-  const files: AttachmentBuilder[] = [];
-  const twitterImgPath = path.resolve(process.cwd(), 'assets/twitter.png');
-  if (fs.existsSync(twitterImgPath)) {
-    files.push(new AttachmentBuilder(twitterImgPath, { name: 'twitter.png' }));
-    embed.setThumbnail('attachment://twitter.png');
-  }
-
-  // Temporary create DB record to obtain tweet ID for button callbacks
-  const tweetRecord = await prisma.playerTweet.create({
-    data: {
-      authorId: message.author.id,
-      content: tweetText
-    }
-  });
+    .setFooter({ text: 'Beyond The Final Whistle • Social Network' })
+    .setTimestamp();
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`tweet_like_${tweetRecord.id}`)
+      .setCustomId(`tweet_like_${message.author.id}`)
+      .setLabel('Like')
       .setEmoji('👍')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId(`tweet_dislike_${tweetRecord.id}`)
+      .setCustomId(`tweet_dislike_${message.author.id}`)
+      .setLabel('Dislike')
       .setEmoji('👎')
       .setStyle(ButtonStyle.Danger)
   );
 
-  const sentMessage = await targetChannel.send({
-    embeds: [embed],
-    components: [row],
-    files
-  });
-
-  await prisma.playerTweet.update({
-    where: { id: tweetRecord.id },
-    data: { discordMessageId: sentMessage.id }
-  });
+  await message.reply({ embeds: [embed], components: [row] });
 }

@@ -4,23 +4,26 @@ import { travelToLocation, getPlayerTravelCooldown } from '../engines/campusEngi
 import { buyVehicle } from '../engines/marketEngine.js';
 import { formatK } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
+import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
 
 export async function handleLocationsCommand(message: Message) {
   const lines = Object.values(CAMPUS_LOCATIONS).map(loc => {
-    return `${loc.emoji} **${loc.name}**\n` +
-      `• Alias : \`-travel ${loc.alias}\`\n` +
-      `• Description : *${loc.description}*\n` +
-      `• Activities : ${loc.activities.join(' • ')}`;
+    return `${loc.emoji} **${loc.name.toUpperCase()}** \`[-travel ${loc.alias}]\`\n` +
+      `> *${loc.description}*\n` +
+      `• **Activities:** ${loc.activities.join(' • ')}`;
   });
 
   const embed = new EmbedBuilder()
-    .setColor('#2b2d31')
-    .setTitle('Campus Directory!')
+    .setColor(THEME_COLORS.PRIMARY)
+    .setTitle('🏟️ Football Campus Directory & Spatial Facilities')
     .setDescription(
-      '```\nUse -travel <alias> to travel to a facility\n```\n' +
-      lines.join('\n\n')
+      `Fast-travel between campus facilities to train, recover, trade, and sign sponsor contracts.\n\n` +
+      lines.join('\n\n') +
+      `\n\n${UI.DIVIDER}\n` +
+      subtext('💡 Travel syntax: `-travel <alias>` (e.g. `-travel tc` for Training Center). Cooldown reduced by vehicles.')
     )
-    .setFooter({ text: 'Beyond The Final Whistle • Football Campus' });
+    .setFooter({ text: 'Beyond The Final Whistle • Football Campus' })
+    .setTimestamp();
 
   await message.reply({ embeds: [embed] });
 }
@@ -51,23 +54,25 @@ export async function handleShowroomCommand(message: Message) {
   const lines = VEHICLE_CATALOG.map(v => {
     const millions = Number(v.cost) / 1000000;
     const priceDisplay = Number(v.cost) >= 1000000
-      ? `${millions % 1 === 0 ? millions : parseFloat(millions.toFixed(2))}M ${coinEmoji}`
-      : `${formatK(v.cost)} ${coinEmoji}`;
+      ? `${millions % 1 === 0 ? millions : parseFloat(millions.toFixed(2))}M`
+      : `${formatK(v.cost)}`;
 
-    return `${v.emoji} **${v.name}**\n` +
-      `• Alias : ${v.key}\n` +
-      `• Item info : Decreases travelling cooldown to ${v.cooldownMinutes} minutes.\n` +
-      `• Price : ${priceDisplay}`;
+    return `${v.emoji} **${v.name.toUpperCase()}** \`[ alias: ${v.key} ]\`\n` +
+      `• **Campus Cooldown:** \`${v.cooldownMinutes} min\` ⏱️   •   **Price:** \`${priceDisplay}\` ${coinEmoji}`;
   });
 
   const embed = new EmbedBuilder()
-    .setColor('#2b2d31')
-    .setTitle('Vehicle Showroom!')
+    .setColor(THEME_COLORS.SCARLET)
+    .setTitle('🏎️ Luxury Dealership — Exotic Supercars & Hypercars')
     .setDescription(
-      '```\nUse -vehiclebuy <alias> to buy a vehicle\n```\n' +
-      lines.join('\n\n')
+      `🚗 **Current Ride:** \`${vehicleName}\` • **Campus Cooldown:** \`${cooldownMinutes}m\`\n` +
+      `Acquire vehicles to slash travel cooldowns between campus facilities down to 1 minute!\n\n` +
+      lines.join('\n\n') +
+      `\n\n${UI.DIVIDER}\n` +
+      subtext('💡 To purchase a ride: `-vehiclebuy <alias>` (e.g. `-vehiclebuy toyota` or `-vehiclebuy bugatti`).')
     )
-    .setFooter({ text: `Current Ride: ${vehicleName} (${cooldownMinutes}m cooldown) • Beyond The Final Whistle` });
+    .setFooter({ text: `Current Ride: ${vehicleName} (${cooldownMinutes}m cooldown) • Beyond The Final Whistle` })
+    .setTimestamp();
 
   await message.reply({ embeds: [embed] });
 }

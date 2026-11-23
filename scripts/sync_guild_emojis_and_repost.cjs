@@ -32,51 +32,6 @@ client.once('clientReady', async () => {
 
   console.log(`🏰 Target Server: "${guild.name}" (${guild.id})`);
 
-  // ==========================================
-  // STEP 1: UPLOAD MISSING / UPDATED EMOJIS TO GUILD
-  // ==========================================
-  console.log('\n--- 1. SYNCING SERVER EMOJIS ---');
-  const emojisDir = path.resolve(__dirname, '../assets/emojis');
-  const emojiFiles = fs.readdirSync(emojisDir).filter(f => f.endsWith('.png'));
-
-  let existingEmojis = await guild.emojis.fetch();
-  console.log(`Initial guild emojis count: ${existingEmojis.size}`);
-
-  // Check worldcup emoji: if old, delete and replace with authentic transparent one
-  const oldWorldCup = existingEmojis.find(e => e.name === 'worldcup');
-  if (oldWorldCup) {
-    try {
-      console.log('Replacing existing worldcup emoji with authentic transparent trophy...');
-      await oldWorldCup.delete('Updating with high-res authentic FIFA World Cup trophy');
-      await sleep(500);
-      existingEmojis = await guild.emojis.fetch();
-    } catch (e) {
-      console.warn('Could not delete old worldcup:', e.message);
-    }
-  }
-
-  for (const file of emojiFiles) {
-    const emojiName = path.basename(file, '.png').toLowerCase();
-    const filePath = path.join(emojisDir, file);
-    const existing = existingEmojis.find(e => e.name?.toLowerCase() === emojiName);
-
-    if (!existing) {
-      try {
-        const created = await guild.emojis.create({
-          attachment: filePath,
-          name: emojiName,
-          reason: 'Adding server emoji for League Master and BTFW'
-        });
-        console.log(`  + Created server emoji: :${emojiName}: -> ${created.toString()}`);
-        await sleep(500); // Respect rate limit
-      } catch (err) {
-        console.error(`  x Error creating :${emojiName}:`, err.message);
-      }
-    } else {
-      console.log(`  = Server emoji exists: :${emojiName}: -> ${existing.toString()}`);
-    }
-  }
-
   // Refresh guild emoji cache
   const finalEmojis = await guild.emojis.fetch();
   console.log(`\n✅ Total Guild Emojis: ${finalEmojis.size}`);
@@ -127,10 +82,13 @@ client.once('clientReady', async () => {
     bcback: getGuildEmoji('bcback', ''),
   };
 
+  const DIVIDER = '━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+  const SUB_DIVIDER = '───────────────────────────';
+
   // ==========================================
   // STEP 2: CLEAR OLD MESSAGES & REPOST EMBEDS
   // ==========================================
-  console.log('\n--- 2. REPOSTING EMBEDS IN INFO & LOCATION CHANNELS ---');
+  console.log('\n--- REPOSTING THEMED EMBEDS IN INFO & LOCATION CHANNELS ---');
 
   const channels = await guild.channels.fetch();
 
@@ -154,7 +112,7 @@ client.once('clientReady', async () => {
       }
 
       await ch.send({ embeds });
-      console.log(`  ✓ Reposted ${embeds.length} embed(s) in #${ch.name}`);
+      console.log(`  ✓ Reposted ${embeds.length} themed embed(s) in #${ch.name}`);
       await sleep(400);
     } catch (err) {
       console.error(`  x Error reposting in #${channelNameSubstr}:`, err.message);
@@ -163,80 +121,67 @@ client.once('clientReady', async () => {
 
   // 1. RULES
   const rulesEmbed = new EmbedBuilder()
-    .setColor('#3b82f6')
-    .setTitle('📜 Beyond The Final Whistle — Official Server & Fair Play Rules')
+    .setColor('#2563eb') // Cobalt Blue
+    .setTitle('📜 Beyond The Final Whistle — Official Server & Fair Play Charter')
     .setDescription(
-      `Welcome to the premier multiplayer football simulation server! To maintain an engaging, fair, and immersive experience for all players, managers, and clubs, please adhere to these core regulations.\n\n` +
-      `Violation of these rules will result in warnings, stat penalties, transfer bans, or server expulsion.`
+      `> *Welcome to the premier multiplayer football simulation server! To maintain an engaging, fair, and immersive experience for all players, managers, and clubs, please adhere to these core regulations.*\n\n` +
+      `### 1️⃣ Respect & Sportsmanship\n` +
+      `• Harassment, hate speech, toxicity, and targeted griefing will not be tolerated.\n` +
+      `• Respect all club captains, match officials, and administrators.\n\n` +
+      `### 2️⃣ Fair Play & Anti-Exploit Policy\n` +
+      `• Macro scripts, auto-clickers, and automated multi-account farming are strictly prohibited.\n` +
+      `• Any economic loop or game bug discovered must be reported in \`#suggestions\` or to staff.\n` +
+      `• Exploiting glitches will result in a stat reset and permanent blacklist.\n\n` +
+      `### 3️⃣ Channel Discipline & Command Etiquette\n` +
+      `• Keep bot commands (\`-profile\`, \`-train\`, \`-buy\`, \`-advert\`) inside designated campus channels or \`#bot-cmds\`.\n` +
+      `• Keep general chat channels reserved for community conversation.\n\n` +
+      `### 4️⃣ Match & Transfer Integrity\n` +
+      `• Match-fixing, intentional bench throwing, or collusive match feeding is strictly penalized.\n` +
+      `• Club captains must honor signed player contracts and payouts via \`-teampay\`.\n\n` +
+      `### 5️⃣ Discord Terms of Service\n` +
+      `• All members must adhere to Discord's official Community Guidelines and Terms of Service.\n\n` +
+      `${DIVIDER}\n` +
+      `-# ⚖️ Enforced by the Beyond The Final Whistle Fair Play Committee.`
     )
-    .addFields(
-      {
-        name: '1️⃣ Respect & Sportsmanship',
-        value: '• Harassment, hate speech, toxicity, and excessive targeted griefing will not be tolerated.\n• Respect all captains, referees, match officials, and server administrators.'
-      },
-      {
-        name: '2️⃣ Fair Play & Anti-Exploit Policy',
-        value: '• Alt accounts, macro scripts, auto-clickers, and automated botting are strictly prohibited.\n• Any bug or economic loop discovered must be immediately reported in `#suggestions` or to staff.\n• Abusing exploits will result in a complete stat reset and permanent blacklist.'
-      },
-      {
-        name: '3️⃣ Channel Discipline & Command Etiquette',
-        value: '• Keep bot commands (`-profile`, `-train`, `-buy`, `-advert`) inside their designated campus facilities or `#bot-cmds`.\n• Do not spam commands in `#general` or match broadcast channels.'
-      },
-      {
-        name: '4️⃣ Match & Transfer Integrity',
-        value: '• Match-fixing, intentional bench throwing, or collusive match feeding is strictly penalized.\n• Club captains must honor signed contracts and pay agreed team bonuses via `-teampay`.'
-      },
-      {
-        name: '5️⃣ Discord Terms of Service',
-        value: '• All members must adhere to Discord\'s official Terms of Service and Community Guidelines.'
-      }
-    )
-    .setFooter({ text: 'Beyond The Final Whistle • Fair Play Committee' })
+    .setFooter({ text: 'Beyond The Final Whistle • Fair Play Charter' })
     .setTimestamp();
 
   await clearAndPost('rules', [rulesEmbed]);
 
   // 2. DOCUMENTATION
   const docEmbed1 = new EmbedBuilder()
-    .setColor('#10b981')
-    .setTitle(`📚 BTFW Player Handbook — Part 1: Career Starting Stats & Attributes`)
+    .setColor('#0ea5e9') // Sky Blue
+    .setTitle(`📚 BTFW Player Handbook — Part 1: Career Starting Stats & Biometrics`)
     .setDescription(
-      `**Beyond The Final Whistle (BTFW)** is a deep tactical football career simulation MMORPG.\n` +
-      `You create and develop your player from rookie status to world champion.\n\n` +
-      `**🌟 Rookie Starting Stats:**\n` +
-      `• **Attack:** 50\n` +
-      `• **Midfield:** 50\n` +
-      `• **Defence:** 50\n` +
-      `• **Stamina:** 100 / 100 ${E.stamina}\n` +
-      `• **Money:** 0 ${E.coin}\n` +
-      `• **Followers:** 0 ${E.followers}\n` +
-      `• **Training Points:** 0 ${E.tp}\n\n` +
-      `🎁 **Welcome Bonus:** Joining a National Team gives you an instant **100k ${E.coin} + 100k ${E.followers}** signing bonus!`
+      `> *Beyond The Final Whistle (BTFW) is a deep tactical football career simulation MMORPG. You create and develop your player from rookie status to world champion.*\n\n` +
+      `### 🌟 ROOKIE BASELINE ATTRIBUTES\n` +
+      `• **Base Position Ratings:** ATK: \`50\` • MID: \`50\` • DEF: \`50\`\n` +
+      `• **Starting Stamina:** \`100/100\` ${E.stamina} • Training Points: \`0 TP\` ${E.tp}\n` +
+      `• **Starting Finances:** \`0\` ${E.coin} • Starting Followers: \`0\` ${E.followers}\n\n` +
+      `🎁 **International Signing Bonus:**\n` +
+      `Joining a National Team immediately grants you an instant **100k ${E.coin} + 100k ${E.followers}** bonus!\n\n` +
+      `### 🎯 15 BIOMECHANICAL ATTRIBUTES\n` +
+      `• **Attacking:** \`FIN\` (Finishing), \`POW\` (Shot Power), \`HEA\` (Heading)\n` +
+      `• **Technical:** \`PAS\` (Passing), \`VIS\` (Vision), \`CRO\` (Crossing), \`DRI\` (Dribbling)\n` +
+      `• **Defending:** \`TCK\` (Tackling), \`INT\` (Interceptions), \`MRK\` (Marking)\n` +
+      `• **Physical & Mental:** \`PAC\` (Pace), \`PHY\` (Physicality), \`CMP\` (Composure), \`AGI\` (Agility), \`WRK\` (Work Rate)\n\n` +
+      `### ⚽ TACTICAL PLAYSTYLES\n` +
+      `• **Attacker:** 🎯 *Poacher* (Box predator), ⚡ *Speedster* (Counter runner), 🦘 *Target Man* (Aerial anchor)\n` +
+      `• **Midfielder:** 🪄 *Playmaker* (Vision & passing), 🔋 *Box-to-Box* (Work rate engine), 🛡️ *Anchor* (Screen)\n` +
+      `• **Defender:** 🛑 *Stopper* (Physical enforcer), 🧹 *Sweeper* (Pace & recovery), 🧠 *Ball-Playing Defender* (Distribution)\n\n` +
+      `${DIVIDER}\n` +
+      `-# 💡 Upgrade attributes at the Research Facility (-travel rf ➔ -sptrain <attr>).`
     )
-    .addFields(
-      {
-        name: '🎯 15 Player Attributes',
-        value:
-          '• **Attacking:** `FIN` (Finishing), `POW` (Shot Power), `HEA` (Heading)\n' +
-          '• **Technical:** `PAS` (Passing), `VIS` (Vision), `CRO` (Crossing), `DRI` (Dribbling)\n' +
-          '• **Defending:** `TCK` (Tackling), `INT` (Interceptions), `MRK` (Marking)\n' +
-          '• **Physical & Mental:** `PAC` (Pace), `PHY` (Physicality), `CMP` (Composure), `AGI` (Agility), `WRK` (Work Rate)'
-      },
-      {
-        name: '⚽ Tactical Playstyles',
-        value:
-          '• **Attacker:** 🎯 *Poacher* (Box predator), ⚡ *Speedster* (Counter runner), 🦘 *Target Man* (Aerial anchor)\n' +
-          '• **Midfielder:** 🪄 *Playmaker* (Vision & passing), 🔋 *Box-to-Box* (Work rate engine), 🛡️ *Anchor* (Screen)\n' +
-          '• **Defender:** 🛑 *Stopper* (Physical enforcer), 🧹 *Sweeper* (Pace & recovery), 🧠 *Ball-Playing Defender* (Interceptions & distribution)'
-      }
-    );
+    .setFooter({ text: 'Beyond The Final Whistle • Player Handbook Part 1' })
+    .setTimestamp();
 
   const docEmbed2 = new EmbedBuilder()
-    .setColor('#10b981')
+    .setColor('#06b6d4') // Cyan
     .setTitle(`📚 BTFW Player Handbook — Part 2: Spatial Campus & Match Simulations`)
     .setDescription(
-      `**🏟️ The 8 Campus Facilities:**\n` +
-      `Move between facilities using \`-travel <alias>\`. Base cooldown is 20 minutes (shortened by vehicles).\n\n` +
+      `> *Explore 8 campus facilities and compete in realistic 90-minute AI simulated football matches.*\n\n` +
+      `### 🏟️ SPATIAL CAMPUS FACILITIES\n` +
+      `Move between facilities using \`-travel <alias>\`. Base cooldown is 20 minutes (slashed by cars down to 1m).\n\n` +
       `• \`tc\` — **Training Center:** Drill sessions to earn Training Points ${E.tp}.\n` +
       `• \`gm\` — **Global Market:** Purchase stamina drinks ${E.sd} & matchday stat boots ${E.strika} ${E.passa} ${E.bully}.\n` +
       `• \`vs\` — **Vehicle Showroom:** Buy exotic supercars down to 1-minute travel cooldown ${E.car}.\n` +
@@ -245,183 +190,165 @@ client.once('clientReady', async () => {
       `• \`ps\` — **Player Sauna:** Recover stamina (12h cooldown).\n` +
       `• \`ih\` — **Intel Hub:** Tactical match scouting (+1 to +6 free matchday bonus).\n` +
       `• \`lc\` — **Local Club:** Youth coaching (+50k coins) and fan meet & greets (+50k fans).\n\n` +
-      `**⚽ The Match Simulation Engine:**\n` +
-      `Each 90-minute simulation calculates 20-34 granular events (buildup, tactical tackles, VAR checks, half-time tactical shifts, penalties). Position ratings and boots determine scoring odds, while Man of the Match earns **+2 attribute points** and lowest performer receives **-1 point**.`
+      `### ⚽ THE MATCH SIMULATION ENGINE\n` +
+      `Each 90-minute simulation calculates 20-34 granular events (buildup, tackles, VAR, set pieces, half-time tactical shifts, penalties). Position ratings and active boots determine match performance. Man of the Match earns **+2 attribute points** and lowest performer receives **-1 point**.\n\n` +
+      `${DIVIDER}\n` +
+      `-# 💡 Challenge players anytime using: -match @opponent`
     )
-    .setFooter({ text: 'Beyond The Final Whistle • Complete Game Documentation' });
+    .setFooter({ text: 'Beyond The Final Whistle • Player Handbook Part 2' })
+    .setTimestamp();
 
   await clearAndPost('documentation', [docEmbed1, docEmbed2]);
 
   // 3. BEGINNER GUIDE
   const guideEmbed = new EmbedBuilder()
-    .setColor('#6366f1')
-    .setTitle('🔰 Rookie Footballer Onboarding Guide — Start Your Journey')
+    .setColor('#6366f1') // Indigo
+    .setTitle('🔰 Rookie Footballer Onboarding Guide — Launch Your Legacy')
     .setDescription(
-      `Welcome rookie! Follow this 5-step checklist to launch your football career:\n\n` +
-      `**Step 1: Join a National Team**\n` +
-      `Head to <#${channels.find(c => c && c.name.includes('roles'))?.id || 'roles'}> or use \`-joinnation <alias>\` (` +
-      `\`ger\`, \`por\`, \`esp\`, \`fra\`, \`eng\`, \`bra\`, \`arg\`, \`ned\`).\n` +
-      `*Instantly unlock your National locker room and receive **100k ${E.coin} + 100k ${E.followers}** signing bonus!*\n\n` +
-      `**Step 2: Choose Your Tactical Playstyle**\n` +
-      `Travel to the Training Center using \`-travel tc\`, then run \`-train\`. You will be prompted to pick your role on the pitch.\n\n` +
-      `**Step 3: Complete Daily Training Drills**\n` +
+      `> *Welcome rookie! Follow this 5-step checklist to kickstart your professional football career:*\n\n` +
+      `### 1️⃣ Join a National Team\n` +
+      `Head to <#${channels.find(c => c && c.name.includes('roles'))?.id || 'roles'}> or run \`-joinnation <alias>\` (\`ger\`, \`por\`, \`esp\`, \`fra\`, \`eng\`, \`bra\`, \`arg\`, \`ned\`).\n` +
+      `*Instantly unlock your private Locker Room and receive **100k ${E.coin} + 100k ${E.followers}** signing bonus!*\n\n` +
+      `### 2️⃣ Choose Your Tactical Playstyle\n` +
+      `Travel to the Training Center using \`-travel tc\`, then run \`-train\`. Select your on-pitch tactical identity.\n\n` +
+      `### 3️⃣ Complete Daily Training Drills\n` +
       `Run \`-train\` every 30 minutes to accumulate Training Points (${E.tp}). When stamina drops, visit the Player Sauna (\`-travel ps\`) and run \`-recovery\`.\n\n` +
-      `**Step 4: Earn Follower Clout & Commercial Deals**\n` +
-      `Post regular updates in <#${channels.find(c => c && c.name.includes('twitter'))?.id || 'twitter'}> using \`-tweet <text>\` to get 👍 fan likes. At 100k+ followers, travel to the Photoshoot Hall (\`-travel ph\`) and run \`-advert\` for big cash payouts!\n\n` +
-      `**Step 5: Prepare for Matchday**\n` +
-      `Visit the Intel Hub (\`-travel ih\`) for free \`-intel\`, buy boots at the Global Market (\`-travel gm\`), and challenge other players using \`-match @player\`!`
+      `### 4️⃣ Build Fan Clout & Sign Brand Deals\n` +
+      `Post updates in <#${channels.find(c => c && c.name.includes('twitter'))?.id || 'twitter'}> using \`-tweet <text>\` to get 👍 fan likes. At 100k+ followers, visit the Photoshoot Hall (\`-travel ph\`) and run \`-advert\` for big cash payouts!\n\n` +
+      `### 5️⃣ Matchday Preparation & Tactical Intel\n` +
+      `Visit the Intel Hub (\`-travel ih\`) for free \`-intel\`, buy performance boots at the Global Market (\`-travel gm\`), and challenge players using \`-match @player\`!\n\n` +
+      `${DIVIDER}\n` +
+      `-# 💡 Type -help anywhere for the full master command directory.`
     )
-    .setFooter({ text: 'Beyond The Final Whistle • Rookie Onboarding' });
+    .setFooter({ text: 'Beyond The Final Whistle • Rookie Onboarding' })
+    .setTimestamp();
 
   await clearAndPost('beginner-guide', [guideEmbed]);
 
-  // 4. WHAT IS VIP
+  // 4. WHAT IS VIP (HIGH-END LUXURY GOLD THEME)
   const vipEmbed = new EmbedBuilder()
-    .setColor('#fbbf24')
-    .setTitle('👑 VIP Status — Benefits, Boosts & Referrals')
+    .setColor('#f59e0b') // Vibrant Champions Gold
+    .setTitle('👑 VIP FOOTBALLER CLUB — PRIVILEGES & BOOSTS')
     .setDescription(
-      `VIP status elevates your football career with enhanced training options and accelerated development.\n\n` +
-      `**✨ VIP Perks:**\n` +
-      `• **VIP Training:** Run \`-train\` and select VIP mode for **+6 Training Points ${E.tp}** (6h cooldown).\n` +
-      `• **No Effort Training:** Instant **+20 TP** once per day!\n` +
-      `• **Sauna Full Recharge:** \`-recovery\` restores **100% full stamina ${E.stamina}** up to max cap!\n` +
-      `• **Exclusive Role:** Golden <@&1574438929975869532> hoisted role.\n\n` +
-      `**🎟️ How to Acquire VIP:**\n` +
-      `1. **Server Boost:** Boost our Discord server for instant VIP duration.\n` +
-      `2. **Player Referral:** Invite friends using \`-referral @you\` once they earn 50 TP.\n` +
-      `3. **Staff Rewards:** Earn VIP through tournaments, MOTM awards ${E.motm}, or donation.`
+      `> *VIP status elevates your football career with accelerated development, priority facility recovery, and exclusive status within the international federation.*\n\n` +
+      `### 🌟 EXCLUSIVE VIP PRIVILEGES\n` +
+      `• **VIP Training Sessions:** Run \`-train\` and select VIP mode for **+6 Training Points ${E.tp}** (6h cooldown).\n` +
+      `• **No-Effort Daily Drill:** Instant **+20 TP ${E.tp}** once per day for busy matchdays!\n` +
+      `• **Sauna Cryo Recharge:** \`-recovery\` restores **100% full stamina ${E.stamina}** up to max capacity!\n` +
+      `• **Hoisted Discord Status:** Golden <@&1574438929975869532> hoisted role & badge on your \`-profile\` card.\n\n` +
+      `### 🎟️ HOW TO ACQUIRE VIP STATUS\n` +
+      `**1️⃣ Server Boost:** Boost our Discord server for instant VIP duration.\n` +
+      `**2️⃣ Player Referral:** Invite football friends using \`-referral @you\` once they reach 50 TP.\n` +
+      `**3️⃣ Tournament & Event Trophies:** Win competitive matches, MOTM awards ${E.motm}, or seasonal league titles.\n\n` +
+      `${DIVIDER}\n` +
+      `-# 🌟 Elevated training, priority sauna recovery, and elite prestige on the pitch.`
     )
-    .setFooter({ text: 'Beyond The Final Whistle • VIP Club' });
+    .setFooter({ text: 'Beyond The Final Whistle • VIP Club & Player Excellence' })
+    .setTimestamp();
 
   await clearAndPost('what-is-vip', [vipEmbed]);
 
-  // 5. GLOBAL MARKET
+  // 5. GLOBAL MARKET (EMERALD MARKET THEME)
   const marketEmbed = new EmbedBuilder()
-    .setColor('#ec4899')
-    .setTitle('🛍️ Global Market — Official Equipment Catalog')
+    .setColor('#10b981') // Emerald Market Green
+    .setTitle('🛍️ GLOBAL MARKETPLACE — MATCH GEAR & HYDRATION')
     .setDescription(
-      `Welcome to the Global Market! Purchase matchday performance boots and stamina recovery potions.\n\n` +
-      `*Use \`-buy <alias>\` to purchase items.*\n\n` +
-      `⚠️ *Boots effects won\'t appear if you already have +10 boost in that position. Boots reset after matchday.*`
+      `> *Official equipment store providing professional performance boots and stamina recovery potions to maximize matchday ratings.*\n\n` +
+      `${E.sd} **SPORTS DRINK** \`[ alias: sd ]\`\n` +
+      `> *Immediate bio-electrolyte rehydration formula.*\n` +
+      `• **Restores:** \`+50\` ${E.stamina} Stamina (up to 100 max)\n` +
+      `• **Cost:** \`100k\` ${E.coin}\n\n` +
+      `${E.strika} **STRIKA BOOTS** \`[ alias: strika ]\`\n` +
+      `> *Precision carbon-plate cleats engineered for clinical finishing and shot power.*\n` +
+      `• **Match Boost:** \`+10 Attack\` (Applied next match as Attacker)\n` +
+      `• **Cost:** \`500k\` ${E.coin}\n\n` +
+      `${E.passa} **PASSA BOOTS** \`[ alias: passa ]\`\n` +
+      `> *Textured micro-grip boots engineered for pinpoint ball distribution and vision.*\n` +
+      `• **Match Boost:** \`+10 Midfield\` (Applied next match as Midfielder)\n` +
+      `• **Cost:** \`500k\` ${E.coin}\n\n` +
+      `${E.bully} **BULLY BOOTS** \`[ alias: bully ]\`\n` +
+      `> *Reinforced composite studs for dominating physical challenges and winning tackles.*\n` +
+      `• **Match Boost:** \`+10 Defence\` (Applied next match as Defender)\n` +
+      `• **Cost:** \`500k\` ${E.coin}\n\n` +
+      `${DIVIDER}\n` +
+      `-# 💡 Purchase Command: -buy <alias> (e.g. -buy sd). Boots apply for one match and reset afterwards.`
     )
-    .addFields(
-      {
-        name: `${E.sd} Sports Drink`,
-        value: `• **Alias:** \`sd\`\n• **Item info:** Recovers 50 stamina ${E.stamina} (up to 100 max)\n• **Price:** 100k ${E.coin}`
-      },
-      {
-        name: `${E.strika} Strika Boots`,
-        value: `• **Alias:** \`strika\`\n• **Item info:** Gives an additional +10 attack boost for one match.\n• **Price:** 500k ${E.coin}`
-      },
-      {
-        name: `${E.passa} Passa Boots`,
-        value: `• **Alias:** \`passa\`\n• **Item info:** Gives an additional +10 midfield boost for one match.\n• **Price:** 500k ${E.coin}`
-      },
-      {
-        name: `${E.bully} Bully Boots`,
-        value: `• **Alias:** \`bully\`\n• **Item info:** Gives an additional +10 defence boost for one match.\n• **Price:** 500k ${E.coin}`
-      }
-    )
-    .setFooter({ text: 'Beyond The Final Whistle • Global Market' });
+    .setFooter({ text: 'Beyond The Final Whistle • Global Market' })
+    .setTimestamp();
 
   await clearAndPost('global-market', [marketEmbed]);
 
-  // 6. VEHICLE SHOWROOM
+  // 6. VEHICLE SHOWROOM (RACING SCARLET THEME)
   const showroomEmbed = new EmbedBuilder()
-    .setColor('#f97316')
-    .setTitle('🏎️ Vehicle Showroom — Exotic Supercars Dealership')
+    .setColor('#ef4444') // Racing Scarlet Red
+    .setTitle('🏎️ LUXURY DEALERSHIP & HYPERCAR SHOWROOM')
     .setDescription(
-      `Use \`-vehiclebuy <alias>\` to buy a vehicle.\n` +
-      `Each vehicle reduces your travel cooldown across the spatial campus. Owning multiple vehicles applies the fastest one automatically!`
+      `> *Acquire high-performance supercars and grand tourers to slash travel cooldowns between campus facilities down to 1 minute!*\n\n` +
+      `🚗 **Basic Car** \`[ basic ]\`\n` +
+      `• **Campus Cooldown:** \`16 mins\` ⏱️   •   **Price:** \`700k\` ${E.coin}\n\n` +
+      `${E.hcfront}${E.hcback} **Honda Civic Type R** \`[ honda ]\`\n` +
+      `• **Campus Cooldown:** \`14 mins\` ⏱️   •   **Price:** \`1M\` ${E.coin}\n\n` +
+      `${E.tsfront}${E.tsback} **Toyota Supra GR** \`[ toyota ]\`\n` +
+      `• **Campus Cooldown:** \`10 mins\` ⏱️   •   **Price:** \`3M\` ${E.coin}\n\n` +
+      `${E.p911front}${E.p911back} **Porsche 911 GT3** \`[ porsche ]\`\n` +
+      `• **Campus Cooldown:** \`7 mins\` ⏱️   •   **Price:** \`5.35M\` ${E.coin}\n\n` +
+      `${E.ngtrfront}${E.ngtrback} **Nissan GT-R Nismo** \`[ nissan ]\`\n` +
+      `• **Campus Cooldown:** \`4 mins\` ⏱️   •   **Price:** \`6.75M\` ${E.coin}\n\n` +
+      `${E.ar8front}${E.ar8back} **Audi R8 V10 Performance** \`[ audi ]\`\n` +
+      `• **Campus Cooldown:** \`4 mins\` ⏱️   •   **Price:** \`6.75M\` ${E.coin}\n\n` +
+      `${E.lhfront}${E.lhback} **Lamborghini Huracán** \`[ lamborghini ]\`\n` +
+      `• **Campus Cooldown:** \`3 mins\` ⏱️   •   **Price:** \`8.4M\` ${E.coin}\n\n` +
+      `${E.rrgfront}${E.rrgback} **Rolls Royce Ghost** \`[ rollsroyce ]\`\n` +
+      `• **Campus Cooldown:** \`2 mins\` ⏱️   •   **Price:** \`10.25M\` ${E.coin}\n\n` +
+      `${E.ffront}${E.fback} **Ferrari LaFerrari** \`[ ferrari ]\`\n` +
+      `• **Campus Cooldown:** \`1 min\` ⏱️   •   **Price:** \`17.7M\` ${E.coin}\n\n` +
+      `${E.bcfront}${E.bcback} **Bugatti Chiron Super Sport** \`[ bugatti ]\`\n` +
+      `• **Campus Cooldown:** \`1 min\` ⏱️   •   **Price:** \`20.5M\` ${E.coin}\n\n` +
+      `${DIVIDER}\n` +
+      `-# 💡 Purchase Command: -vehiclebuy <alias> (e.g. -vehiclebuy toyota). Fastest vehicle applies automatically.`
     )
-    .addFields(
-      {
-        name: `🚗 Basic Car`,
-        value: `• **Alias:** \`basic\`\n• **Item info:** Decreases travelling cooldown to 16 minutes.\n• **Price:** 700k ${E.coin}`
-      },
-      {
-        name: `${E.hcfront}${E.hcback} Honda Civic Type R`,
-        value: `• **Alias:** \`honda\`\n• **Item info:** Decreases travelling cooldown to 14 minutes.\n• **Price:** 1M ${E.coin}`
-      },
-      {
-        name: `${E.tsfront}${E.tsback} Toyota Supra GR`,
-        value: `• **Alias:** \`toyota\`\n• **Item info:** Decreases travelling cooldown to 10 minutes.\n• **Price:** 3M ${E.coin}`
-      },
-      {
-        name: `${E.p911front}${E.p911back} Porsche 911 GT3`,
-        value: `• **Alias:** \`porsche\`\n• **Item info:** Decreases travelling cooldown to 7 minutes.\n• **Price:** 5.35M ${E.coin}`
-      },
-      {
-        name: `${E.ngtrfront}${E.ngtrback} Nissan GT-R Nismo`,
-        value: `• **Alias:** \`nissan\`\n• **Item info:** Decreases travelling cooldown to 4 minutes.\n• **Price:** 6.75M ${E.coin}`
-      },
-      {
-        name: `${E.ar8front}${E.ar8back} Audi R8 V10 Performance`,
-        value: `• **Alias:** \`audi\`\n• **Item info:** Decreases travelling cooldown to 4 minutes.\n• **Price:** 6.75M ${E.coin}`
-      },
-      {
-        name: `${E.lhfront}${E.lhback} Lamborghini Huracán`,
-        value: `• **Alias:** \`lamborghini\`\n• **Item info:** Decreases travelling cooldown to 3 minutes.\n• **Price:** 8.4M ${E.coin}`
-      },
-      {
-        name: `${E.rrgfront}${E.rrgback} Rolls Royce Ghost`,
-        value: `• **Alias:** \`rollsroyce\`\n• **Item info:** Decreases travelling cooldown to 2 minutes.\n• **Price:** 10.25M ${E.coin}`
-      },
-      {
-        name: `${E.ffront}${E.fback} Ferrari LaFerrari`,
-        value: `• **Alias:** \`ferrari\`\n• **Item info:** Decreases travelling cooldown to 1 minute.\n• **Price:** 17.7M ${E.coin}`
-      },
-      {
-        name: `${E.bcfront}${E.bcback} Bugatti Chiron Super Sport`,
-        value: `• **Alias:** \`bugatti\`\n• **Item info:** Decreases travelling cooldown to 1 minute.\n• **Price:** 20.5M ${E.coin}`
-      }
-    )
-    .setFooter({ text: 'Beyond The Final Whistle • Dealership' });
+    .setFooter({ text: 'Beyond The Final Whistle • Dealership' })
+    .setTimestamp();
 
   await clearAndPost('vehicle-showroom', [showroomEmbed]);
 
-  // 7. PHOTOSHOOT HALL
+  // 7. PHOTOSHOOT HALL (GLAMOUR VIOLET THEME)
   const photoEmbed = new EmbedBuilder()
-    .setColor('#a855f7')
-    .setTitle('📸 Commercial Brand Sponsorship Deals — Photoshoot Hall')
+    .setColor('#a855f7') // Luxury Violet
+    .setTitle('📸 COMMERCIAL BRAND SPONSORSHIPS — PHOTOSHOOT HALL')
     .setDescription(
-      `Choose a brand partner matching your follower clout! Use \`-advert\` to trigger the deal menu.\n\n` +
-      `Cooldown: 2 hours between campaigns.`
+      `> *Monetize your global footballing clout! Sign corporate campaigns with world-renowned brands for massive cash prizes and follower expansion.*\n\n` +
+      `${E.heineken} **HEINEKEN CAMPAIGN** \`[ -advert heineken ]\`\n` +
+      `• **Minimum Fans:** \`100k\` ${E.followers}   •   **Stamina:** \`5\` ${E.stamina}\n` +
+      `• **Earnings:** \`+100k\` ${E.coin}   •   **Follower Shift:** \`-50k\` ${E.followers}\n\n` +
+      `${E.adidas} **ADIDAS GLOBAL CAMPAIGN** \`[ -advert adidas ]\`\n` +
+      `• **Minimum Fans:** \`1M\` ${E.followers}   •   **Stamina:** \`10\` ${E.stamina}\n` +
+      `• **Earnings:** \`+200k\` ${E.coin}   •   **Follower Shift:** \`0\` ${E.followers}\n\n` +
+      `${E.cocacola} **COCA-COLA SUMMER SPLASH** \`[ -advert cocacola ]\`\n` +
+      `• **Minimum Fans:** \`5M\` ${E.followers}   •   **Stamina:** \`10\` ${E.stamina}\n` +
+      `• **Earnings:** \`+300k\` ${E.coin}   •   **Follower Shift:** \`-200k\` ${E.followers}\n\n` +
+      `${E.netflix} **NETFLIX DOCUSERIES** \`[ -advert netflix ]\`\n` +
+      `• **Minimum Fans:** \`6M\` ${E.followers}   •   **Stamina:** \`30\` ${E.stamina}\n` +
+      `• **Earnings:** \`+300k\` ${E.coin}   •   **Follower Shift:** \`+50k\` ${E.followers}\n\n` +
+      `${E.nike} **NIKE ATHLETE ENDORSEMENT** \`[ -advert nike ]\`\n` +
+      `• **Minimum Fans:** \`8M\` ${E.followers}   •   **Stamina:** \`30\` ${E.stamina}\n` +
+      `• **Earnings:** \`+500k\` ${E.coin}   •   **Follower Shift:** \`+100k\` ${E.followers}\n\n` +
+      `${DIVIDER}\n` +
+      `-# 💡 Tip: Run -advert in photoshoot-hall to open the interactive sponsorship dashboard. 2-hour cooldown.`
     )
-    .addFields(
-      {
-        name: `${E.heineken} Heineken Commercial`,
-        value: `• **Command:** \`-advert heineken\`\n• **Min Followers:** 100k ${E.followers}\n• **Stamina Cost:** 5 ${E.stamina}\n• **Reward:** +100k ${E.coin} • Followers Change: -50k ${E.followers}`
-      },
-      {
-        name: `${E.adidas} Adidas Global Campaign`,
-        value: `• **Command:** \`-advert adidas\`\n• **Min Followers:** 1M ${E.followers}\n• **Stamina Cost:** 10 ${E.stamina}\n• **Reward:** +200k ${E.coin} • Followers Change: 0`
-      },
-      {
-        name: `${E.cocacola} Coca-Cola Summer Splash`,
-        value: `• **Command:** \`-advert cocacola\`\n• **Min Followers:** 5M ${E.followers}\n• **Stamina Cost:** 10 ${E.stamina}\n• **Reward:** +300k ${E.coin} • Followers Change: -200k ${E.followers}`
-      },
-      {
-        name: `${E.netflix} Netflix Docuseries`,
-        value: `• **Command:** \`-advert netflix\`\n• **Min Followers:** 6M ${E.followers}\n• **Stamina Cost:** 30 ${E.stamina}\n• **Reward:** +300k ${E.coin} • Followers Change: +50k ${E.followers}`
-      },
-      {
-        name: `${E.nike} Nike Athlete Endorsement`,
-        value: `• **Command:** \`-advert nike\`\n• **Min Followers:** 8M ${E.followers}\n• **Stamina Cost:** 30 ${E.stamina}\n• **Reward:** +500k ${E.coin} • Followers Change: +100k ${E.followers}`
-      }
-    )
-    .setFooter({ text: 'Beyond The Final Whistle • Commercial Partnerships' });
+    .setFooter({ text: 'Beyond The Final Whistle • Commercial Partnerships' })
+    .setTimestamp();
 
   await clearAndPost('photoshoot-hall', [photoEmbed]);
 
-  // 8. ROLES
+  // 8. ROLES (INTERNATIONAL SKY BLUE THEME)
   const rolesEmbed = new EmbedBuilder()
-    .setColor('#38bdf8')
-    .setTitle('🎭 National Team Selection & Notification Roles')
+    .setColor('#0284c7') // Sky Blue
+    .setTitle('🎭 National Team Selection & International Registration')
     .setDescription(
-      `Welcome to the International Federation! Choose your national team and opt-in for match and announcement pings.\n\n` +
-      `🌍 **Join a National Team:**\n` +
-      'Run `-joinnation <alias>` in this channel or `#bot-cmds`:\n\n' +
+      `> *Welcome to the International Federation! Choose your national team to unlock your private national locker room and receive exclusive welcome bonuses.*\n\n` +
+      `### 🌍 HOW TO JOIN A NATIONAL SQUAD\n` +
+      `Run \`-joinnation <alias>\` in this channel or in \`#bot-cmds\`:\n\n` +
       `• 🇳🇱 **Netherlands:** \`-joinnation ned\`\n` +
       `• 🇩🇪 **Germany:** \`-joinnation ger\`\n` +
       `• 🇵🇹 **Portugal:** \`-joinnation por\`\n` +
@@ -430,34 +357,39 @@ client.once('clientReady', async () => {
       `• 🏴󠁧󠁢󠁥󠁮󠁧󠁿 **England:** \`-joinnation eng\`\n` +
       `• 🇧🇷 **Brazil:** \`-joinnation bra\`\n` +
       `• 🇦🇷 **Argentina:** \`-joinnation arg\`\n\n` +
-      `*Joining a nation immediately grants access to your nation's private locker room and credits a **100k ${E.coin} + 100k ${E.followers}** signing bonus!*`
+      `${DIVIDER}\n` +
+      `🎁 **Welcome Signing Bonus:** Joining a nation immediately grants access to your private team locker room and credits **+100k ${E.coin}** and **+100k ${E.followers}**!`
     )
-    .setFooter({ text: 'Beyond The Final Whistle • International Registration' });
+    .setFooter({ text: 'Beyond The Final Whistle • International Registration' })
+    .setTimestamp();
 
   await clearAndPost('roles', [rolesEmbed]);
 
-  // 9. INFORMATION
+  // 9. INFORMATION (ROYAL BLUE THEME)
   const infoEmbed = new EmbedBuilder()
-    .setColor('#2563eb')
-    .setTitle('ℹ️ Beyond The Final Whistle — Server & Game Information')
+    .setColor('#2563eb') // Royal Blue
+    .setTitle('ℹ️ Beyond The Final Whistle — Server & Game Overview')
     .setDescription(
-      `**Beyond The Final Whistle (BTFW)** is an advanced multiplayer football role-playing simulation.\n\n` +
-      `**🌐 Server Overview:**\n` +
+      `> *Beyond The Final Whistle (BTFW) is an advanced multiplayer football role-playing simulation where you develop an international football prodigy.*\n\n` +
+      `### 🌐 SERVER NAVIGATION & SHORTCUTS\n` +
       `• **Bot Prefix:** \`-\`\n` +
-      `• **Master Help:** \`-help\`\n` +
-      `• **Campus Locations:** \`-locations\`\n` +
-      `• **Leaderboards:** \`-lb\`\n\n` +
-      `**🏟️ The Campus Ecosystem:**\n` +
-      `Each facility on our server functions as a physical building on the campus. Players must travel between them to access specific facilities and activities.\n\n` +
-      `**🏆 World Cup & Domestic Tournaments:**\n` +
-      `Matches are scheduled regularly throughout the season. Check <#${channels.find(c => c && c.name.includes('schedule'))?.id || 'schedule'}> for upcoming match times!`
+      `• **Master Help Directory:** \`-help\`\n` +
+      `• **Campus Facility Map:** \`-locations\`\n` +
+      `• **Global Leaderboards:** \`-lb\`\n\n` +
+      `### 🏟️ THE SPATIAL CAMPUS SYSTEM\n` +
+      `Each channel under the **Campus Facilities** category functions as a physical building on the campus grounds. Fast-travel between them using \`-travel <alias>\` to access drills, market items, recovery, and commercial contracts.\n\n` +
+      `### 🏆 TOURNAMENTS & MATCHDAYS\n` +
+      `Matches are simulated and broadcast live. Check <#${channels.find(c => c && c.name.includes('schedule'))?.id || 'schedule'}> for upcoming competitive match fixtures!\n\n` +
+      `${DIVIDER}\n` +
+      `-# ⚽ Begin your career by typing -profile in #bot-cmds.`
     )
-    .setFooter({ text: 'Beyond The Final Whistle • Official Hub' });
+    .setFooter({ text: 'Beyond The Final Whistle • Official Hub' })
+    .setTimestamp();
 
   await clearAndPost('information', [infoEmbed]);
 
   console.log('\n==================================================');
-  console.log('🎉 GUILD EMOJIS SYNCED & ALL EMBEDS REPOSTED!');
+  console.log('🎉 ALL THEMED EMBEDS REPOSTED SUCCESSFULLY!');
   console.log('==================================================');
 
   process.exit(0);

@@ -1,5 +1,6 @@
 import { Message, EmbedBuilder } from 'discord.js';
 import { getEmoji } from '../utils/emojiHelper.js';
+import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
 
 export async function handleHelpCommand(message: Message) {
   const guild = message.guild;
@@ -19,18 +20,19 @@ export async function handleHelpCommand(message: Message) {
   const nike = getEmoji(guild, 'nike');
 
   const embed = new EmbedBuilder()
-    .setColor('#3b82f6')
-    .setTitle('📖 Beyond The Final Whistle (BTFW) — Master Command Guide')
+    .setColor(THEME_COLORS.COBALT)
+    .setTitle('📖 Beyond The Final Whistle (BTFW) — Master Command Directory')
     .setDescription(
-      `Welcome to **Beyond The Final Whistle**, an immersive multiplayer Football Career simulation MMORPG!\n\n` +
-      `You are a rising football prodigy called up to the international stage. Train on the spatial campus, sign commercial brand deals, purchase supercars, and dominate AI-simulated matches!`
+      `> *Multiplayer football career MMORPG! Train on the spatial campus, sign lucrative commercial brand sponsorships, collect supercars, and dominate AI-simulated matches!*\n\n` +
+      `**Prefix:** \`-\` • **Target Server:** Beyond The Final Whistle\n` +
+      `${UI.DIVIDER}`
     )
     .addFields(
       {
-        name: '👤 Player Profile & Career Tabs',
+        name: '👤 Player Profile & Career Dossier',
         value:
-          '• `-profile [@user]` — View complete player card with interactive tab buttons:\n' +
-          '  `👤 Main Profile` • `📊 Detailed Stats` • `🎯 Attributes Matrix`\n' +
+          '• `-profile [@user]` — View complete player card with interactive tabs:\n' +
+          '  `👤 Overview` • `📊 Match Telemetry` • `🎯 Biomechanics Matrix`\n' +
           '• `-setdesc <text>` — Set your personal bio (up to 100 characters).\n' +
           '• `-lb [category]` — View leaderboards (`goals`, `wealth`, `followers`, `ovr`).\n' +
           '• `-give @user <amount>` — Transfer funds to a teammate.\n' +
@@ -39,7 +41,7 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '🏟️ Spatial Football Campus (-locations)',
         value:
-          '• `-travel <alias>` — Move between facilities (20m base cooldown, reduced by cars).\n' +
+          '• `-travel <alias>` — Fast-travel between facilities (20m base cooldown, reduced by cars).\n' +
           '  `tc`: Training Center • `rf`: Research Facility • `gm`: Global Market\n' +
           '  `ph`: Photoshoot Hall • `ps`: Player Sauna • `lc`: Local Club\n' +
           '  `vs`: Showroom • `ih`: Intel Hub\n' +
@@ -99,7 +101,7 @@ export async function handleHelpCommand(message: Message) {
           '• `-gitpullback` — Emergency restore to previous stable commit.'
       }
     )
-    .setFooter({ text: 'Beyond The Final Whistle • Prefix: -' })
+    .setFooter({ text: 'Beyond The Final Whistle • Complete Player Guide' })
     .setTimestamp();
 
   await message.reply({ embeds: [embed] });
