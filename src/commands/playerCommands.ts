@@ -363,7 +363,28 @@ export async function handleJoinNationCommand(message: Message, args: string[]) 
     }
   });
 
+  // Auto-assign Discord nation role & rookie role if present in the guild
+  try {
+    if (message.guild && message.member) {
+      const nationRole = message.guild.roles.cache.find(r => 
+        r.name.toLowerCase().includes(nation.name.toLowerCase())
+      );
+      if (nationRole && !message.member.roles.cache.has(nationRole.id)) {
+        await message.member.roles.add(nationRole);
+      }
+
+      const rookieRole = message.guild.roles.cache.find(r => 
+        r.name.toLowerCase().includes('rookie')
+      );
+      if (rookieRole && !message.member.roles.cache.has(rookieRole.id)) {
+        await message.member.roles.add(rookieRole);
+      }
+    }
+  } catch (err: any) {
+    console.warn('Failed to assign nation role to member:', err.message);
+  }
+
   const coinEmoji = getEmoji(message.guild, 'coin');
-  const bonusMsg = isFirstTime ? `\n🎁 **Welcome Bonus:** Received **+100k coins** ${coinEmoji} and **+100k followers 👤** for joining your first National Team!` : '';
+  const bonusMsg = isFirstTime ? `\n🎁 **Welcome Bonus:** Received **+100k coins** ${coinEmoji} and **+100k followers 👤** for joining your first National Team!\n🚪 **Locker Room Unlocked:** Your national team room is now visible in the **Nations** category!` : '';
   await message.reply(`🎉 You are now officially capped for **${nation.name}** ${nation.flag}!${bonusMsg}`);
 }
