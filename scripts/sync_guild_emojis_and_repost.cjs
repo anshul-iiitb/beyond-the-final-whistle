@@ -285,7 +285,7 @@ client.once('clientReady', async () => {
       `• **VIP Training:** Run \`-train\` and select VIP mode for **+6 Training Points ${E.tp}** (6h cooldown).\n` +
       `• **No Effort Training:** Instant **+20 TP** once per day!\n` +
       `• **Sauna Full Recharge:** \`-recovery\` restores **100% full stamina ${E.stamina}** up to max cap!\n` +
-      `• **Exclusive Role:** Golden \`@👑 VIP Footballer\` hoisted role.\n\n` +
+      `• **Exclusive Role:** Golden <@&1574438929975869532> hoisted role.\n\n` +
       `**🎟️ How to Acquire VIP:**\n` +
       `1. **Server Boost:** Boost our Discord server for instant VIP duration.\n` +
       `2. **Player Referral:** Invite friends using \`-referral @you\` once they earn 50 TP.\n` +
