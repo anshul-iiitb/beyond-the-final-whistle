@@ -2,8 +2,8 @@ import { TextChannel, EmbedBuilder, AttachmentBuilder, Client } from 'discord.js
 import path from 'path';
 import fs from 'fs';
 import { generatePossessionPieChart } from '../utils/chartHelper.js';
-import { TeamTactics, parseTeamTactics } from '../commands/tacticsCommand.js';
-import { generateAiNewsArticle } from '../services/aiEngine.js';
+import { TeamTactics } from '../commands/tacticsCommand.js';
+import { generateAiMinuteCommentary, generateAiNewsArticle, MatchEventData } from '../services/aiEngine.js';
 import { logger } from '../utils/logger.js';
 
 export interface MatchPlayer {
@@ -13,7 +13,7 @@ export interface MatchPlayer {
   playstyle: string;
   flag: string;
   discordId?: string;
-  // Key attributes
+  // Attributes (1-99)
   fin: number;
   pas: number;
   tck: number;
@@ -24,6 +24,9 @@ export interface MatchPlayer {
   vis: number;
   phy: number;
   wrk: number;
+  hea?: number;
+  pow?: number;
+  agi?: number;
   // Match stats tracked dynamically
   goals: number;
   assists: number;
@@ -31,6 +34,7 @@ export interface MatchPlayer {
   tackles: number;
   interceptions: number;
   passesCompleted: number;
+  passesAttempted?: number;
   dribblesWon: number;
   fouls: number;
   yellowCards: number;
@@ -57,15 +61,15 @@ export interface MatchTeam {
 }
 
 export interface LiveMatchOptions {
-  tickDelayMs?: number;        // Delay between incident messages (default 4000ms for demo/fast, 15000-20000ms for live)
-  halfTimePauseMs?: number;    // Half-time pause (default 10000ms for demo, 180000ms / 3 mins for official)
+  tickDelayMs?: number;        // Delay between incident messages (default 3500ms)
+  halfTimePauseMs?: number;    // Half-time pause (default 8000ms for fast broadcast, 180000ms for official)
   newsChannelId?: string;      // Destination for AI Gazette (#news)
 }
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
 /**
- * Calculates dynamic player ratings based on match events
+ * Calculates dynamic player ratings based on real match contributions
  */
 function calculatePlayerRating(player: MatchPlayer, teamWon: boolean, cleanSheet: boolean): number {
   let base = 6.0;
@@ -75,7 +79,7 @@ function calculatePlayerRating(player: MatchPlayer, teamWon: boolean, cleanSheet
   base += player.tackles * 0.3;
   base += player.interceptions * 0.3;
   base += player.dribblesWon * 0.25;
-  base += (player.passesCompleted / 10) * 0.2;
+  base += (player.passesCompleted / 10) * 0.15;
   base -= player.fouls * 0.2;
   base -= player.yellowCards * 0.6;
   base -= player.redCards * 2.0;
@@ -84,14 +88,12 @@ function calculatePlayerRating(player: MatchPlayer, teamWon: boolean, cleanSheet
   if (cleanSheet && player.position === 'DEF') base += 0.8;
   if (cleanSheet && player.position === 'MID') base += 0.3;
 
-  // Add small natural variance
   base += (Math.random() * 0.4 - 0.2);
-
   return +Math.max(4.0, Math.min(10.0, base)).toFixed(1);
 }
 
 /**
- * Executes full episodic WITS/Blitz style Live Match Broadcast
+ * Executes a full AI-driven, dynamically rolled football match simulation
  */
 export async function runLiveEpisodicMatch(
   client: Client,
@@ -100,33 +102,35 @@ export async function runLiveEpisodicMatch(
   awayTeam: MatchTeam,
   options: LiveMatchOptions = {}
 ) {
-  const tickDelay = options.tickDelayMs ?? 4000;
+  const tickDelay = options.tickDelayMs ?? 3500;
   const halfTimePause = options.halfTimePauseMs ?? 8000;
-  const newsChannelId = options.newsChannelId ?? '1574439070992306236'; // #๑•📰│news
+  const newsChannelId = options.newsChannelId ?? '1574439119227064402'; // #๑•📰│btfw-news
 
-  logger.info(`⚽ Starting live episodic match broadcast: ${homeTeam.name} vs ${awayTeam.name} in #${channel.name}`);
+  logger.info(`⚽ Launching dynamic AI match engine: ${homeTeam.name} vs ${awayTeam.name} in #${channel.name}`);
 
-  // 1. Calculate tactical possession
-  const homeMidVal = homeTeam.players.mid.pas * 2 + homeTeam.players.mid.vis + homeTeam.players.mid.cmp;
-  const awayMidVal = awayTeam.players.mid.pas * 2 + awayTeam.players.mid.vis + awayTeam.players.mid.cmp;
-  const midDiff = homeMidVal - awayMidVal;
+  // 1. Calculate dynamic baseline possession from midfield battle + tactics
+  const homeMidScore = (homeTeam.players.mid.pas * 2 + homeTeam.players.mid.vis + homeTeam.players.mid.cmp + homeTeam.players.mid.wrk) / 5;
+  const awayMidScore = (awayTeam.players.mid.pas * 2 + awayTeam.players.mid.vis + awayTeam.players.mid.cmp + awayTeam.players.mid.wrk) / 5;
+  let homePossBonus = (homeMidScore - awayMidScore) * 0.6;
 
-  let possBonus = 0;
-  if (homeTeam.tactics.teamMentality === 'Attacking' || homeTeam.tactics.teamMentality === 'Hard Attacking') possBonus += 5;
-  if (homeTeam.tactics.passingStyle === 'Short') possBonus += 6;
-  if (homeTeam.tactics.pressingStyle === 'High') possBonus += 4;
-  if (awayTeam.tactics.passingStyle === 'Long') possBonus += 4; // away gives away possession on long balls
+  // Tactical possession adjustments
+  if (homeTeam.tactics.passingStyle === 'Short') homePossBonus += 6;
+  if (homeTeam.tactics.passingStyle === 'Long') homePossBonus -= 5;
+  if (homeTeam.tactics.pressingStyle === 'High') homePossBonus += 4;
+  if (awayTeam.tactics.passingStyle === 'Long') homePossBonus += 4;
+  if (homeTeam.tactics.teamMentality === 'Attacking' || homeTeam.tactics.teamMentality === 'Hard Attacking') homePossBonus += 4;
 
-  const rawHomePoss = 50 + Math.round(midDiff / 10) + possBonus;
-  homeTeam.possession = Math.max(30, Math.min(75, rawHomePoss));
-  awayTeam.possession = 100 - homeTeam.possession;
+  const calculatedHomePoss = Math.max(30, Math.min(75, Math.round(50 + homePossBonus + (Math.random() * 6 - 3))));
+  homeTeam.possession = calculatedHomePoss;
+  awayTeam.possession = 100 - calculatedHomePoss;
 
   const matchChronology: string[] = [];
+  const scorers: { minute: number; player: string; team: string; assistBy?: string }[] = [];
+  const cards: { minute: number; player: string; type: 'YELLOW' | 'RED'; team: string }[] = [];
 
-  // Helper to get formatted player mention
   const formatMention = (p: MatchPlayer) => p.discordId ? `<@${p.discordId}>` : `@${p.name} ${p.flag}`;
 
-  // Helper to send standard incident embed matching WITS screenshots
+  // Helper to send individual incident cards matching WITS broadcast format
   const sendIncident = async (data: {
     minute: number | string;
     icon: string;
@@ -145,7 +149,7 @@ export async function runLiveEpisodicMatch(
     }
 
     const embed = new EmbedBuilder()
-      .setColor('#1e293b') // Dark slate card matching Discord container
+      .setColor('#1e293b')
       .setAuthor({ name: `${data.minute}' 🕒` })
       .setTitle(`${data.icon} ${data.eventTitle} — ${data.actor.name} ${data.actor.flag}`)
       .setDescription(
@@ -154,7 +158,6 @@ export async function runLiveEpisodicMatch(
         `${mentions.join(' ')}`
       );
 
-    // If bot has avatar or icon, use as thumbnail
     if (client.user?.displayAvatarURL()) {
       embed.setThumbnail(client.user.displayAvatarURL());
     }
@@ -162,166 +165,424 @@ export async function runLiveEpisodicMatch(
     await channel.send({ embeds: [embed] });
   };
 
-  // ==========================================
-  // FIRST HALF (0' - 45')
-  // ==========================================
+  // Build match schedule: discrete phases across 90 minutes
+  // Half 1: 5-7 events between 1' and 45'
+  // Half 2: 5-7 events between 46' and 90'
+  const half1Minutes = [
+    Math.floor(Math.random() * 4) + 1,    // 1-4'
+    Math.floor(Math.random() * 6) + 7,    // 7-12'
+    Math.floor(Math.random() * 6) + 16,   // 16-21'
+    Math.floor(Math.random() * 6) + 26,   // 26-31'
+    Math.floor(Math.random() * 6) + 34,   // 34-39'
+    Math.floor(Math.random() * 3) + 43    // 43-45'
+  ];
 
-  // 1' Offside Trap triggered (Morocco/Home play offside trap On)
-  if (homeTeam.tactics.offsideTrap === 'On') {
-    await sendIncident({
-      minute: 1,
-      icon: '🚩',
-      eventTitle: 'OFFSIDE',
-      actor: awayTeam.players.atk,
-      secondaryPlayer: homeTeam.players.def,
-      narrative: `${awayTeam.players.atk.name} times the run wrong—he's caught before the ball's even properly released. ${homeTeam.name}'s offside trap springs like a mousetrap, and the flag is up!`
-    });
+  const half2Minutes = [
+    Math.floor(Math.random() * 4) + 48,   // 48-51'
+    Math.floor(Math.random() * 6) + 54,   // 54-59'
+    Math.floor(Math.random() * 6) + 64,   // 64-69'
+    Math.floor(Math.random() * 6) + 73,   // 73-78'
+    Math.floor(Math.random() * 6) + 82,   // 82-87'
+    Math.floor(Math.random() * 3) + 89    // 89-90'
+  ];
+
+  // Helper to pick set piece specialist
+  const getSpecialist = (team: MatchTeam, type: 'FK' | 'CORNER' | 'PEN'): MatchPlayer => {
+    const name = type === 'FK' ? team.freeKickTakerName : type === 'CORNER' ? team.cornerTakerName : team.penaltyTakerName;
+    if (team.players.atk.name.toLowerCase() === name.toLowerCase()) return team.players.atk;
+    if (team.players.mid.name.toLowerCase() === name.toLowerCase()) return team.players.mid;
+    return team.players.def;
+  };
+
+  /**
+   * Simulates a single tactical incident dynamically based on real attributes
+   */
+  const simulatePhase = async (min: number) => {
+    // Determine attacking team based on possession roll
+    const isHomeAttacking = Math.random() * 100 < homeTeam.possession;
+    const attTeam = isHomeAttacking ? homeTeam : awayTeam;
+    const defTeam = isHomeAttacking ? awayTeam : homeTeam;
+
+    const striker = attTeam.players.atk;
+    const midAtt = attTeam.players.mid;
+    const defAtt = attTeam.players.def;
+
+    const defPlayer = defTeam.players.def;
+    const midDef = defTeam.players.mid;
+    const oppStriker = defTeam.players.atk;
+
+    const roll = Math.random() * 100;
+
+    // SCENARIO 1: Offside Trap Check (If defending team has Offside Trap ON)
+    if (defTeam.tactics.offsideTrap === 'On' && roll < 24) {
+      const defTrapRating = defPlayer.int * 1.3 + defPlayer.cmp;
+      const attBeatTrapRating = striker.pac * 1.2 + striker.vis;
+
+      if (defTrapRating >= attBeatTrapRating || Math.random() < 0.65) {
+        // Offside trap successfully springs!
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'OFFSIDE',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${striker.name} (${striker.playstyle})`,
+          secondaryPlayer: defPlayer.name,
+          details: `${defTeam.name}'s disciplined offside trap snaps in unison, leaving ${striker.name} caught leaning offside before the pass is struck.`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '🚩',
+          eventTitle: 'OFFSIDE',
+          actor: striker,
+          secondaryPlayer: defPlayer,
+          narrative: commentary
+        });
+        return;
+      }
+      // If trap beaten, continue to scoring chance!
+    }
+
+    // SCENARIO 2: Hard Tackling / High Press / Foul roll
+    if (roll < 45) {
+      const isHighPress = defTeam.tactics.pressingStyle === 'High';
+      const isHardTackling = defTeam.tactics.tacklingStyle === 'Hard';
+
+      const defPower = midDef.tck * 1.3 + midDef.phy + (isHardTackling ? 15 : 0) + (isHighPress ? 10 : 0);
+      const attResist = midAtt.dri + midAtt.cmp * 1.2;
+
+      // Check for foul
+      const foulChance = isHardTackling ? 0.38 : 0.12;
+      if (Math.random() < foulChance) {
+        // FOUL COMMITTED!
+        midDef.fouls++;
+        const isYellow = isHardTackling ? Math.random() < 0.45 : Math.random() < 0.15;
+        if (isYellow) {
+          midDef.yellowCards++;
+          cards.push({ minute: min, player: midDef.name, type: 'YELLOW', team: defTeam.name });
+          matchChronology.push(`🟨 ${min}' Yellow Card -- ${midDef.name} ${midDef.flag}`);
+        }
+
+        const isPenalty = Math.random() < 0.18; // 18% of fouls inside penalty box
+
+        if (isPenalty) {
+          // --- MULTI-PART PENALTY SEQUENCE ---
+          const penTaker = getSpecialist(attTeam, 'PEN');
+          // 1. Awarded
+          await sendIncident({
+            minute: min,
+            icon: '🚩',
+            eventTitle: `PENALTY AWARDED — ${attTeam.name}`,
+            actor: penTaker,
+            secondaryPlayer: midDef,
+            narrative: `WHISTLE BLOWS! The referee points straight to the penalty spot! ${midDef.name} brings down the attacker inside the box with a desperate slide!`
+          });
+          await sleep(2200);
+
+          // 2. Taken
+          await sendIncident({
+            minute: min,
+            icon: '🎯',
+            eventTitle: 'PENALTY TAKEN',
+            actor: penTaker,
+            narrative: `${penTaker.name} places the ball on the spot, takes four measured steps back, and stares down the goalkeeper... the whistle sounds!`
+          });
+          await sleep(2200);
+
+          // 3. Outcome
+          const penGoalChance = Math.min(88, Math.max(50, penTaker.cmp * 0.6 + penTaker.fin * 0.4));
+          if (Math.random() * 100 < penGoalChance) {
+            attTeam.score++;
+            penTaker.goals++;
+            penTaker.shots++;
+            scorers.push({ minute: min, player: penTaker.name, team: attTeam.name });
+            matchChronology.push(`⚽ ${min}' Goal (Penalty) -- ${penTaker.name} ${penTaker.flag}`);
+
+            await sendIncident({
+              minute: min,
+              icon: '⚽',
+              eventTitle: `GOAL (Penalty) — ${penTaker.name} ${penTaker.flag}`,
+              actor: penTaker,
+              narrative: `ICE IN THE VEINS! ${penTaker.name} sends the goalkeeper the wrong way with a cool, slotted finish right into the corner! GOAL for ${attTeam.name}!`
+            });
+          } else {
+            await sendIncident({
+              minute: min,
+              icon: '🧤',
+              eventTitle: 'PENALTY SAVED',
+              actor: defPlayer,
+              secondaryPlayer: penTaker,
+              narrative: `INCREDIBLE REFLEXES! The goalkeeper guesses right and dives full length to push ${penTaker.name}'s penalty away from the bottom corner!`
+            });
+          }
+          return;
+        } else {
+          // --- MULTI-PART FREE KICK SEQUENCE ---
+          const fkTaker = getSpecialist(attTeam, 'FK');
+          // 1. Awarded
+          await sendIncident({
+            minute: min,
+            icon: '🚩',
+            eventTitle: `FREE KICK AWARDED — ${attTeam.name}`,
+            actor: fkTaker,
+            secondaryPlayer: midDef,
+            narrative: `Free kick awarded in a dangerous position outside the 18-yard box! ${midDef.name}'s challenge is deemed illegal. ${fkTaker.name} immediately claims the ball.`
+          });
+          await sleep(2200);
+
+          // 2. Taken
+          await sendIncident({
+            minute: min,
+            icon: '🎯',
+            eventTitle: 'FREE KICK TAKEN',
+            actor: fkTaker,
+            narrative: `${fkTaker.name} sizes up the wall. He strikes it with dip and swerve toward goal!`
+          });
+          await sleep(2200);
+
+          // 3. Outcome
+          const fkGoalChance = Math.min(65, Math.max(20, (fkTaker.fin + (fkTaker.pow || 70)) / 2 - 25));
+          if (Math.random() * 100 < fkGoalChance) {
+            attTeam.score++;
+            fkTaker.goals++;
+            fkTaker.shots++;
+            scorers.push({ minute: min, player: fkTaker.name, team: attTeam.name });
+            matchChronology.push(`⚽ ${min}' Goal (Free Kick) -- ${fkTaker.name} ${fkTaker.flag}`);
+
+            await sendIncident({
+              minute: min,
+              icon: '⚽',
+              eventTitle: `GOAL — ${fkTaker.name} ${fkTaker.flag}`,
+              actor: fkTaker,
+              narrative: `WHAT A STUNNER! ${fkTaker.name} whips the free kick over the wall and into the top corner! Absolute perfection!`
+            });
+          } else {
+            await sendIncident({
+              minute: min,
+              icon: '❌',
+              eventTitle: 'FREE KICK MISSED',
+              actor: fkTaker,
+              secondaryPlayer: defPlayer,
+              narrative: `${fkTaker.name}'s free kick gets over the wall, but it dips just inches over the crossbar! Goal kick for ${defTeam.name}.`
+            });
+          }
+          return;
+        }
+      }
+
+      // Clean Tackle won
+      if (defPower >= attResist) {
+        midDef.tackles++;
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'TACKLE',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${midDef.name} (${midDef.playstyle})`,
+          secondaryPlayer: midAtt.name,
+          details: `${isHighPress ? 'Suffocating high press' : 'Decisive tackling challenge'} dispossesses ${midAtt.name} cleanly near the midfield circle.`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '🛡️',
+          eventTitle: isHighPress ? 'HIGH PRESS TURNOVER' : 'TACKLE WON',
+          actor: midDef,
+          secondaryPlayer: midAtt,
+          narrative: commentary
+        });
+        return;
+      }
+    }
+
+    // SCENARIO 3: Playmaking, Key Passes & Dribbles
+    if (roll < 72) {
+      const isThroughMiddle = attTeam.tactics.focusPassing === 'Through The Middle';
+      const isShortPassing = attTeam.tactics.passingStyle === 'Short';
+
+      if (Math.random() < 0.5) {
+        // Dribble
+        striker.dribblesWon++;
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'DRIBBLE',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${striker.name} (${striker.playstyle})`,
+          secondaryPlayer: defPlayer.name,
+          details: `Explosive agility leaves the defender behind with quick footwork in the attacking channel.`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '⚡',
+          eventTitle: 'DRIBBLE',
+          actor: striker,
+          secondaryPlayer: defPlayer,
+          narrative: commentary
+        });
+      } else {
+        // Key Pass / Buildup
+        midAtt.passesCompleted += 3;
+        midAtt.passesAttempted = (midAtt.passesAttempted || 0) + 3;
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${midAtt.name} (${midAtt.playstyle})`,
+          secondaryPlayer: striker.name,
+          details: `${isThroughMiddle ? 'Incisive vertical through ball through the middle' : 'Crisp passing combination'} creating an attacking lane.`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: isShortPassing ? '🪄' : '🔑',
+          eventTitle: isShortPassing ? 'TIKI-TAKA COMBINATION' : 'KEY PASS',
+          actor: midAtt,
+          secondaryPlayer: striker,
+          narrative: commentary
+        });
+      }
+      return;
+    }
+
+    // SCENARIO 4: Direct Scoring Chance on Goal!
+    striker.shots++;
+    const strikerFinishing = striker.fin * 1.5 + striker.cmp + (striker.playstyle === 'PCH' ? 12 : 0);
+    const defResistance = defPlayer.tck + defPlayer.int + defPlayer.phy;
+    const goalProb = Math.max(25, Math.min(80, 48 + Math.round((strikerFinishing - defResistance) * 0.4)));
+
+    if (Math.random() * 100 < goalProb) {
+      // ⚽ GOAL SCORED!
+      attTeam.score++;
+      striker.goals++;
+      midAtt.assists++;
+      scorers.push({ minute: min, player: striker.name, team: attTeam.name, assistBy: midAtt.name });
+      matchChronology.push(`⚽ ${min}' Goal -- ${striker.name} ${striker.flag} (assist: ${midAtt.name} ${midAtt.flag})`);
+
+      const commentary = await generateAiMinuteCommentary({
+        minute: min,
+        type: 'GOAL',
+        homeTeam: homeTeam.name,
+        awayTeam: awayTeam.name,
+        homeScore: homeTeam.score,
+        awayScore: awayTeam.score,
+        actorPlayer: `${striker.name} (${striker.playstyle})`,
+        secondaryPlayer: midAtt.name,
+        details: `${midAtt.name} tees up ${striker.name}, who executes with clinical precision past the keeper.`
+      });
+
+      await sendIncident({
+        minute: min,
+        icon: '⚽',
+        eventTitle: `GOAL — ${striker.name} ${striker.flag} (Assist: ${midAtt.name} ${midAtt.flag})`,
+        actor: striker,
+        secondaryPlayer: midAtt,
+        extraMentions: [defPlayer],
+        narrative: commentary
+      });
+    } else {
+      // Save or Deflected to Corner
+      const isDeflectedToCorner = Math.random() < 0.6;
+      if (isDeflectedToCorner) {
+        // --- MULTI-PART CORNER SEQUENCE ---
+        const cornerTaker = getSpecialist(attTeam, 'CORNER');
+        // 1. Awarded
+        await sendIncident({
+          minute: min,
+          icon: '🚩',
+          eventTitle: `CORNER AWARDED — ${attTeam.name}`,
+          actor: cornerTaker,
+          secondaryPlayer: striker,
+          narrative: `Goalkeeper parries the venomous strike behind the post! Corner kick awarded to ${attTeam.name}.`
+        });
+        await sleep(2200);
+
+        // 2. Taken
+        await sendIncident({
+          minute: min,
+          icon: '🎯',
+          eventTitle: 'CORNER TAKEN',
+          actor: cornerTaker,
+          narrative: `${cornerTaker.name} whips a curling delivery deep into the mixer toward the penalty spot!`
+        });
+        await sleep(2200);
+
+        // 3. Outcome (Header Duel)
+        const headerRoll = (striker.hea || 75) * 1.2 + striker.phy;
+        const defHeaderRoll = (defPlayer.hea || 70) + defPlayer.phy;
+
+        if (headerRoll > defHeaderRoll && Math.random() < 0.45) {
+          attTeam.score++;
+          striker.goals++;
+          striker.shots++;
+          cornerTaker.assists++;
+          scorers.push({ minute: min, player: striker.name, team: attTeam.name, assistBy: cornerTaker.name });
+          matchChronology.push(`⚽ ${min}' Goal (Corner) -- ${striker.name} ${striker.flag} (assist: ${cornerTaker.name} ${cornerTaker.flag})`);
+
+          await sendIncident({
+            minute: min,
+            icon: '⚽',
+            eventTitle: `GOAL (Corner) — ${striker.name} ${striker.flag} (Assist: ${cornerTaker.name} ${cornerTaker.flag})`,
+            actor: striker,
+            secondaryPlayer: cornerTaker,
+            narrative: `THUNDEROUS HEADER! ${striker.name} rises above the defensive wall and hammers the corner kick into the back of the net! GOAL!`
+          });
+        } else {
+          await sendIncident({
+            minute: min,
+            icon: '❌',
+            eventTitle: 'CORNER MISSED',
+            actor: defPlayer,
+            secondaryPlayer: cornerTaker,
+            narrative: `${defPlayer.name} towers above the attacker to clear the corner kick safely away from the danger zone.`
+          });
+        }
+      } else {
+        // Direct Save
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'SAVE',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: defPlayer.name,
+          secondaryPlayer: striker.name,
+          details: `Reflex save keeps out ${striker.name}'s goalbound shot.`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '🧤',
+          eventTitle: 'SPECTACULAR SAVE',
+          actor: defPlayer,
+          secondaryPlayer: striker,
+          narrative: commentary
+        });
+      }
+    }
+  };
+
+  // ==========================================
+  // 1. FIRST HALF SIMULATION LOOP
+  // ==========================================
+  for (const minute of half1Minutes) {
+    await simulatePhase(minute);
     await sleep(tickDelay);
   }
 
-  // 6' Tackle Won (Anchor high press)
-  homeTeam.players.mid.tackles++;
-  await sendIncident({
-    minute: 6,
-    icon: '🛡️',
-    eventTitle: 'TACKLE WON',
-    actor: homeTeam.players.mid,
-    secondaryPlayer: awayTeam.players.mid,
-    narrative: `${homeTeam.players.mid.name} ${homeTeam.players.mid.flag} is everywhere—a suffocating high press, he nicks it cleanly off ${awayTeam.players.mid.name} ${awayTeam.players.mid.flag}.\n${awayTeam.players.mid.name} can't turn, the ball's gone, and ${homeTeam.name} are instantly driving forward again with clean recovery pace.`
-  });
-  await sleep(tickDelay);
-
-  // 7' Momentum Shift
-  await sendIncident({
-    minute: 7,
-    icon: '🔄',
-    eventTitle: 'MOMENTUM SHIFT',
-    actor: homeTeam.players.atk,
-    secondaryPlayer: homeTeam.players.def,
-    narrative: `${homeTeam.name} are building momentum against ${awayTeam.name} right now, pressing up and turning the screw.\n${awayTeam.name} have gone quiet—backs are having to retreat, passes aren't sticking.\n${homeTeam.players.atk.name} nudges it forward, and ${homeTeam.players.def.name} is making the angles... here comes another phase for ${homeTeam.name}.`
-  });
-  await sleep(tickDelay);
-
-  // 10' Key Pass (BPD / Anchor Vision)
-  homeTeam.players.mid.passesCompleted += 3;
-  await sendIncident({
-    minute: 10,
-    icon: '🔑',
-    eventTitle: 'KEY PASS',
-    actor: homeTeam.players.def,
-    secondaryPlayer: homeTeam.players.atk,
-    narrative: `${homeTeam.players.def.name} ${homeTeam.players.def.flag} threads it through the seam from deep, and ${homeTeam.players.atk.name} ${homeTeam.players.atk.flag} is in behind—that's the danger! He's racing onto it... but ${awayTeam.name} are across in a flash and the move comes to nothing.`
-  });
-  await sleep(tickDelay);
-
-  // 13' Tackle Won
-  homeTeam.players.mid.tackles++;
-  await sendIncident({
-    minute: 13,
-    icon: '🛡️',
-    eventTitle: 'TACKLE WON',
-    actor: homeTeam.players.mid,
-    secondaryPlayer: awayTeam.players.atk,
-    extraMentions: [awayTeam.players.mid],
-    narrative: `${awayTeam.players.atk.name} gets hounded under pressure, and the mistake is forced—he can't turn, can't breathe.\n${homeTeam.players.mid.name} ${homeTeam.players.mid.flag} is right there, winning it cleanly off him with that suffocating high press. ${homeTeam.name} swarm, and it spills into their rhythm again.`
-  });
-  await sleep(tickDelay);
-
-  // 25' Tackle Won (Ball-Playing Defender stands firm)
-  homeTeam.players.def.tackles++;
-  await sendIncident({
-    minute: 25,
-    icon: '🛡️',
-    eventTitle: 'TACKLE WON',
-    actor: homeTeam.players.def,
-    secondaryPlayer: awayTeam.players.atk,
-    extraMentions: [awayTeam.players.mid],
-    narrative: `${homeTeam.players.def.name} ${homeTeam.players.def.flag} stands like a brick wall and crunches into ${awayTeam.players.atk.name} ${awayTeam.players.atk.flag} with a flawless challenge!\nThe press is suffocating—ball won cleanly, and ${awayTeam.players.atk.name}'s half-a-step too late.\n${awayTeam.name}'s shape is scrambling as the counter starts to gather pace.`
-  });
-  await sleep(tickDelay);
-
-  // 31' Dribble
-  homeTeam.players.atk.dribblesWon++;
-  await sendIncident({
-    minute: 31,
-    icon: '⚡',
-    eventTitle: 'DRIBBLE',
-    actor: homeTeam.players.atk,
-    secondaryPlayer: awayTeam.players.def,
-    narrative: `${homeTeam.players.atk.name} ${homeTeam.players.atk.flag} is in close, dribbling that opening—silky little touch, the kind that keeps the ball glued to his feet.\n${awayTeam.players.def.name} ${awayTeam.players.def.flag} is trying to recover, but he's left for dead!\n${homeTeam.players.atk.name}'s darting forward now, eyes up—what's the next move for ${homeTeam.name}?`
-  });
-  await sleep(tickDelay);
-
-  // 34' Multi-Part Free Kick Sequence
-  const fkTaker = homeTeam.freeKickTakerName === homeTeam.players.atk.name ? homeTeam.players.atk : homeTeam.players.mid;
-  // Step 1: Awarded
-  await sendIncident({
-    minute: 34,
-    icon: '🚩',
-    eventTitle: `FREE KICK AWARDED — ${homeTeam.name}`,
-    actor: fkTaker,
-    secondaryPlayer: homeTeam.players.def,
-    narrative: `Free kick awarded to ${homeTeam.name}, and they're right on the edge of the box! ${fkTaker.name} steps up, shaping his run to whip it around the wall. ${homeTeam.players.def.name} is also over it—making sure ${awayTeam.name} keep their lines tight... this is the moment.`
-  });
-  await sleep(2500);
-
-  // Step 2: Taken
-  await sendIncident({
-    minute: 34,
-    icon: '🎯',
-    eventTitle: 'FREE KICK TAKEN',
-    actor: fkTaker,
-    secondaryPlayer: homeTeam.players.mid,
-    narrative: `${fkTaker.name} ${fkTaker.flag} stands over it, setting the wall, for ${homeTeam.name}... ${awayTeam.name} are tight, bodies packed in front.\nHe takes a breath, rolls the ball into position... the referee's whistle sounds, and ${fkTaker.name} strikes!`
-  });
-  await sleep(2500);
-
-  // Step 3: Missed / Shaved crossbar
-  await sendIncident({
-    minute: 34,
-    icon: '❌',
-    eventTitle: 'FREE KICK MISSED',
-    actor: fkTaker,
-    secondaryPlayer: awayTeam.players.def,
-    narrative: `${fkTaker.name} ${fkTaker.flag} steps up to the free kick... and he DRAGS it inches wide of the upright!\n${awayTeam.players.def.name} breathes a massive sigh of relief as it ripples the side netting.\nA let-off for ${awayTeam.name} as we stay level at ${homeTeam.score}-${awayTeam.score}.`
-  });
-  await sleep(tickDelay);
-
-  // 44' GOAL 1 — Poacher Finish!
-  homeTeam.score++;
-  homeTeam.players.atk.goals++;
-  homeTeam.players.atk.shots++;
-  homeTeam.players.mid.assists++;
-  matchChronology.push(`⚽ 44' Goal -- ${homeTeam.players.atk.name} ${homeTeam.players.atk.flag} (assist: ${homeTeam.players.mid.name} ${homeTeam.players.mid.flag})`);
-
-  await sendIncident({
-    minute: 44,
-    icon: '⚽',
-    eventTitle: `GOAL — ${homeTeam.players.atk.name} ${homeTeam.players.atk.flag} (Assist: ${homeTeam.players.mid.name} ${homeTeam.players.mid.flag})`,
-    actor: homeTeam.players.atk,
-    secondaryPlayer: homeTeam.players.mid,
-    extraMentions: [homeTeam.players.def],
-    narrative: `${homeTeam.players.mid.name} ${homeTeam.players.mid.flag} threads the ball through with surgical precision—${homeTeam.players.atk.name} ${homeTeam.players.atk.flag} is on it like a predator, steering it past the keeper on the half-volley!\n\n**GOAL! ${homeTeam.players.atk.name} MAKES IT 1-0 FOR ${homeTeam.name.toUpperCase()}!**`
-  });
-  await sleep(tickDelay);
-
-  // 45' Yellow Card for Hard Tackling
-  awayTeam.players.mid.yellowCards++;
-  awayTeam.players.mid.fouls++;
-  matchChronology.push(`🟨 45' Yellow Card -- ${awayTeam.players.mid.name} ${awayTeam.players.mid.flag}`);
-
-  await sendIncident({
-    minute: 45,
-    icon: '🟨',
-    eventTitle: 'YELLOW CARD',
-    actor: awayTeam.players.mid,
-    secondaryPlayer: homeTeam.players.atk,
-    narrative: `${awayTeam.players.mid.name} goes into the referee's notebook with a reckless late lunge, wiping ${homeTeam.players.atk.name} out right on the break!\n${homeTeam.players.atk.name} hits the turf holding his ankle—${awayTeam.name}'s midfield is suddenly under intense scrutiny from the official.`
-  });
-  await sleep(2500);
-
   // ==========================================
-  // HALF TIME INTERMISSION
+  // 2. HALF TIME INTERMISSION (45')
   // ==========================================
   matchChronology.push(`⏸️ 45' Halftime`);
 
@@ -331,8 +592,7 @@ export async function runLiveEpisodicMatch(
     .setTitle('⏸️ HALF TIME')
     .setDescription(
       `### ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}\n\n` +
-      `And that's it—the referee blows the whistle for half time!\n` +
-      `${homeTeam.name} head into the tunnel leading 1-0 after a commanding opening 45 minutes, dominating possession with their short passing and suffocating high press.\n\n` +
+      `The referee blows for half time! Both squads head to the dressing rooms after a high-octane 45 minutes.\n\n` +
       `${formatMention(homeTeam.players.atk)} ${formatMention(awayTeam.players.atk)}`
     );
 
@@ -342,7 +602,6 @@ export async function runLiveEpisodicMatch(
 
   await channel.send({ embeds: [halfTimeEmbed] });
 
-  // Half time announcement allowing tactics adjustments
   await channel.send({
     content:
       `@${homeTeam.name} @${awayTeam.name}\n` +
@@ -352,7 +611,6 @@ export async function runLiveEpisodicMatch(
   logger.info(`⏸️ Half time reached (${homeTeam.score}-${awayTeam.score}). Pausing for ${halfTimePause / 1000}s...`);
   await sleep(halfTimePause);
 
-  // Second half restart
   await channel.send({
     content:
       `@${homeTeam.name} @${awayTeam.name}\n` +
@@ -361,165 +619,47 @@ export async function runLiveEpisodicMatch(
   await sleep(2500);
 
   // ==========================================
-  // SECOND HALF (46' - 90')
+  // 3. SECOND HALF SIMULATION LOOP
   // ==========================================
+  for (const minute of half2Minutes) {
+    await simulatePhase(minute);
+    await sleep(tickDelay);
+  }
 
-  // 50' Offside Trap triggered again
-  await sendIncident({
-    minute: 50,
-    icon: '🚩',
-    eventTitle: 'OFFSIDE',
-    actor: awayTeam.players.atk,
-    secondaryPlayer: homeTeam.players.def,
-    narrative: `${awayTeam.players.atk.name}'s timing is just fractionally off—he turns into trouble and the offside flag snaps straight up!\n${homeTeam.name} have caught him again with a defensive line operating in total telepathic sync.`
-  });
-  await sleep(tickDelay);
-
-  // 51' Long Range Shot Missed
-  homeTeam.players.mid.shots++;
-  await sendIncident({
-    minute: 51,
-    icon: '🤷',
-    eventTitle: 'LONG RANGE -- MISSED',
-    actor: homeTeam.players.mid,
-    secondaryPlayer: awayTeam.players.def,
-    narrative: `${homeTeam.players.mid.name} lets it rip from distance, and the strike just sails—it's got tremendous power, but it's drifting well off target into the stand!\n${awayTeam.players.def.name} closed quickly to rush the strike.`
-  });
-  await sleep(tickDelay);
-
-  // 54' Interception (Anchor / BPD reads pass)
-  homeTeam.players.def.interceptions++;
-  await sendIncident({
-    minute: 54,
-    icon: '🛡️',
-    eventTitle: 'INTERCEPTION',
-    actor: homeTeam.players.def,
-    secondaryPlayer: awayTeam.players.mid,
-    extraMentions: [homeTeam.players.atk],
-    narrative: `${homeTeam.players.def.name} reads the passing lane early—INTERCEPTED!\nHe steps out from the backline to extinguish ${awayTeam.players.mid.name}'s attempted through-ball, snapping the danger in an instant and immediately feeding ${homeTeam.players.atk.name}.`
-  });
-  await sleep(tickDelay);
-
-  // 57' GOAL 2 — Ball-Playing Defender Surges Forward to Score!
-  homeTeam.score++;
-  homeTeam.players.def.goals++;
-  homeTeam.players.def.shots++;
-  homeTeam.players.atk.assists++;
-  matchChronology.push(`⚽ 57' Goal -- ${homeTeam.players.def.name} ${homeTeam.players.def.flag} (assist: ${homeTeam.players.atk.name} ${homeTeam.players.atk.flag})`);
-
-  await sendIncident({
-    minute: 57,
-    icon: '⚽',
-    eventTitle: `GOAL — ${homeTeam.players.def.name} ${homeTeam.players.def.flag} (Assist: ${homeTeam.players.atk.name} ${homeTeam.players.atk.flag})`,
-    actor: homeTeam.players.def,
-    secondaryPlayer: homeTeam.players.atk,
-    narrative: `${homeTeam.players.atk.name} ${homeTeam.players.atk.flag} slides it into the vacated half-space—${homeTeam.players.def.name} ${homeTeam.players.def.flag} is already charging from deep!\n${homeTeam.players.def.name} takes one deft touch, curls it with his instep, and RIPS the back of the net wide open!\n\n**2-0! The Ball-Playing Defender joins the attack with lethal results!**`
-  });
-  await sleep(tickDelay);
-
-  // 68' Multi-Part Corner Sequence
-  const cornerTaker = homeTeam.cornerTakerName === homeTeam.players.def.name ? homeTeam.players.def : homeTeam.players.mid;
-  // Step 1: Corner Awarded
-  await sendIncident({
-    minute: 68,
-    icon: '🚩',
-    eventTitle: `CORNER AWARDED — ${homeTeam.name}`,
-    actor: cornerTaker,
-    secondaryPlayer: homeTeam.players.atk,
-    narrative: `Deflection behind for a corner! ${homeTeam.name} pile bodies forward into the 18-yard box as ${cornerTaker.name} heads toward the quadrant.`
-  });
-  await sleep(2500);
-
-  // Step 2: Corner Taken
-  await sendIncident({
-    minute: 68,
-    icon: '🎯',
-    eventTitle: 'CORNER TAKEN',
-    actor: cornerTaker,
-    secondaryPlayer: homeTeam.players.atk,
-    narrative: `Corner comes in—${cornerTaker.name} WHIPS it with ferocious out-swinging pace towards the penalty spot! ${homeTeam.players.atk.name} jostles for position with the marker...`
-  });
-  await sleep(2500);
-
-  // Step 3: GOAL 3 — Poacher Header / Brace!
-  homeTeam.score++;
-  homeTeam.players.atk.goals++;
-  homeTeam.players.atk.shots++;
-  cornerTaker.assists++;
-  matchChronology.push(`⚽ 68' Goal -- ${homeTeam.players.atk.name} ${homeTeam.players.atk.flag} (assist: ${cornerTaker.name} ${cornerTaker.flag})`);
-
-  await sendIncident({
-    minute: 68,
-    icon: '⚽',
-    eventTitle: `GOAL — ${homeTeam.players.atk.name} ${homeTeam.players.atk.flag} (Assist: ${cornerTaker.name} ${cornerTaker.flag})`,
-    actor: homeTeam.players.atk,
-    secondaryPlayer: cornerTaker,
-    narrative: `${homeTeam.players.atk.name} leaps above the crowd and CRASHES a bullet header under the crossbar!\n\n**GOAL! 3-0! Marcus Vance claims his brace off a textbook set piece delivery!**`
-  });
-  await sleep(tickDelay);
-
-  // 75' Away team rare counter-attack goal
-  awayTeam.score++;
-  awayTeam.players.atk.goals++;
-  awayTeam.players.atk.shots++;
-  awayTeam.players.mid.assists++;
-  matchChronology.push(`⚽ 75' Goal -- ${awayTeam.players.atk.name} ${awayTeam.players.atk.flag} (assist: ${awayTeam.players.mid.name} ${awayTeam.players.mid.flag})`);
-
-  await sendIncident({
-    minute: 75,
-    icon: '⚽',
-    eventTitle: `GOAL — ${awayTeam.players.atk.name} ${awayTeam.players.atk.flag} (Assist: ${awayTeam.players.mid.name} ${awayTeam.players.mid.flag})`,
-    actor: awayTeam.players.atk,
-    secondaryPlayer: awayTeam.players.mid,
-    extraMentions: [homeTeam.players.def],
-    narrative: `A moment of inspiration for ${awayTeam.name}! ${awayTeam.players.mid.name} loops an aerial ball over the top, and ${awayTeam.players.atk.name} pounces on the bouncing ball to sneak a low finish inside the near post!\n\n**${awayTeam.name} pull one back to make it 3-1!**`
-  });
-  await sleep(tickDelay);
-
-  // 88' Spectacular Save
-  await sendIncident({
-    minute: 88,
-    icon: '🧤',
-    eventTitle: 'SPECTACULAR SAVE',
-    actor: awayTeam.players.def,
-    secondaryPlayer: homeTeam.players.atk,
-    narrative: `${homeTeam.players.atk.name} unloads a venomous snapshot towards the top corner, but the goalkeeper acrobatically tips it over the bar at full stretch!`
-  });
-  await sleep(2500);
-
-  // 90+5' Fulltime Whistle
   matchChronology.push(`🏁 90+5' Fulltime`);
 
   // ==========================================
-  // FINAL SCOREBOARD & RATINGS (WITS Screen 1)
+  // 4. POST-MATCH PERFORMANCE RATINGS & SCOREBOARD
   // ==========================================
-
-  // Calculate ratings for all players
   const homeWon = homeTeam.score > awayTeam.score;
   const awayWon = awayTeam.score > homeTeam.score;
-  const cleanSheet = awayTeam.score === 0;
+  const homeCleanSheet = awayTeam.score === 0;
+  const awayCleanSheet = homeTeam.score === 0;
 
-  homeTeam.players.atk.rating = calculatePlayerRating(homeTeam.players.atk, homeWon, cleanSheet);
-  homeTeam.players.mid.rating = calculatePlayerRating(homeTeam.players.mid, homeWon, cleanSheet);
-  homeTeam.players.def.rating = calculatePlayerRating(homeTeam.players.def, homeWon, cleanSheet);
+  homeTeam.players.atk.rating = calculatePlayerRating(homeTeam.players.atk, homeWon, awayCleanSheet);
+  homeTeam.players.mid.rating = calculatePlayerRating(homeTeam.players.mid, homeWon, awayCleanSheet);
+  homeTeam.players.def.rating = calculatePlayerRating(homeTeam.players.def, homeWon, homeCleanSheet);
 
-  awayTeam.players.atk.rating = calculatePlayerRating(awayTeam.players.atk, awayWon, false);
-  awayTeam.players.mid.rating = calculatePlayerRating(awayTeam.players.mid, awayWon, false);
-  awayTeam.players.def.rating = calculatePlayerRating(awayTeam.players.def, awayWon, false);
+  awayTeam.players.atk.rating = calculatePlayerRating(awayTeam.players.atk, awayWon, homeCleanSheet);
+  awayTeam.players.mid.rating = calculatePlayerRating(awayTeam.players.mid, awayWon, homeCleanSheet);
+  awayTeam.players.def.rating = calculatePlayerRating(awayTeam.players.def, awayWon, awayCleanSheet);
 
-  // Determine MOTM (Highest rating on winning team)
-  const allHome = [homeTeam.players.atk, homeTeam.players.mid, homeTeam.players.def];
-  allHome.sort((a, b) => b.rating - a.rating);
-  const motm = allHome[0];
+  // Highest rated player on pitch is MOTM
+  const allPlayers = [
+    homeTeam.players.atk, homeTeam.players.mid, homeTeam.players.def,
+    awayTeam.players.atk, awayTeam.players.mid, awayTeam.players.def
+  ];
+  allPlayers.sort((a, b) => b.rating - a.rating);
+  const motm = allPlayers[0];
+  const motmTeam = (motm.flag === homeTeam.flag) ? homeTeam : awayTeam;
 
-  // Full time header announcement
+  // Full-time notification
   await channel.send({
     content:
       `@${homeTeam.name.toLowerCase()} @${awayTeam.name.toLowerCase()}\n` +
       `🏁 **Full time: ${homeTeam.name} ${homeTeam.score} - ${awayTeam.score} ${awayTeam.name}**`
   });
 
-  // Scoreboard Embed matching Screenshot 2026-11-24 213446.png
   const scoreboardEmbed = new EmbedBuilder()
     .setColor('#1e293b')
     .setTitle(`${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}`)
@@ -545,7 +685,7 @@ export async function runLiveEpisodicMatch(
     scoreboardEmbed.setThumbnail(client.user.displayAvatarURL());
   }
 
-  // Generate Authentic Possession Pie Chart
+  // Generate authentic possession pie chart based on real possession
   const pieChartBuf = generatePossessionPieChart(
     homeTeam.name,
     homeTeam.possession,
@@ -557,7 +697,6 @@ export async function runLiveEpisodicMatch(
 
   const chartAttachment = new AttachmentBuilder(pieChartBuf, { name: 'possession_chart.png' });
 
-  // Second embed holding the Possession Chart (Matching Screenshot 2026-11-24 213450.png)
   const chartEmbed = new EmbedBuilder()
     .setColor('#1e293b')
     .setImage('attachment://possession_chart.png')
@@ -569,26 +708,17 @@ export async function runLiveEpisodicMatch(
     files: [chartAttachment]
   });
 
-  logger.info(`✅ Scoreboard and possession pie chart posted to #${channel.name}`);
-  await sleep(3000);
+  logger.info(`✅ Match completed: ${homeTeam.name} ${homeTeam.score} - ${awayTeam.score} ${awayTeam.name}`);
+  await sleep(2500);
 
   // ==========================================
-  // DISPATCH AI TABLOID REPORT TO #NEWS
+  // 5. DISPATCH REAL AI GAZETTE TO #NEWS
   // ==========================================
   try {
     const newsChannel = (client.channels.cache.get(newsChannelId) ||
       client.channels.cache.find(c => (c as any).name?.includes('news'))) as TextChannel;
-    if (newsChannel && newsChannel.isTextBased()) {
-      const scorers = [
-        { minute: 44, player: homeTeam.players.atk.name, team: homeTeam.name },
-        { minute: 57, player: homeTeam.players.def.name, team: homeTeam.name },
-        { minute: 68, player: homeTeam.players.atk.name, team: homeTeam.name },
-        { minute: 75, player: awayTeam.players.atk.name, team: awayTeam.name },
-      ];
-      const cards = [
-        { minute: 45, player: awayTeam.players.mid.name, type: 'YELLOW' as const, team: awayTeam.name }
-      ];
 
+    if (newsChannel && newsChannel.isTextBased()) {
       const newsArticle = await generateAiNewsArticle({
         homeTeam: homeTeam.name,
         awayTeam: awayTeam.name,
@@ -600,14 +730,14 @@ export async function runLiveEpisodicMatch(
         cards,
         motm: {
           player: motm.name,
-          team: homeTeam.name,
+          team: motmTeam.name,
           rating: motm.rating,
           stats: `${motm.goals} Goal(s), ${motm.assists} Assist(s), ${motm.tackles} Tackle(s)`
         }
       });
 
       const newspaperEmbed = new EmbedBuilder()
-        .setColor('#f59e0b') // Champions Gold
+        .setColor('#f59e0b')
         .setTitle('📰 THE DAILY WHISTLE — MATCHDAY GAZETTE & REPORT')
         .setDescription(
           `>>> ${newsArticle}\n\n` +
@@ -629,7 +759,7 @@ export async function runLiveEpisodicMatch(
         embeds: [newspaperEmbed],
         files: newsFiles
       });
-      logger.info(`✅ Match news gazette dispatched to #${newsChannel.name}`);
+      logger.info(`✅ Match gazette dispatched to #${newsChannel.name}`);
     }
   } catch (err: any) {
     logger.error({ err }, 'Failed to dispatch AI news article');

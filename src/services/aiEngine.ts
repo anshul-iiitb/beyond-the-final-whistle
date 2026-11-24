@@ -27,42 +27,73 @@ export interface MatchSummaryData {
 
 async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise<string | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey || apiKey.trim() === '') {
-    return null;
-  }
+  const openaiKey = process.env['openai-key'] || process.env.OPENAI_API_KEY;
 
-  try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey.trim()}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://github.com/anshul-gaming/beyond-the-final-whistle',
-        'X-Title': 'Beyond The Final Whistle Football Bot'
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.85,
-        max_tokens: 1000
-      }),
-      signal: AbortSignal.timeout(12000)
-    });
+  // Try OpenRouter first with openai/gpt-4o-mini
+  if (apiKey && apiKey.trim() !== '') {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey.trim()}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://github.com/anshul-gaming/beyond-the-final-whistle',
+          'X-Title': 'Beyond The Final Whistle Football Bot'
+        },
+        body: JSON.stringify({
+          model: 'openai/gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.85,
+          max_tokens: 1000
+        }),
+        signal: AbortSignal.timeout(10000)
+      });
 
-    if (!response.ok) {
-      logger.warn({ status: response.status }, 'OpenRouter AI completion non-200');
-      return null;
+      if (response.ok) {
+        const data: any = await response.json();
+        const content = data?.choices?.[0]?.message?.content?.trim();
+        if (content) return content;
+      }
+    } catch (err: any) {
+      logger.warn({ err: err.message }, 'OpenRouter AI completion error, trying fallback');
     }
-
-    const data: any = await response.json();
-    return data?.choices?.[0]?.message?.content?.trim() || null;
-  } catch (err: any) {
-    logger.warn({ err: err.message }, 'AI text generation request failed, using template engine');
-    return null;
   }
+
+  // Fallback to direct OpenAI API with gpt-4o-mini
+  if (openaiKey && openaiKey.trim() !== '') {
+    try {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiKey.trim()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.85,
+          max_tokens: 1000
+        }),
+        signal: AbortSignal.timeout(10000)
+      });
+
+      if (response.ok) {
+        const data: any = await response.json();
+        const content = data?.choices?.[0]?.message?.content?.trim();
+        if (content) return content;
+      }
+    } catch (err: any) {
+      logger.warn({ err: err.message }, 'Direct OpenAI completion error');
+    }
+  }
+
+  return null;
 }
 
 /**
