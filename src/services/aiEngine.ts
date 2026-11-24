@@ -8,7 +8,9 @@ export interface MatchEventData {
   homeScore: number;
   awayScore: number;
   actorPlayer?: string;
+  actorTeam?: string;
   secondaryPlayer?: string;
+  secondaryTeam?: string;
   details?: string;
 }
 
@@ -102,13 +104,19 @@ async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise
 export async function generateAiMinuteCommentary(event: MatchEventData): Promise<string> {
   const systemPrompt = `You are the lead matchday commentator for "Beyond The Final Whistle" (an intense football simulation Discord RPG like WITS).
 Output exactly 2-3 sentences of broadcast commentary with real match emotion, player names, and technical football terminology.
-Keep it punchy, sharp, and visceral. Do not include markdown headers or meta commentary.`;
+Keep it punchy, sharp, and visceral. Do not include markdown headers or meta commentary.
+
+CRITICAL TEAM ATTRIBUTION RULES:
+- Strictly attribute each player to their designated team! Never call a player by the wrong country/club name.
+- For saves, the defending goalkeeper or last-ditch defender denies the attacker of the opposing team.
+- When an attacker crosses or passes, their teammate receiving the ball is on the SAME team as the passer. The opponent defender is marking or contesting.
+- If a team is named Mexico, Mexican players play for Mexico. If Morocco, Moroccan players play for Morocco.`;
 
   const userPrompt = `Minute: ${event.minute}'
 Event: ${event.type}
 Scoreline: ${event.homeTeam} ${event.homeScore} - ${event.awayScore} ${event.awayTeam}
-Key Player: ${event.actorPlayer || 'Midfield battler'}
-Secondary Player: ${event.secondaryPlayer || 'Defender'}
+Key Player: ${event.actorPlayer || 'Player'}${event.actorTeam ? ` (Plays for: ${event.actorTeam})` : ''}
+Secondary Player: ${event.secondaryPlayer || 'Opponent'}${event.secondaryTeam ? ` (Plays for: ${event.secondaryTeam})` : ''}
 Context: ${event.details || 'Intense contest in the final third'}`;
 
   const aiResult = await callOpenRouter(systemPrompt, userPrompt);
@@ -117,29 +125,29 @@ Context: ${event.details || 'Intense contest in the final third'}`;
   // High quality algorithmic fallback
   switch (event.type) {
     case 'KICKOFF':
-      return `And we're underway! The referee blows the whistle as ${event.homeTeam} set the tempo early, moving the ball briskly across the pitch. ${event.actorPlayer || 'The frontline'} presses high immediately!`;
+      return `And we're underway! The referee blows the whistle as ${event.actorTeam || event.homeTeam} set the tempo early, moving the ball briskly across the pitch. ${event.actorPlayer || 'The frontline'} presses high immediately!`;
     case 'BUILDUP':
-      return `${event.actorPlayer || 'The midfielder'} carries it through the half-space, threading a crisp pass to ${event.secondaryPlayer || 'the flank'}. The defensive shape is being tested as the tempo rapidly spikes!`;
+      return `${event.actorPlayer || 'The midfielder'} carries it through the half-space for ${event.actorTeam || 'the attack'}, threading a crisp pass to ${event.secondaryPlayer || 'the flank'}. The defensive shape of ${event.secondaryTeam || 'the opposition'} is being tested as the tempo rapidly spikes!`;
     case 'TACKLE':
-      return `Brutal, crunching challenge from ${event.actorPlayer}! Timed to absolute perfection—dispossessing ${event.secondaryPlayer} and immediately releasing the counter-attack!`;
+      return `Brutal, crunching challenge from ${event.actorPlayer} for ${event.actorTeam || 'his side'}! Timed to absolute perfection—dispossessing ${event.secondaryPlayer} and immediately releasing the counter-attack!`;
     case 'DRIBBLE':
-      return `${event.actorPlayer} drops the shoulder with explosive agility, leaving ${event.secondaryPlayer} scrambling on the turn! Pure technical wizardry down the channel!`;
+      return `${event.actorPlayer} drops the shoulder with explosive agility, leaving ${event.secondaryPlayer} scrambling on the turn! Pure technical wizardry down the channel for ${event.actorTeam || 'his team'}!`;
     case 'CORNER':
-      return `Danger looming in the penalty box! ${event.actorPlayer} whips in a venomous inswinger toward the near post, looking for aerial supremacy!`;
+      return `Danger looming in the penalty box! ${event.actorPlayer} whips in a venomous inswinger for ${event.actorTeam || 'his team'} toward the near post, looking for aerial supremacy!`;
     case 'SAVE':
-      return `WHAT A FLYING SAVE! ${event.actorPlayer} launches horizontally through the air to tip ${event.secondaryPlayer}'s stinging strike around the post! Pure reflexes!`;
+      return `WHAT A FLYING SAVE! ${event.actorPlayer} (${event.actorTeam || 'the defense'}) launches horizontally through the air to tip ${event.secondaryPlayer}'s stinging strike around the post! Pure reflexes!`;
     case 'GOAL':
-      return `GOOOOOOAL! SENSATIONAL FINISH! ${event.actorPlayer} hammers it past the goalkeeper into the roof of the net! The stadium erupts as ${event.homeTeam} celebrate!`;
+      return `GOOOOOOAL! SENSATIONAL FINISH! ${event.actorPlayer} hammers it past the goalkeeper into the roof of the net! The stadium erupts as ${event.actorTeam || event.homeTeam} celebrate!`;
     case 'YELLOW_CARD':
-      return `The referee reaches into his pocket! Yellow card for ${event.actorPlayer} after a cynical trip on ${event.secondaryPlayer} to break up the transition!`;
+      return `The referee reaches into his pocket! Yellow card for ${event.actorPlayer} (${event.actorTeam || 'the defender'}) after a cynical trip on ${event.secondaryPlayer} to break up the transition!`;
     case 'RED_CARD':
-      return `RED CARD! DISASTER! ${event.actorPlayer} receives his marching orders for a dangerous lunging tackle! A catastrophic blow for the side!`;
+      return `RED CARD! DISASTER! ${event.actorPlayer} receives his marching orders for a dangerous lunging tackle! A catastrophic blow for ${event.actorTeam || 'the side'}!`;
     case 'OFFSIDE':
-      return `The linesman raises the flag! ${event.actorPlayer} timed the run slightly too eager, caught by the disciplined offside trap!`;
+      return `The linesman raises the flag! ${event.actorPlayer} (${event.actorTeam || 'the striker'}) timed the run slightly too eager, caught by ${event.secondaryTeam || 'the opposition'}'s disciplined offside trap!`;
     case 'FULLTIME':
       return `The final whistle sounds! It's all over! What a heart-stopping football drama from the first minute to the last!`;
     default:
-      return `${event.actorPlayer || 'The team'} pushes forward with relentless attacking intent!`;
+      return `${event.actorPlayer || 'The team'} (${event.actorTeam || 'the attack'}) pushes forward with relentless attacking intent!`;
   }
 }
 

@@ -220,7 +220,9 @@ export async function runLiveEpisodicMatch(
     homeScore: 0,
     awayScore: 0,
     actorPlayer: `${homeTeam.players.mid.name} (${homeTeam.players.mid.playstyle})`,
+    actorTeam: homeTeam.name,
     secondaryPlayer: homeTeam.players.atk.name,
+    secondaryTeam: homeTeam.name,
     details: `${homeTeam.name} get the match underway, immediately establishing their ${homeTeam.tactics.passingStyle} passing tempo and ${homeTeam.tactics.teamMentality} mentality.`
   });
 
@@ -302,6 +304,206 @@ export async function runLiveEpisodicMatch(
     const actionRoll = Math.random() * 100;
 
     // ==========================================
+    // SHARED SCORING RESOLUTION HELPER
+    // ==========================================
+    const resolveGoalAttempt = async (targetShooter: MatchPlayer, targetAssister?: MatchPlayer, isHeader: boolean = false) => {
+      targetShooter.shots++;
+      const shooterFinishing = isHeader
+        ? (targetShooter.hea || 65) * 1.1 + targetShooter.phy * 0.9
+        : targetShooter.fin * 1.1 + targetShooter.cmp * 0.9 + (targetShooter.playstyle === 'PCH' ? 8 : 0);
+      const defResistance = (defPlayer.tck + defPlayer.int + defPlayer.phy) / 3 * 2;
+      const goalProb = Math.max(14, Math.min(38, Math.round(22 + (shooterFinishing - defResistance) * 0.25)));
+
+      if (Math.random() * 100 < goalProb) {
+        // ⚽ GOAL SCORED!
+        attTeam.score++;
+        targetShooter.goals++;
+        if (targetAssister) targetAssister.assists++;
+
+        const scorerEntry = {
+          minute: min,
+          player: targetShooter.name,
+          team: attTeam.name,
+          assistBy: targetAssister ? targetAssister.name : undefined
+        };
+        scorers.push(scorerEntry);
+
+        const chronoText = targetAssister
+          ? `⚽ ${min}' Goal -- ${targetShooter.name} ${targetShooter.flag} (assist: ${targetAssister.name} ${targetAssister.flag})`
+          : `⚽ ${min}' Goal -- ${targetShooter.name} ${targetShooter.flag} (solo effort)`;
+        matchChronology.push(chronoText);
+
+        const goalDetails = isHeader
+          ? `${targetAssister ? targetAssister.name + ' delivers the cross and ' : ''}${targetShooter.name} rises in the air to power a bullet header into the net!`
+          : targetAssister
+          ? (targetShooter.position === 'DEF'
+              ? `${targetAssister.name} slides it into the channel and defender ${targetShooter.name} steps onto it with a lethal finish!`
+              : targetShooter.position === 'MID'
+              ? `${targetAssister.name} lays it off and midfielder ${targetShooter.name} arrives late in the box with a thunderous strike!`
+              : `${targetAssister.name} slides it across and ${targetShooter.name} executes with ice-cold finishing into the back of the net!`)
+          : `${targetShooter.name} opens his body, beats his marker, and unleashes a glorious solo finish!`;
+
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'GOAL',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${targetShooter.name} (${targetShooter.playstyle})`,
+          actorTeam: attTeam.name,
+          secondaryPlayer: targetAssister ? targetAssister.name : defPlayer.name,
+          secondaryTeam: targetAssister ? attTeam.name : defTeam.name,
+          details: goalDetails
+        });
+
+        const goalTitle = targetAssister
+          ? `GOAL — ${targetShooter.name} ${targetShooter.flag} (Assist: ${targetAssister.name} ${targetAssister.flag})`
+          : `GOAL — ${targetShooter.name} ${targetShooter.flag}`;
+
+        await sendIncident({
+          minute: min,
+          icon: '⚽',
+          eventTitle: goalTitle,
+          actor: targetShooter,
+          secondaryPlayer: targetAssister,
+          extraMentions: [defPlayer],
+          narrative: commentary
+        });
+
+        // 📺 VAR Goal Review (15% probability of checking offside/handball)
+        if (Math.random() < 0.15) {
+          await sleep(2000);
+          await sendIncident({
+            minute: min,
+            icon: '📺',
+            eventTitle: 'VAR REVIEW IN PROGRESS — Possible Offside',
+            actor: targetShooter,
+            secondaryPlayer: targetAssister || defPlayer,
+            narrative: `HOLD ON! The referee holds his ear! The VAR room in Stockley Park is drawing lines to check if ${targetShooter.name} was offside in the buildup to the goal!`
+          });
+          await sleep(2600);
+
+          if (Math.random() < 0.28) {
+            // Disallowed!
+            attTeam.score--;
+            targetShooter.goals--;
+            if (targetAssister) targetAssister.assists--;
+            scorers.pop();
+            matchChronology.push(`🚫 ${min}' Goal Disallowed by VAR (Offside) -- ${targetShooter.name} ${targetShooter.flag}`);
+
+            await sendIncident({
+              minute: min,
+              icon: '🚫',
+              eventTitle: 'VAR DECISION: GOAL DISALLOWED!',
+              actor: targetShooter,
+              secondaryPlayer: defPlayer,
+              narrative: `GOAL DISALLOWED! The semi-automated technology confirms ${targetShooter.name}'s shoulder was mere inches offside when the ball was played! The goal is chalked off! Scoreline resets to ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}!`
+            });
+            return;
+          } else {
+            // Goal stands!
+            await sendIncident({
+              minute: min,
+              icon: '✅',
+              eventTitle: 'VAR DECISION: GOAL STANDS!',
+              actor: targetShooter,
+              secondaryPlayer: targetAssister || defPlayer,
+              narrative: `GOAL CONFIRMED! Replays show the trailing defender's heel played ${targetShooter.name} onside! The goal officially stands! ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}`
+            });
+          }
+        }
+      } else {
+        // Deflection to Corner or Diving Save (35% becomes corner, 65% goal kick / save)
+        const isCorner = Math.random() < 0.35;
+        if (isCorner) {
+          // --- MULTI-PART CORNER SEQUENCE ---
+          const cornerTaker = getSpecialist(attTeam, 'CORNER');
+          // 1. Awarded
+          await sendIncident({
+            minute: min,
+            icon: '🚩',
+            eventTitle: `CORNER AWARDED — ${attTeam.name}`,
+            actor: cornerTaker,
+            secondaryPlayer: targetShooter,
+            narrative: `Goalkeeper parries the stinging effort behind the post! Corner kick awarded to ${attTeam.name}.`
+          });
+          await sleep(2200);
+
+          // 2. Taken
+          await sendIncident({
+            minute: min,
+            icon: '🎯',
+            eventTitle: 'CORNER TAKEN',
+            actor: cornerTaker,
+            narrative: `${cornerTaker.name} whips an outswinging delivery deep toward the penalty spot!`
+          });
+          await sleep(2200);
+
+          // 3. Outcome
+          const headerCandidates = activeAtt.filter(p => p.name !== cornerTaker.name);
+          const headerFinisher = headerCandidates.length > 0
+            ? headerCandidates[Math.floor(Math.random() * headerCandidates.length)]
+            : cornerTaker;
+
+          const headerRoll = (headerFinisher.hea || 68) * 1.1 + headerFinisher.phy;
+          const defHeaderRoll = (defPlayer.hea || 68) * 1.1 + defPlayer.phy;
+
+          if (headerRoll > defHeaderRoll && Math.random() < 0.16) {
+            attTeam.score++;
+            headerFinisher.goals++;
+            headerFinisher.shots++;
+            cornerTaker.assists++;
+            scorers.push({ minute: min, player: headerFinisher.name, team: attTeam.name, assistBy: cornerTaker.name });
+            matchChronology.push(`⚽ ${min}' Goal (Corner) -- ${headerFinisher.name} ${headerFinisher.flag} (assist: ${cornerTaker.name} ${cornerTaker.flag})`);
+
+            await sendIncident({
+              minute: min,
+              icon: '⚽',
+              eventTitle: `GOAL (Corner) — ${headerFinisher.name} ${headerFinisher.flag} (Assist: ${cornerTaker.name} ${cornerTaker.flag})`,
+              actor: headerFinisher,
+              secondaryPlayer: cornerTaker,
+              narrative: `BULLET HEADER! ${headerFinisher.name} climbs above the defender and crashes ${cornerTaker.name}'s corner kick into the net! GOAL!`
+            });
+          } else {
+            await sendIncident({
+              minute: min,
+              icon: '❌',
+              eventTitle: 'CORNER MISSED',
+              actor: defPlayer,
+              secondaryPlayer: cornerTaker,
+              narrative: `${defPlayer.name} rises highest to head the corner kick firmly away from the penalty box.`
+            });
+          }
+        } else {
+          // Spectacular Save
+          const commentary = await generateAiMinuteCommentary({
+            minute: min,
+            type: 'SAVE',
+            homeTeam: homeTeam.name,
+            awayTeam: awayTeam.name,
+            homeScore: homeTeam.score,
+            awayScore: awayTeam.score,
+            actorPlayer: defPlayer.name,
+            actorTeam: defTeam.name,
+            secondaryPlayer: targetShooter.name,
+            secondaryTeam: attTeam.name,
+            details: `Acrobatic flying save by ${defPlayer.name} (${defTeam.name}) denies ${targetShooter.name}'s (${attTeam.name}) goalbound strike at full stretch!`
+          });
+
+          await sendIncident({
+            minute: min,
+            icon: '🧤',
+            eventTitle: 'SPECTACULAR SAVE',
+            actor: defPlayer,
+            secondaryPlayer: targetShooter,
+            narrative: commentary
+          });
+        }
+      }
+    };
+
+    // ==========================================
     // 1. DEFENSIVE TRAP & COUNTER PRESSING INTERVENTIONS
     // ==========================================
 
@@ -320,7 +522,9 @@ export async function runLiveEpisodicMatch(
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
           actorPlayer: `${striker.name} (${striker.playstyle})`,
+          actorTeam: attTeam.name,
           secondaryPlayer: defPlayer.name,
+          secondaryTeam: defTeam.name,
           details: `${defTeam.name}'s disciplined backline steps up in unison on the release of the pass, catching ${striker.name} leaning offside.`
         });
 
@@ -343,7 +547,9 @@ export async function runLiveEpisodicMatch(
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
           actorPlayer: `${striker.name} (${striker.playstyle})`,
+          actorTeam: attTeam.name,
           secondaryPlayer: defPlayer.name,
+          secondaryTeam: defTeam.name,
           details: `${striker.name} breaks the offside trap with blistering timing, sprinting 1-on-1 past the high line!`
         });
 
@@ -356,7 +562,9 @@ export async function runLiveEpisodicMatch(
           narrative: commentary
         });
         await sleep(tickDelay);
-        // Cascades directly into a massive scoring chance below!
+        // Breaks into direct 1v1 scoring chance!
+        await resolveGoalAttempt(striker, midAtt);
+        return;
       }
     }
 
@@ -375,8 +583,10 @@ export async function runLiveEpisodicMatch(
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
           actorPlayer: `${midDef.name} (${midDef.playstyle})`,
+          actorTeam: defTeam.name,
           secondaryPlayer: midAtt.name,
-          details: `Suffocating high press hounds ${midAtt.name} into an error in their own defensive third, winning the ball cleanly.`
+          secondaryTeam: attTeam.name,
+          details: `Suffocating high press by ${defTeam.name} hounds ${midAtt.name} into an error in their own defensive third, winning the ball cleanly.`
         });
 
         await sendIncident({
@@ -406,8 +616,10 @@ export async function runLiveEpisodicMatch(
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
           actorPlayer: `${defPlayer.name} (${defPlayer.playstyle})`,
+          actorTeam: defTeam.name,
           secondaryPlayer: striker.name,
-          details: `${defPlayer.name} stays on their feet with disciplined jockeying, shutting down the passing angle without committing a foul.`
+          secondaryTeam: attTeam.name,
+          details: `${defPlayer.name} stays on their feet with disciplined jockeying against ${striker.name}, shutting down the passing angle without committing a foul.`
         });
 
         await sendIncident({
@@ -601,8 +813,10 @@ export async function runLiveEpisodicMatch(
         homeScore: homeTeam.score,
         awayScore: awayTeam.score,
         actorPlayer: `${activeTackler.name} (${activeTackler.playstyle})`,
+        actorTeam: defTeam.name,
         secondaryPlayer: tackledPlayer.name,
-        details: `${isHardTackling ? 'Bone-crunching enforcer challenge' : 'Timed slide tackle'} dispossesses ${tackledPlayer.name} cleanly on the pitch.`
+        secondaryTeam: attTeam.name,
+        details: `${isHardTackling ? 'Bone-crunching enforcer challenge' : 'Timed slide tackle'} by ${activeTackler.name} (${defTeam.name}) dispossesses ${tackledPlayer.name} (${attTeam.name}) cleanly on the pitch.`
       });
 
       await sendIncident({
@@ -657,8 +871,10 @@ export async function runLiveEpisodicMatch(
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
           actorPlayer: `${defPlayer.name} (Sweeper)`,
+          actorTeam: defTeam.name,
           secondaryPlayer: striker.name,
-          details: `Sweeper uses recovery pace to execute a sliding clearance just as the through ball was arriving.`
+          secondaryTeam: attTeam.name,
+          details: `Sweeper ${defPlayer.name} (${defTeam.name}) uses recovery pace to execute a sliding clearance just as the through ball was arriving for ${striker.name} (${attTeam.name}).`
         });
 
         await sendIncident({
@@ -682,8 +898,10 @@ export async function runLiveEpisodicMatch(
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
           actorPlayer: `${interceptor.name} (${interceptor.playstyle})`,
+          actorTeam: defTeam.name,
           secondaryPlayer: midAtt.name,
-          details: `Interception! Reads the passing lane early, cutting out the intended pass with effortless composure.`
+          secondaryTeam: attTeam.name,
+          details: `Interception! ${interceptor.name} (${defTeam.name}) reads the passing lane early, cutting out the intended pass for ${midAtt.name} (${attTeam.name}) with effortless composure.`
         });
 
         await sendIncident({
@@ -704,7 +922,6 @@ export async function runLiveEpisodicMatch(
 
     // Scenario E: LIGHTNING COUNTER-ATTACK (Force Counter ON)
     if (attTactics.forceCounter === 'On' && defTactics.teamMentality.includes('Attack') && Math.random() < 0.45) {
-      striker.shots++;
       const commentary = await generateAiMinuteCommentary({
         minute: min,
         type: 'BUILDUP',
@@ -713,8 +930,10 @@ export async function runLiveEpisodicMatch(
         homeScore: homeTeam.score,
         awayScore: awayTeam.score,
         actorPlayer: `${striker.name} (${striker.playstyle})`,
+        actorTeam: attTeam.name,
         secondaryPlayer: midAtt.name,
-        details: `Lightning 3-touch counter-attack transition springs past the opponent's overcommitted midfield line!`
+        secondaryTeam: attTeam.name,
+        details: `Lightning 3-touch counter-attack transition by ${attTeam.name} springs past ${defTeam.name}'s overcommitted midfield line!`
       });
 
       await sendIncident({
@@ -726,7 +945,21 @@ export async function runLiveEpisodicMatch(
         narrative: commentary
       });
       await sleep(tickDelay);
-      // Cascades into direct scoring chance below
+
+      // 65% chance breaks cleanly through on goal to shoot!
+      if (Math.random() < 0.65) {
+        await resolveGoalAttempt(striker, midAtt);
+      } else {
+        await sendIncident({
+          minute: min,
+          icon: '🛡️',
+          eventTitle: 'RECOVERY CHALLENGE',
+          actor: defPlayer,
+          secondaryPlayer: striker,
+          narrative: `${defPlayer.name} scrambles back with desperate recovery pace to shoulder ${striker.name} off balance, diffusing the counter-attack!`
+        });
+      }
+      return;
     }
 
     // Scenario F: FOCUS PASSING STYLES (Through The Middle vs Flanks vs Long Ball)
@@ -743,8 +976,10 @@ export async function runLiveEpisodicMatch(
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
           actorPlayer: `${midAtt.name} (${midAtt.playstyle})`,
+          actorTeam: attTeam.name,
           secondaryPlayer: striker.name,
-          details: `Slices through the middle with a surgical vertical pass past the defensive line into the pocket.`
+          secondaryTeam: attTeam.name,
+          details: `${midAtt.name} slices through ${defTeam.name}'s middle with a surgical vertical pass past the defensive line into the pocket for ${striker.name}.`
         });
 
         await sendIncident({
@@ -755,10 +990,28 @@ export async function runLiveEpisodicMatch(
           secondaryPlayer: striker,
           narrative: commentary
         });
+        await sleep(tickDelay);
+
+        // 60% chance to unleash 1v1 strike
+        if (Math.random() < 0.60) {
+          await resolveGoalAttempt(striker, midAtt);
+        } else {
+          await sendIncident({
+            minute: min,
+            icon: '🛡️',
+            eventTitle: 'DEFENSIVE BLOCK',
+            actor: defPlayer,
+            secondaryPlayer: striker,
+            narrative: `${defPlayer.name} slides in at full stretch to block ${striker.name}'s shot on the turn!`
+          });
+        }
         return;
       } else if (attTactics.focusPassing.includes('Flank')) {
         // Flank Overload & Cross
         midAtt.passesCompleted += 2;
+        const crosser = striker.pac > midAtt.pac ? striker : midAtt;
+        const targetAtt = activeAtt.find(p => p.id !== crosser.id) || striker;
+
         const commentary = await generateAiMinuteCommentary({
           minute: min,
           type: 'BUILDUP',
@@ -766,23 +1019,43 @@ export async function runLiveEpisodicMatch(
           awayTeam: awayTeam.name,
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
-          actorPlayer: `${striker.name} (${striker.playstyle})`,
-          secondaryPlayer: defPlayer.name,
-          details: `Flank overload! Beats marker down the touchline and whips an inswinging cross into the danger zone.`
+          actorPlayer: `${crosser.name} (${crosser.playstyle})`,
+          actorTeam: attTeam.name,
+          secondaryPlayer: targetAtt.name,
+          secondaryTeam: attTeam.name,
+          details: `${crosser.name} beats defender ${defPlayer.name} on the flank and whips an inswinging cross into the box for ${targetAtt.name}!`
         });
 
         await sendIncident({
           minute: min,
           icon: '👟',
           eventTitle: 'FLANK CROSS & OVERLOAD',
-          actor: striker,
-          secondaryPlayer: defPlayer,
+          actor: crosser,
+          secondaryPlayer: targetAtt,
+          extraMentions: [defPlayer],
           narrative: commentary
         });
+        await sleep(tickDelay);
+
+        // 60% chance attacker connects with cross (header/volley attempt)
+        if (Math.random() < 0.60) {
+          await resolveGoalAttempt(targetAtt, crosser, true);
+        } else {
+          defPlayer.interceptions++;
+          await sendIncident({
+            minute: min,
+            icon: '🛡️',
+            eventTitle: 'AERIAL CLEARANCE',
+            actor: defPlayer,
+            secondaryPlayer: crosser,
+            narrative: `${defPlayer.name} climbs highest in the 6-yard box to nod ${crosser.name}'s cross firmly out of danger!`
+          });
+        }
         return;
       } else if (attTactics.passingStyle === 'Short') {
         // Tiki-Taka Combination
         midAtt.passesCompleted += 4;
+        const partnerAtt = activeAtt.find(p => p.id !== midAtt.id) || defAtt;
         const commentary = await generateAiMinuteCommentary({
           minute: min,
           type: 'BUILDUP',
@@ -791,8 +1064,10 @@ export async function runLiveEpisodicMatch(
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
           actorPlayer: `${midAtt.name} (${midAtt.playstyle})`,
-          secondaryPlayer: defAtt.name,
-          details: `Hypnotic tiki-taka 1-2 combination circulates possession effortlessly through midfield.`
+          actorTeam: attTeam.name,
+          secondaryPlayer: partnerAtt.name,
+          secondaryTeam: attTeam.name,
+          details: `Hypnotic tiki-taka 1-2 combination by ${attTeam.name} circulates possession effortlessly through midfield.`
         });
 
         await sendIncident({
@@ -800,7 +1075,7 @@ export async function runLiveEpisodicMatch(
           icon: '✨',
           eventTitle: 'TIKI-TAKA COMBINATION',
           actor: midAtt,
-          secondaryPlayer: defAtt,
+          secondaryPlayer: partnerAtt,
           narrative: commentary
         });
         return;
@@ -814,8 +1089,10 @@ export async function runLiveEpisodicMatch(
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
           actorPlayer: `${striker.name} (Target Man)`,
+          actorTeam: attTeam.name,
           secondaryPlayer: defPlayer.name,
-          details: `Target Man bullies the defender in the air, bringing down a direct aerial ball on his chest and laying off.`
+          secondaryTeam: defTeam.name,
+          details: `Target Man ${striker.name} bullies defender ${defPlayer.name} in the air, bringing down a direct aerial ball on his chest and laying off.`
         });
 
         await sendIncident({
@@ -826,6 +1103,11 @@ export async function runLiveEpisodicMatch(
           secondaryPlayer: defPlayer,
           narrative: commentary
         });
+        await sleep(tickDelay);
+
+        if (Math.random() < 0.55 && midAtt.redCards === 0) {
+          await resolveGoalAttempt(midAtt, striker);
+        }
         return;
       }
     }
@@ -891,193 +1173,7 @@ export async function runLiveEpisodicMatch(
       }
     }
 
-    shooter.shots++;
-    const shooterFinishing = shooter.fin * 1.1 + shooter.cmp * 0.9 + (shooter.playstyle === 'PCH' ? 8 : 0);
-    const defResistance = (defPlayer.tck + defPlayer.int + defPlayer.phy) / 3 * 2;
-    const goalProb = Math.max(14, Math.min(38, Math.round(22 + (shooterFinishing - defResistance) * 0.25)));
-
-    if (Math.random() * 100 < goalProb) {
-      // ⚽ GOAL SCORED!
-      attTeam.score++;
-      shooter.goals++;
-      if (assister) assister.assists++;
-
-      const scorerEntry = {
-        minute: min,
-        player: shooter.name,
-        team: attTeam.name,
-        assistBy: assister ? assister.name : undefined
-      };
-      scorers.push(scorerEntry);
-
-      const chronoText = assister
-        ? `⚽ ${min}' Goal -- ${shooter.name} ${shooter.flag} (assist: ${assister.name} ${assister.flag})`
-        : `⚽ ${min}' Goal -- ${shooter.name} ${shooter.flag} (solo effort)`;
-      matchChronology.push(chronoText);
-
-      const goalDetails = assister
-        ? (shooter.position === 'DEF'
-            ? `${assister.name} slides it into the channel and defender ${shooter.name} steps onto it with a lethal finish!`
-            : shooter.position === 'MID'
-            ? `${assister.name} lays it off and midfielder ${shooter.name} arrives late in the box with a thunderous strike!`
-            : `${assister.name} slides it across and ${shooter.name} executes with ice-cold finishing into the back of the net!`)
-        : `${shooter.name} opens his body, beats his marker, and unleashes a glorious solo finish!`;
-
-      const commentary = await generateAiMinuteCommentary({
-        minute: min,
-        type: 'GOAL',
-        homeTeam: homeTeam.name,
-        awayTeam: awayTeam.name,
-        homeScore: homeTeam.score,
-        awayScore: awayTeam.score,
-        actorPlayer: `${shooter.name} (${shooter.playstyle})`,
-        secondaryPlayer: assister ? assister.name : defPlayer.name,
-        details: goalDetails
-      });
-
-      const goalTitle = assister
-        ? `GOAL — ${shooter.name} ${shooter.flag} (Assist: ${assister.name} ${assister.flag})`
-        : `GOAL — ${shooter.name} ${shooter.flag}`;
-
-      await sendIncident({
-        minute: min,
-        icon: '⚽',
-        eventTitle: goalTitle,
-        actor: shooter,
-        secondaryPlayer: assister,
-        extraMentions: [defPlayer],
-        narrative: commentary
-      });
-
-      // 📺 VAR Goal Review (15% probability of checking offside/handball)
-      if (Math.random() < 0.15) {
-        await sleep(2000);
-        await sendIncident({
-          minute: min,
-          icon: '📺',
-          eventTitle: 'VAR REVIEW IN PROGRESS — Possible Offside',
-          actor: shooter,
-          secondaryPlayer: assister || defPlayer,
-          narrative: `HOLD ON! The referee holds his ear! The VAR room in Stockley Park is drawing lines to check if ${shooter.name} was offside in the buildup to the goal!`
-        });
-        await sleep(2600);
-
-        if (Math.random() < 0.28) {
-          // Disallowed!
-          attTeam.score--;
-          shooter.goals--;
-          if (assister) assister.assists--;
-          scorers.pop();
-          matchChronology.push(`🚫 ${min}' Goal Disallowed by VAR (Offside) -- ${shooter.name} ${shooter.flag}`);
-
-          await sendIncident({
-            minute: min,
-            icon: '🚫',
-            eventTitle: 'VAR DECISION: GOAL DISALLOWED!',
-            actor: shooter,
-            secondaryPlayer: defPlayer,
-            narrative: `GOAL DISALLOWED! The semi-automated technology confirms ${shooter.name}'s shoulder was mere inches offside when the ball was played! The goal is chalked off! Scoreline resets to ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}!`
-          });
-          return;
-        } else {
-          // Goal stands!
-          await sendIncident({
-            minute: min,
-            icon: '✅',
-            eventTitle: 'VAR DECISION: GOAL STANDS!',
-            actor: shooter,
-            secondaryPlayer: assister || defPlayer,
-            narrative: `GOAL CONFIRMED! Replays show the trailing defender's heel played ${shooter.name} onside! The goal officially stands! ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}`
-          });
-        }
-      }
-    } else {
-      // Deflection to Corner or Diving Save (35% becomes corner, 65% goal kick / save)
-      const isCorner = Math.random() < 0.35;
-      if (isCorner) {
-        // --- MULTI-PART CORNER SEQUENCE ---
-        const cornerTaker = getSpecialist(attTeam, 'CORNER');
-        // 1. Awarded
-        await sendIncident({
-          minute: min,
-          icon: '🚩',
-          eventTitle: `CORNER AWARDED — ${attTeam.name}`,
-          actor: cornerTaker,
-          secondaryPlayer: shooter,
-          narrative: `Goalkeeper parries the stinging effort behind the post! Corner kick awarded to ${attTeam.name}.`
-        });
-        await sleep(2200);
-
-        // 2. Taken
-        await sendIncident({
-          minute: min,
-          icon: '🎯',
-          eventTitle: 'CORNER TAKEN',
-          actor: cornerTaker,
-          narrative: `${cornerTaker.name} whips an outswinging delivery deep toward the penalty spot!`
-        });
-        await sleep(2200);
-
-        // 3. Outcome (Only ACTIVE players on the pitch can contest the header!)
-        const headerCandidates = activeAtt.filter(p => p.name !== cornerTaker.name);
-        const headerFinisher = headerCandidates.length > 0
-          ? headerCandidates[Math.floor(Math.random() * headerCandidates.length)]
-          : cornerTaker;
-
-        const headerRoll = (headerFinisher.hea || 68) * 1.1 + headerFinisher.phy;
-        const defHeaderRoll = (defPlayer.hea || 68) * 1.1 + defPlayer.phy;
-
-        // Realistic corner conversion (16%)
-        if (headerRoll > defHeaderRoll && Math.random() < 0.16) {
-          attTeam.score++;
-          headerFinisher.goals++;
-          headerFinisher.shots++;
-          cornerTaker.assists++;
-          scorers.push({ minute: min, player: headerFinisher.name, team: attTeam.name, assistBy: cornerTaker.name });
-          matchChronology.push(`⚽ ${min}' Goal (Corner) -- ${headerFinisher.name} ${headerFinisher.flag} (assist: ${cornerTaker.name} ${cornerTaker.flag})`);
-
-          await sendIncident({
-            minute: min,
-            icon: '⚽',
-            eventTitle: `GOAL (Corner) — ${headerFinisher.name} ${headerFinisher.flag} (Assist: ${cornerTaker.name} ${cornerTaker.flag})`,
-            actor: headerFinisher,
-            secondaryPlayer: cornerTaker,
-            narrative: `BULLET HEADER! ${headerFinisher.name} climbs above the defender and crashes ${cornerTaker.name}'s corner kick into the net! GOAL!`
-          });
-        } else {
-          await sendIncident({
-            minute: min,
-            icon: '❌',
-            eventTitle: 'CORNER MISSED',
-            actor: defPlayer,
-            secondaryPlayer: cornerTaker,
-            narrative: `${defPlayer.name} rises highest to head the corner kick firmly away from the penalty box.`
-          });
-        }
-      } else {
-        // Spectacular Save
-        const commentary = await generateAiMinuteCommentary({
-          minute: min,
-          type: 'SAVE',
-          homeTeam: homeTeam.name,
-          awayTeam: awayTeam.name,
-          homeScore: homeTeam.score,
-          awayScore: awayTeam.score,
-          actorPlayer: defPlayer.name,
-          secondaryPlayer: shooter.name,
-          details: `Acrobatic flying save denies ${shooter.name}'s goalbound strike at full stretch!`
-        });
-
-        await sendIncident({
-          minute: min,
-          icon: '🧤',
-          eventTitle: 'SPECTACULAR SAVE',
-          actor: defPlayer,
-          secondaryPlayer: shooter,
-          narrative: commentary
-        });
-      }
-    }
+    await resolveGoalAttempt(shooter, assister);
   };
 
   // ==========================================
