@@ -7,6 +7,7 @@ import { buildProfileEmbed, buildProfileTabsRow } from '../commands/playerComman
 import { buildTacticsContainer, parseTeamTactics, serializeTeamTactics, TeamTactics } from '../commands/tacticsCommand.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
+import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 
 // Cache for tracking which users voted on which tweets to prevent double-voting
 const tweetVotersCache = new Map<string, Set<string>>();
@@ -147,17 +148,22 @@ export async function onInteractionCreate(interaction: Interaction) {
     // 1. Training Drills: train_normal, train_vip, train_noeffort
     if (customId.startsWith('train_')) {
       const type = customId.replace('train_', '') as 'normal' | 'vip' | 'noeffort';
+      
+      // Immediately acknowledge interaction to avoid 3s Discord timeout ("did not respond")
+      await sendThinkingMessage(interaction, 'Recording pitch training session...');
+
       const result = await executeTraining(interaction.user.id, type);
 
       if (!result.success) {
-        return await interaction.reply({
+        return await updateLoadingMessage(interaction, {
           content: result.error || result.message || '❌ Training failed.',
-          ephemeral: true
+          embeds: [],
+          files: []
         });
       }
 
       const output = buildTrainingSuccessEmbed(result, interaction.user, interaction.guild);
-      return await interaction.reply({ embeds: [output.embed], files: output.files });
+      return await updateLoadingMessage(interaction, { embeds: [output.embed], files: output.files });
     }
 
     // 2. Tweet Engagements: tweet_like_<id>, tweet_dislike_<id>
@@ -272,17 +278,19 @@ export async function onInteractionCreate(interaction: Interaction) {
     // 4. Commercial Sponsor Endorsements: sponsor_heineken, sponsor_adidas, etc.
     if (customId.startsWith('sponsor_')) {
       const sponsorKey = customId.replace('sponsor_', '');
+      await sendThinkingMessage(interaction, 'Recording commercial photoshoot...');
+
       const result = await executeSponsorAdvert(interaction.user.id, sponsorKey, interaction.guild);
 
       if (!result.success) {
-        return await interaction.reply({ content: result.message, ephemeral: true });
+        return await updateLoadingMessage(interaction, { content: result.message, embeds: [], files: [] });
       }
 
       if (result.embed) {
-        return await interaction.reply({ embeds: [result.embed], files: result.files || [] });
+        return await updateLoadingMessage(interaction, { embeds: [result.embed], files: result.files || [] });
       }
 
-      return await interaction.reply({ content: result.message });
+      return await updateLoadingMessage(interaction, { content: result.message });
     }
   } catch (error) {
     logger.error({ error }, 'Error in onInteractionCreate button handler');

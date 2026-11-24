@@ -5,6 +5,7 @@ import { executeTraining, upgradeAttribute, convertPlaystyle, executeSaunaRecove
 import { getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
 import { THEME_COLORS, UI, makeProgressBar, subtext } from '../utils/themeHelper.js';
+import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 
 /**
  * Builds the themed training success embed
@@ -111,13 +112,15 @@ export async function handleTrainCommand(message: Message, args: string[]) {
     type = 'noeffort';
   }
 
+  const thinkingMsg = await sendThinkingMessage(message, 'Recording pitch training session...');
+
   const result = await executeTraining(message.author.id, type);
   if (!result.success) {
-    return await message.reply(result.error || result.message || '❌ Training failed.');
+    return await updateLoadingMessage(thinkingMsg, result.error || result.message || '❌ Training failed.');
   }
 
   const output = buildTrainingSuccessEmbed(result, message.author, message.guild);
-  await message.reply({ embeds: [output.embed], files: output.files });
+  await updateLoadingMessage(thinkingMsg, { embeds: [output.embed], files: output.files });
 }
 
 export async function handleSpTrainCommand(message: Message, args: string[]) {
