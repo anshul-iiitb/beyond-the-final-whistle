@@ -1,9 +1,10 @@
-import { Interaction, ButtonInteraction, TextChannel } from 'discord.js';
+import { Interaction, ButtonInteraction, StringSelectMenuInteraction, TextChannel, MessageFlags } from 'discord.js';
 import { executeTraining } from '../engines/trainingEngine.js';
 import { buildTrainingSuccessEmbed } from '../commands/trainingCommands.js';
 import { executeSponsorAdvert } from '../engines/socialEngine.js';
 import { prisma } from '../database/prisma.js';
 import { buildProfileEmbed, buildProfileTabsRow } from '../commands/playerCommands.js';
+import { buildTacticsContainer, parseTeamTactics, serializeTeamTactics, TeamTactics } from '../commands/tacticsCommand.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
 
@@ -11,10 +12,137 @@ import { logger } from '../utils/logger.js';
 const tweetVotersCache = new Map<string, Set<string>>();
 
 export async function onInteractionCreate(interaction: Interaction) {
-  if (!interaction.isButton()) return;
+  if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
 
   try {
     const customId = interaction.customId;
+
+    // ==========================================
+    // TACTICS SYSTEM (COMPONENTS V2)
+    // ==========================================
+
+    // A. Page Toggle Button: tactics_page_defence_nation_<id> or tactics_page_attack_nation_<id>
+    if (interaction.isButton() && customId.startsWith('tactics_page_')) {
+      const parts = customId.split('_'); // ['tactics', 'page', 'defence' | 'attack', 'nation' | 'club', teamId]
+      const targetPage = parts[2] as 'defence' | 'attack';
+      const teamType = parts[3] as 'nation' | 'club';
+      const teamId = parts[4];
+
+      let teamName = 'National Team';
+      let rawTactics: string | null = null;
+
+      if (teamType === 'nation') {
+        const nation = await prisma.nationalTeam.findUnique({ where: { id: teamId } });
+        if (nation) {
+          teamName = nation.name;
+          rawTactics = nation.tactics;
+        }
+      } else {
+        const club = await prisma.footballClub.findUnique({ where: { id: teamId } });
+        if (club) {
+          teamName = club.name;
+          rawTactics = club.tactics;
+        }
+      }
+
+      const tactics = parseTeamTactics(rawTactics);
+      const container = buildTacticsContainer(teamType, teamId, teamName, targetPage, tactics);
+
+      return await (interaction as any).update({
+        flags: MessageFlags.IsComponentsV2,
+        components: [container]
+      });
+    }
+
+    // B. Tactics Select Menus: tactics_<setting>_<teamType>_<teamId>
+    if (interaction.isStringSelectMenu() && customId.startsWith('tactics_')) {
+      const parts = customId.split('_'); // ['tactics', 'mentality' | 'focus' | 'passing' | 'counter' | 'pressing' | 'tackling' | 'marking' | 'offside', teamType, teamId]
+      const setting = parts[1];
+      const teamType = parts[2] as 'nation' | 'club';
+      const teamId = parts[3];
+      const selectedValue = interaction.values[0];
+
+      let teamName = 'National Team';
+      let rawTactics: string | null = null;
+
+      if (teamType === 'nation') {
+        const nation = await prisma.nationalTeam.findUnique({ where: { id: teamId } });
+        if (nation) {
+          teamName = nation.name;
+          rawTactics = nation.tactics;
+        }
+      } else {
+        const club = await prisma.footballClub.findUnique({ where: { id: teamId } });
+        if (club) {
+          teamName = club.name;
+          rawTactics = club.tactics;
+        }
+      }
+
+      const tactics = parseTeamTactics(rawTactics);
+
+      // Mutate the specific tactical setting
+      let currentPage: 'attack' | 'defence' = 'attack';
+      switch (setting) {
+        case 'mentality':
+          tactics.teamMentality = selectedValue as TeamTactics['teamMentality'];
+          currentPage = 'attack';
+          break;
+        case 'focus':
+          tactics.focusPassing = selectedValue as TeamTactics['focusPassing'];
+          currentPage = 'attack';
+          break;
+        case 'passing':
+          tactics.passingStyle = selectedValue as TeamTactics['passingStyle'];
+          currentPage = 'attack';
+          break;
+        case 'counter':
+          tactics.forceCounter = selectedValue as TeamTactics['forceCounter'];
+          currentPage = 'attack';
+          break;
+        case 'pressing':
+          tactics.pressingStyle = selectedValue as TeamTactics['pressingStyle'];
+          currentPage = 'defence';
+          break;
+        case 'tackling':
+          tactics.tacklingStyle = selectedValue as TeamTactics['tacklingStyle'];
+          currentPage = 'defence';
+          break;
+        case 'marking':
+          tactics.markingStyle = selectedValue as TeamTactics['markingStyle'];
+          currentPage = 'defence';
+          break;
+        case 'offside':
+          tactics.offsideTrap = selectedValue as TeamTactics['offsideTrap'];
+          currentPage = 'defence';
+          break;
+      }
+
+      // Persist to database
+      const serialized = serializeTeamTactics(tactics);
+      if (teamType === 'nation') {
+        await prisma.nationalTeam.update({
+          where: { id: teamId },
+          data: { tactics: serialized }
+        });
+      } else {
+        await prisma.footballClub.update({
+          where: { id: teamId },
+          data: { tactics: serialized }
+        });
+      }
+
+      const container = buildTacticsContainer(teamType, teamId, teamName, currentPage, tactics);
+      return await (interaction as any).update({
+        flags: MessageFlags.IsComponentsV2,
+        components: [container]
+      });
+    }
+
+    // ==========================================
+    // BUTTON INTERACTIONS
+    // ==========================================
+    if (!interaction.isButton()) return;
 
     // 1. Training Drills: train_normal, train_vip, train_noeffort
     if (customId.startsWith('train_')) {

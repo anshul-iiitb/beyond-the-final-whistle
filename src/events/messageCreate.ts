@@ -5,6 +5,7 @@ import { handleTrainCommand, handleSpTrainCommand, handleRecoveryCommand, handle
 import { handleAdvertCommand, handleCoachingCommand, handleMeetGreetCommand, handleChirpCommand } from '../commands/socialCommands.js';
 import { handleBuyCommand, handleIntelCommand } from '../commands/marketCommands.js';
 import { handleMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand } from '../commands/matchCommands.js';
+import { handleTacticsCommand } from '../commands/tacticsCommand.js';
 import { handleSetupCommand, handleVipCommand, handleAddItemCommand, handleAddVarCommand, handleSetupEmojisCommand } from '../commands/adminCommands.js';
 import { handleHelpCommand } from '../commands/helpCommand.js';
 import { handleBTFWGitPull, handleBTFWGitPullBack } from '../services/gitService.js';
@@ -124,6 +125,10 @@ export async function onMessageCreate(message: Message) {
         break;
       case 'roster':
         await handleRosterCommand(message, args);
+        break;
+      case 'tactics':
+      case 'tactic':
+        await handleTacticsCommand(message, args);
         break;
 
       // Admin & Server Setup

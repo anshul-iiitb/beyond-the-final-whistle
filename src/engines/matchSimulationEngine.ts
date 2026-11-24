@@ -1,5 +1,6 @@
 import { prisma } from '../database/prisma.js';
 import { generateAiMinuteCommentary, generateAiNewsArticle, MatchEventData, MatchSummaryData } from '../services/aiEngine.js';
+import { parseTeamTactics, TeamTactics } from '../commands/tacticsCommand.js';
 import { logger } from '../utils/logger.js';
 
 export interface SimulatedMatchResult {
@@ -43,7 +44,55 @@ export function calculateDerivedRatings(player: {
 }
 
 /**
- * Executes full 90-minute AI-powered football match simulation
+ * Applies tactical modifiers to a team's base ratings and possession
+ */
+function applyTacticalModifiers(baseRatings: { atk: number; mid: number; def: number }, tactics: TeamTactics) {
+  const ratings = { ...baseRatings };
+  let possMod = 0;
+
+  // 1. Team Mentality
+  switch (tactics.teamMentality) {
+    case 'Hard Defending':
+      ratings.atk = Math.max(20, ratings.atk - 15);
+      ratings.def = Math.min(99, ratings.def + 15);
+      possMod -= 10;
+      break;
+    case 'Defensive':
+      ratings.atk = Math.max(25, ratings.atk - 8);
+      ratings.def = Math.min(99, ratings.def + 8);
+      possMod -= 5;
+      break;
+    case 'Attacking':
+      ratings.atk = Math.min(99, ratings.atk + 8);
+      ratings.def = Math.max(25, ratings.def - 8);
+      possMod += 5;
+      break;
+    case 'Hard Attacking':
+      ratings.atk = Math.min(99, ratings.atk + 15);
+      ratings.def = Math.max(20, ratings.def - 15);
+      possMod += 10;
+      break;
+  }
+
+  // 2. Passing Style
+  if (tactics.passingStyle === 'Short') {
+    possMod += 6;
+  } else if (tactics.passingStyle === 'Long') {
+    possMod -= 6;
+  }
+
+  // 3. Pressing Style
+  if (tactics.pressingStyle === 'High') {
+    possMod += 4;
+  } else if (tactics.pressingStyle === 'Low') {
+    possMod -= 4;
+  }
+
+  return { ratings, possMod };
+}
+
+/**
+ * Executes full 90-minute AI-powered football match simulation incorporating deep team tactics
  */
 export async function simulateFullMatch(homePlayerId: string, awayPlayerId?: string): Promise<SimulatedMatchResult> {
   const homePlayer = await prisma.player.findUnique({
@@ -56,18 +105,31 @@ export async function simulateFullMatch(homePlayerId: string, awayPlayerId?: str
     include: { nation: true, club: true }
   }) : null;
 
-  const homeTeamName = homePlayer?.nation?.name || homePlayer?.club?.name || `${homePlayer?.username || 'Red'} FC`;
-  const awayTeamName = awayPlayer?.nation?.name || awayPlayer?.club?.name || (awayPlayer ? `${awayPlayer.username} FC` : 'All-Star XI');
+  const homeTeam = homePlayer?.nation || homePlayer?.club;
+  const awayTeam = awayPlayer?.nation || awayPlayer?.club;
 
-  const homeRatings = homePlayer ? calculateDerivedRatings(homePlayer) : { atk: 65, mid: 65, def: 65 };
-  const awayRatings = awayPlayer ? calculateDerivedRatings(awayPlayer) : { atk: 62, mid: 63, def: 64 };
+  const homeTactics = parseTeamTactics(homeTeam?.tactics);
+  const awayTactics = parseTeamTactics(awayTeam?.tactics);
+
+  const homeTeamName = homeTeam?.name || `${homePlayer?.username || 'Home'} FC`;
+  const awayTeamName = awayTeam?.name || (awayPlayer ? `${awayPlayer.username} FC` : 'All-Star XI');
+
+  const rawHomeRatings = homePlayer ? calculateDerivedRatings(homePlayer) : { atk: 65, mid: 65, def: 65 };
+  const rawAwayRatings = awayPlayer ? calculateDerivedRatings(awayPlayer) : { atk: 62, mid: 63, def: 64 };
+
+  const homeTactical = applyTacticalModifiers(rawHomeRatings, homeTactics);
+  const awayTactical = applyTacticalModifiers(rawAwayRatings, awayTactics);
+
+  const homeRatings = homeTactical.ratings;
+  const awayRatings = awayTactical.ratings;
 
   let homeScore = 0;
   let awayScore = 0;
 
-  // Determine possession based on midfield battle
+  // Determine possession based on midfield battle + tactical modifiers
   const midDiff = homeRatings.mid - awayRatings.mid;
-  const homePossession = Math.min(70, Math.max(30, 50 + Math.round(midDiff * 0.7) + Math.floor(Math.random() * 7 - 3)));
+  const rawHomePoss = 50 + Math.round(midDiff * 0.5) + (homeTactical.possMod - awayTactical.possMod) + Math.floor(Math.random() * 7 - 3);
+  const homePossession = Math.min(75, Math.max(25, rawHomePoss));
   const awayPossession = 100 - homePossession;
 
   const events: { minute: number; text: string; header: string; playerTags?: string[] }[] = [];
@@ -86,7 +148,7 @@ export async function simulateFullMatch(homePlayerId: string, awayPlayerId?: str
   });
   events.push({
     minute: 0,
-    header: `🏟️ KICKOFF — ${homeTeamName} 0 : 0 ${awayTeamName}`,
+    header: `🏟️ KICKOFF — ${homeTeamName} (Mentality: ${homeTactics.teamMentality}) vs ${awayTeamName} (Mentality: ${awayTactics.teamMentality})`,
     text: kickoffText,
     playerTags: [homePlayer?.username || 'Home Captain']
   });
@@ -97,6 +159,7 @@ export async function simulateFullMatch(homePlayerId: string, awayPlayerId?: str
   let homePlayerAssists = 0;
   let homePlayerTackles = 0;
   let homePlayerShots = 0;
+  let homePlayerPasses = homeTactics.passingStyle === 'Short' ? 38 : homeTactics.passingStyle === 'Long' ? 18 : 26;
 
   for (const min of keyMinutes) {
     const isHomeAttack = Math.random() * 100 < homePossession;
@@ -104,15 +167,71 @@ export async function simulateFullMatch(homePlayerId: string, awayPlayerId?: str
     const defendingRatings = isHomeAttack ? awayRatings : homeRatings;
     const attackingTeam = isHomeAttack ? homeTeamName : awayTeamName;
     const defendingTeam = isHomeAttack ? awayTeamName : homeTeamName;
+    const attackingTactics = isHomeAttack ? homeTactics : awayTactics;
+    const defendingTactics = isHomeAttack ? awayTactics : homeTactics;
     const activeAttacker = isHomeAttack ? (homePlayer?.username || 'Striker') : (awayPlayer?.username || 'Striker');
     const activeDefender = isHomeAttack ? (awayPlayer?.username || 'Centre-Back') : (homePlayer?.username || 'Centre-Back');
 
     const roll = Math.random() * 100;
 
+    // 1. Offside Trap Check (if defending team has Offside Trap On)
+    if (defendingTactics.offsideTrap === 'On' && roll < 38) {
+      const attackerPace = isHomeAttack ? (homePlayer?.pac || 50) : (awayPlayer?.pac || 50);
+      const attackerVision = isHomeAttack ? (homePlayer?.vis || 50) : (awayPlayer?.vis || 50);
+
+      // If attacker is fast/smart, offside trap is breached!
+      if (attackerPace > 75 || attackerVision > 75 || Math.random() < 0.35) {
+        // Trap breached -> Huge chance
+        if (isHomeAttack) homePlayerShots++;
+        const goalProbability = Math.max(35, Math.min(85, 55 + (attackingRatings.atk - defendingRatings.def)));
+        if (Math.random() * 100 < goalProbability) {
+          if (isHomeAttack) {
+            homeScore++;
+            homePlayerGoals++;
+          } else {
+            awayScore++;
+          }
+          scorers.push({ minute: min, player: activeAttacker, team: attackingTeam });
+          const commentary = await generateAiMinuteCommentary({
+            minute: min,
+            type: 'GOAL',
+            homeTeam: homeTeamName,
+            awayTeam: awayTeamName,
+            homeScore,
+            awayScore,
+            actorPlayer: activeAttacker,
+            secondaryPlayer: activeDefender
+          });
+          events.push({
+            minute: min,
+            header: `⚠️ OFFSIDE TRAP BEATEN & GOAL! — ${attackingTeam}`,
+            text: `${activeAttacker} sprints cleanly through the high line and tucks the ball into the corner! ${commentary}`,
+            playerTags: [activeAttacker]
+          });
+          continue;
+        }
+      } else {
+        // Offside trap successfully catches attacker
+        events.push({
+          minute: min,
+          header: `🚩 OFFSIDE FLAG RAISED — ${activeAttacker}`,
+          text: `Assistant referee raises the flag! ${defendingTeam}'s disciplined offside trap steps up in unison, leaving ${activeAttacker} caught leaning offside.`,
+          playerTags: [activeAttacker, activeDefender]
+        });
+        continue;
+      }
+    }
+
+    // 2. Goal Scoring Chances
     if (roll < 35) {
-      // Chance & Potential Goal
-      homePlayerShots++;
-      const goalProbability = Math.max(20, Math.min(80, 45 + (attackingRatings.atk - defendingRatings.def)));
+      if (isHomeAttack) homePlayerShots++;
+      let goalProbability = Math.max(20, Math.min(80, 45 + (attackingRatings.atk - defendingRatings.def)));
+
+      // Counter attack bonus if counter-attack is active
+      if (attackingTactics.forceCounter === 'On' && defendingTactics.teamMentality.includes('Attack')) {
+        goalProbability += 15;
+      }
+
       if (Math.random() * 100 < goalProbability) {
         if (isHomeAttack) {
           homeScore++;
@@ -133,14 +252,20 @@ export async function simulateFullMatch(homePlayerId: string, awayPlayerId?: str
           secondaryPlayer: activeDefender
         });
 
+        const headerPrefix = attackingTactics.forceCounter === 'On' && Math.random() < 0.5 
+          ? `⚡ COUNTER-ATTACK GOAL!` 
+          : attackingTactics.focusPassing === 'Down Both Flanks' 
+          ? `👟 FLANK CROSS & GOAL!` 
+          : `⚽ GOAL!`;
+
         events.push({
           minute: min,
-          header: `⚽ GOAL! — ${homeTeamName} ${homeScore} : ${awayScore} ${awayTeamName}`,
+          header: `${headerPrefix} — ${homeTeamName} ${homeScore} : ${awayScore} ${awayTeamName}`,
           text: commentary,
           playerTags: [activeAttacker]
         });
       } else {
-        // Great save
+        // Save
         const commentary = await generateAiMinuteCommentary({
           minute: min,
           type: 'SAVE',
@@ -153,14 +278,18 @@ export async function simulateFullMatch(homePlayerId: string, awayPlayerId?: str
         });
         events.push({
           minute: min,
-          header: `🧤 SPECTACULAR SAVE — ${homeTeamName} ${homeScore} : ${awayScore} ${awayTeamName}`,
+          header: `🧤 SPECTACULAR SAVE — ${defendingTeam}`,
           text: commentary,
           playerTags: [activeDefender, activeAttacker]
         });
       }
     } else if (roll < 65) {
-      // Dribble or Tackle battle
+      // 3. Tackles & Turnovers (Pressing & Tackling Styles)
       if (isHomeAttack) homePlayerTackles++;
+
+      const isHardTackle = defendingTactics.tacklingStyle === 'Hard';
+      const isHighPress = defendingTactics.pressingStyle === 'High';
+
       const commentary = await generateAiMinuteCommentary({
         minute: min,
         type: 'TACKLE',
@@ -171,15 +300,23 @@ export async function simulateFullMatch(homePlayerId: string, awayPlayerId?: str
         actorPlayer: activeDefender,
         secondaryPlayer: activeAttacker
       });
+
+      const header = isHighPress 
+        ? `🔥 HIGH PRESS TURNOVER — ${activeDefender}` 
+        : isHardTackle 
+        ? `💥 CRUNCHING HARD TACKLE — ${activeDefender}` 
+        : `🛡️ TACKLE WON — ${activeDefender}`;
+
       events.push({
         minute: min,
-        header: `🛡️ TACKLE WON — ${activeDefender}`,
+        header,
         text: commentary,
         playerTags: [activeDefender, activeAttacker]
       });
     } else if (roll < 85) {
-      // Buildup play / Key passes
+      // 4. Tactical Buildup (Passing Style & Focus)
       if (isHomeAttack && Math.random() < 0.4) homePlayerAssists++;
+
       const commentary = await generateAiMinuteCommentary({
         minute: min,
         type: 'BUILDUP',
@@ -190,31 +327,53 @@ export async function simulateFullMatch(homePlayerId: string, awayPlayerId?: str
         actorPlayer: activeAttacker,
         secondaryPlayer: activeDefender
       });
+
+      const focusHeader = attackingTactics.focusPassing === 'Through The Middle' 
+        ? `🪄 SLICED THROUGH THE MIDDLE — ${attackingTeam}` 
+        : attackingTactics.focusPassing.includes('Flank') 
+        ? `👟 WHIPPED CROSS INTO THE BOX — ${attackingTeam}` 
+        : attackingTactics.passingStyle === 'Short' 
+        ? `✨ TIKI-TAKA COMBINATION — ${attackingTeam}` 
+        : `⚡ ATTACKING BUILDUP — ${attackingTeam}`;
+
       events.push({
         minute: min,
-        header: `⚡ ATTACKING BUILDUP — ${attackingTeam}`,
+        header: focusHeader,
         text: commentary,
         playerTags: [activeAttacker]
       });
     } else {
-      // Tactical Foul / Yellow Card
-      cards.push({ minute: min, player: activeDefender, type: 'YELLOW', team: defendingTeam });
-      const commentary = await generateAiMinuteCommentary({
-        minute: min,
-        type: 'YELLOW_CARD',
-        homeTeam: homeTeamName,
-        awayTeam: awayTeamName,
-        homeScore,
-        awayScore,
-        actorPlayer: activeDefender,
-        secondaryPlayer: activeAttacker
-      });
-      events.push({
-        minute: min,
-        header: `🟨 YELLOW CARD — ${activeDefender}`,
-        text: commentary,
-        playerTags: [activeDefender]
-      });
+      // 5. Tactical Foul / Discipline (Influenced by Tackling Style)
+      const isHardTackling = defendingTactics.tacklingStyle === 'Hard';
+      const isEasyTackling = defendingTactics.tacklingStyle === 'Easy';
+
+      if (isEasyTackling && Math.random() < 0.7) {
+        // Clean gentle dispossess without card
+        events.push({
+          minute: min,
+          header: `🛡️ JOCKEYING & CONTAINMENT — ${activeDefender}`,
+          text: `${activeDefender} stays on their feet with disciplined jockeying and intercepts the attack cleanly without conceding a foul.`,
+          playerTags: [activeDefender]
+        });
+      } else {
+        cards.push({ minute: min, player: activeDefender, type: 'YELLOW', team: defendingTeam });
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'YELLOW_CARD',
+          homeTeam: homeTeamName,
+          awayTeam: awayTeamName,
+          homeScore,
+          awayScore,
+          actorPlayer: activeDefender,
+          secondaryPlayer: activeAttacker
+        });
+        events.push({
+          minute: min,
+          header: `🟨 YELLOW CARD ${isHardTackling ? '(Hard Challenge)' : ''} — ${activeDefender}`,
+          text: commentary,
+          playerTags: [activeDefender]
+        });
+      }
     }
   }
 
@@ -258,6 +417,9 @@ export async function simulateFullMatch(homePlayerId: string, awayPlayerId?: str
     }
   });
 
+  // Stamina consumption adjusted by tactics (High press drains 30, Low press drains 20)
+  const homeStaminaDrain = (homeTactics.pressingStyle === 'High' || homeTactics.teamMentality === 'Hard Attacking') ? 30 : (homeTactics.pressingStyle === 'Low') ? 20 : 25;
+
   // Persist Match Record and update Player Career Stats
   if (homePlayer) {
     await prisma.player.update({
@@ -268,8 +430,10 @@ export async function simulateFullMatch(homePlayerId: string, awayPlayerId?: str
         assists: { increment: homePlayerAssists },
         shots: { increment: homePlayerShots },
         tacklesWon: { increment: homePlayerTackles },
+        passesCompleted: { increment: homePlayerPasses },
+        passesAttempted: { increment: homePlayerPasses + 5 },
         motmCount: isHomeWinner && homePlayerGoals > 0 ? { increment: 1 } : undefined,
-        stamina: Math.max(10, homePlayer.stamina - 25), // Match drains stamina
+        stamina: Math.max(10, homePlayer.stamina - homeStaminaDrain),
         intelBonus: 0, // Intel resets after matchday
         activeBoots: null // Boots reset after matchday
       }

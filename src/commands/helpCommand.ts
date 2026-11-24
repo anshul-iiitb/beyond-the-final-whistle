@@ -81,10 +81,14 @@ export async function handleHelpCommand(message: Message) {
           `• \`-tweet <text>\` / \`-chirp\` — Post to TwitFeed with interactive \`👍\` / \`👎\` buttons (👍 +100k ${followers}, 👎 -50k ${followers} + DMs).`
       },
       {
-        name: '⚽ AI Match Simulations & Newspaper',
+        name: '⚽ AI Match Simulations & Team Tactics',
         value:
           '• `-match [@user]` — Triggers 90-minute AI-simulated match with commentary & sports newspaper report.\n' +
           '  *Mentions `@News Ping` and attaches full matchday telemetry infographic!*\n' +
+          '• `-tactics [team]` — Open interactive Components V2 tactical dashboard with live dropdowns:\n' +
+          '  `⚔️ Attack:` Mentality, Focus Passing, Passing Style, Force Counter-Attacks\n' +
+          '  `🛡️ Defence:` Pressing Style, Tackling Style, Marking Style, Play Offside Trap\n' +
+          '  *Tactics dynamically alter match possession, counter-attack speed, tackle rates, and offside traps!*\n' +
           '• `-intstats [@user]` — View full international caps, goals, and cards.\n' +
           '• `-clubstats [@user]` — View franchise club record.\n' +
           '• `-roster <alias>` — Inspect team squad lineups.'
