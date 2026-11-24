@@ -154,11 +154,23 @@ export async function runLiveEpisodicMatch(
     secondaryPlayer?: MatchPlayer;
     extraMentions?: MatchPlayer[];
   }) => {
-    const mentions = [formatMention(data.actor)];
-    if (data.secondaryPlayer) mentions.push(formatMention(data.secondaryPlayer));
+    // If the incident itself is a RED CARD dismissal, the actor is mentioned for the card
+    const isDismissalCard = typeof data.eventTitle === 'string' && data.eventTitle.includes('RED CARD');
+
+    const mentions: string[] = [];
+    if (data.actor && (data.actor.redCards === 0 || isDismissalCard)) {
+      mentions.push(formatMention(data.actor));
+    }
+    if (data.secondaryPlayer && data.secondaryPlayer.redCards === 0) {
+      const m = formatMention(data.secondaryPlayer);
+      if (!mentions.includes(m)) mentions.push(m);
+    }
     if (data.extraMentions) {
       for (const p of data.extraMentions) {
-        if (!mentions.includes(formatMention(p))) mentions.push(formatMention(p));
+        if (p && p.redCards === 0) {
+          const m = formatMention(p);
+          if (!mentions.includes(m)) mentions.push(m);
+        }
       }
     }
 
@@ -179,12 +191,24 @@ export async function runLiveEpisodicMatch(
     await channel.send({ embeds: [embed] });
   };
 
-  // Helper to pick set piece specialist
+  // Helper to get active (non-ejected) players on a team
+  const getActivePlayers = (team: MatchTeam): MatchPlayer[] => {
+    const list = [team.players.atk, team.players.mid, team.players.def].filter(p => p.redCards === 0);
+    return list.length > 0 ? list : [team.players.mid];
+  };
+
+  // Helper to pick set piece specialist (ONLY among active players on the pitch!)
   const getSpecialist = (team: MatchTeam, type: 'FK' | 'CORNER' | 'PEN'): MatchPlayer => {
+    const active = getActivePlayers(team);
     const name = (type === 'FK' ? team.freeKickTakerName : type === 'CORNER' ? team.cornerTakerName : team.penaltyTakerName) || '';
-    if (team.players.atk.name.toLowerCase() === name.toLowerCase()) return team.players.atk;
-    if (team.players.mid.name.toLowerCase() === name.toLowerCase()) return team.players.mid;
-    return team.players.def;
+    const match = active.find(p => p.name.toLowerCase() === name.toLowerCase());
+    if (match) return match;
+    // If designated specialist was sent off, pick the best remaining active player
+    return active.slice().sort((a, b) => {
+      const scoreA = a.cmp + (type === 'FK' ? a.fin : type === 'CORNER' ? a.pas : a.fin);
+      const scoreB = b.cmp + (type === 'FK' ? b.fin : type === 'CORNER' ? b.pas : b.fin);
+      return scoreB - scoreA;
+    })[0];
   };
 
   // 0' Kickoff event
@@ -218,8 +242,14 @@ export async function runLiveEpisodicMatch(
    * Executes a rich, tactical simulation phase selecting from 30+ interaction events
    */
   const simulateTacticalPhase = async (min: number) => {
-    // 1. Determine attacking team based on possession roll + mentality modifiers
+    // 1. Determine attacking team based on possession roll + mentality modifiers + MAN ADVANTAGE
+    const homeRedCount = [homeTeam.players.atk, homeTeam.players.mid, homeTeam.players.def].filter(p => p.redCards > 0).length;
+    const awayRedCount = [awayTeam.players.atk, awayTeam.players.mid, awayTeam.players.def].filter(p => p.redCards > 0).length;
+
     let homeAttackingWeight = homeTeam.possession;
+    homeAttackingWeight -= homeRedCount * 12; // Ejected player penalty!
+    homeAttackingWeight += awayRedCount * 12; // Man advantage boost!
+
     if (homeTeam.tactics.teamMentality === 'Hard Attacking') homeAttackingWeight += 5;
     else if (homeTeam.tactics.teamMentality === 'Attacking') homeAttackingWeight += 3;
     else if (homeTeam.tactics.teamMentality === 'Defensive') homeAttackingWeight -= 3;
@@ -230,17 +260,40 @@ export async function runLiveEpisodicMatch(
     else if (awayTeam.tactics.teamMentality === 'Defensive') homeAttackingWeight += 3;
     else if (awayTeam.tactics.teamMentality === 'Hard Defending') homeAttackingWeight += 5;
 
-    const isHomeAttacking = Math.random() * 100 < Math.max(30, Math.min(70, homeAttackingWeight));
+    const isHomeAttacking = Math.random() * 100 < Math.max(20, Math.min(80, homeAttackingWeight));
     const attTeam = isHomeAttacking ? homeTeam : awayTeam;
     const defTeam = isHomeAttacking ? awayTeam : homeTeam;
 
-    const striker = attTeam.players.atk;
-    const midAtt = attTeam.players.mid;
-    const defAtt = attTeam.players.def;
+    const activeAtt = getActivePlayers(attTeam);
+    const activeDef = getActivePlayers(defTeam);
 
-    const defPlayer = defTeam.players.def;
-    const midDef = defTeam.players.mid;
-    const oppStriker = defTeam.players.atk;
+    // Pick active attacker (fallback to mid or def if striker is sent off)
+    const striker = attTeam.players.atk.redCards === 0
+      ? attTeam.players.atk
+      : (activeAtt.find(p => p.position === 'MID') || activeAtt[0]);
+
+    // Pick active attacking midfielder
+    const midAtt = attTeam.players.mid.redCards === 0
+      ? attTeam.players.mid
+      : (activeAtt.find(p => p.position !== 'MID') || activeAtt[0]);
+
+    // Pick active attacking defender
+    const defAtt = attTeam.players.def.redCards === 0
+      ? attTeam.players.def
+      : (activeAtt.find(p => p.position !== 'DEF') || activeAtt[0]);
+
+    // Defending team active players
+    const defPlayer = defTeam.players.def.redCards === 0
+      ? defTeam.players.def
+      : (activeDef.find(p => p.position === 'MID') || activeDef[0]);
+
+    const midDef = defTeam.players.mid.redCards === 0
+      ? defTeam.players.mid
+      : (activeDef.find(p => p.position !== 'MID') || activeDef[0]);
+
+    const oppStriker = defTeam.players.atk.redCards === 0
+      ? defTeam.players.atk
+      : (activeDef.find(p => p.position !== 'ATK') || activeDef[0]);
 
     // Tactical parameters in play
     const attTactics = attTeam.tactics;
@@ -582,7 +635,7 @@ export async function runLiveEpisodicMatch(
         await sendIncident({
           minute: min,
           icon: '🟥',
-          eventTitle: `VAR DECISION: STRAIGHT RED CARD — ${activeTackler.name} ${activeTackler.flag}`,
+          eventTitle: 'VAR DECISION: STRAIGHT RED CARD',
           actor: activeTackler,
           secondaryPlayer: tackledPlayer,
           narrative: `RED CARD! The referee returns from the pitchside monitor and brandishes a straight red card! Excessive force with studs caught above the ankle—${defTeam.name} are down to 10 men!`
@@ -812,24 +865,30 @@ export async function runLiveEpisodicMatch(
     let shooter: MatchPlayer;
     let assister: MatchPlayer | undefined;
 
-    if (shooterRoll < 55) {
+    if (shooterRoll < 55 && striker.redCards === 0) {
       shooter = striker;
-      const assistRoll = Math.random() * 100;
-      if (assistRoll < 55) assister = midAtt;
-      else if (assistRoll < 85) assister = defAtt; // Defender overlapping assist!
-      else assister = undefined; // Solo unassisted
-    } else if (shooterRoll < 85) {
-      shooter = midAtt; // Midfielder box-to-box run or long-range screamer!
-      const assistRoll = Math.random() * 100;
-      if (assistRoll < 60) assister = striker; // Striker hold-up / layoff assist!
-      else if (assistRoll < 85) assister = defAtt; // Defender 50-yard through-ball!
-      else assister = undefined; // Solo run
+      const possibleAssisters = activeAtt.filter(p => p.id !== shooter.id);
+      if (possibleAssisters.length > 0 && Math.random() < 0.85) {
+        assister = possibleAssisters[Math.floor(Math.random() * possibleAssisters.length)];
+      } else {
+        assister = undefined;
+      }
+    } else if (shooterRoll < 85 && midAtt.redCards === 0) {
+      shooter = midAtt;
+      const possibleAssisters = activeAtt.filter(p => p.id !== shooter.id);
+      if (possibleAssisters.length > 0 && Math.random() < 0.85) {
+        assister = possibleAssisters[Math.floor(Math.random() * possibleAssisters.length)];
+      } else {
+        assister = undefined;
+      }
     } else {
-      shooter = defAtt; // Overlapping full-back or center-back stepping into attack!
-      const assistRoll = Math.random() * 100;
-      if (assistRoll < 55) assister = striker;
-      else if (assistRoll < 90) assister = midAtt;
-      else assister = undefined; // Solo finish
+      shooter = defAtt.redCards === 0 ? defAtt : activeAtt[0];
+      const possibleAssisters = activeAtt.filter(p => p.id !== shooter.id);
+      if (possibleAssisters.length > 0 && Math.random() < 0.85) {
+        assister = possibleAssisters[Math.floor(Math.random() * possibleAssisters.length)];
+      } else {
+        assister = undefined;
+      }
     }
 
     shooter.shots++;
@@ -959,10 +1018,11 @@ export async function runLiveEpisodicMatch(
         });
         await sleep(2200);
 
-        // 3. Outcome (Towering Defender Header vs Striker vs Midfielder)
-        const headerFinisher = (Math.random() < 0.45 && defAtt.name !== cornerTaker.name)
-          ? defAtt // Defender header!
-          : (Math.random() < 0.7 ? striker : midAtt);
+        // 3. Outcome (Only ACTIVE players on the pitch can contest the header!)
+        const headerCandidates = activeAtt.filter(p => p.name !== cornerTaker.name);
+        const headerFinisher = headerCandidates.length > 0
+          ? headerCandidates[Math.floor(Math.random() * headerCandidates.length)]
+          : cornerTaker;
 
         const headerRoll = (headerFinisher.hea || 68) * 1.1 + headerFinisher.phy;
         const defHeaderRoll = (defPlayer.hea || 68) * 1.1 + defPlayer.phy;
