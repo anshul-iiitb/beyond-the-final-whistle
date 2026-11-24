@@ -113,17 +113,28 @@ export async function runLiveEpisodicMatch(
   // 1. Calculate dynamic baseline possession from midfield battle + tactics
   const homeMidScore = (homeTeam.players.mid.pas * 2 + homeTeam.players.mid.vis + homeTeam.players.mid.cmp + homeTeam.players.mid.wrk) / 5;
   const awayMidScore = (awayTeam.players.mid.pas * 2 + awayTeam.players.mid.vis + awayTeam.players.mid.cmp + awayTeam.players.mid.wrk) / 5;
-  let homePossBonus = (homeMidScore - awayMidScore) * 0.6;
+  let homePossBonus = (homeMidScore - awayMidScore) * 0.35;
 
-  // Tactical possession adjustments
-  if (homeTeam.tactics.passingStyle === 'Short') homePossBonus += 7;
-  if (homeTeam.tactics.passingStyle === 'Long') homePossBonus -= 6;
-  if (homeTeam.tactics.pressingStyle === 'High') homePossBonus += 4;
-  if (awayTeam.tactics.passingStyle === 'Long') homePossBonus += 5;
-  if (homeTeam.tactics.teamMentality === 'Attacking' || homeTeam.tactics.teamMentality === 'Hard Attacking') homePossBonus += 5;
-  if (awayTeam.tactics.teamMentality === 'Hard Defending') homePossBonus += 6;
+  // Realistic tactical possession adjustments (+/- 1.5% to 3.5%)
+  if (homeTeam.tactics.passingStyle === 'Short') homePossBonus += 2.5;
+  if (homeTeam.tactics.passingStyle === 'Long') homePossBonus -= 2.5;
+  if (awayTeam.tactics.passingStyle === 'Short') homePossBonus -= 2.5;
+  if (awayTeam.tactics.passingStyle === 'Long') homePossBonus += 2.5;
 
-  const calculatedHomePoss = Math.max(25, Math.min(78, Math.round(50 + homePossBonus + (Math.random() * 6 - 3))));
+  if (homeTeam.tactics.pressingStyle === 'High') homePossBonus += 1.5;
+  if (awayTeam.tactics.pressingStyle === 'High') homePossBonus -= 1.5;
+
+  if (homeTeam.tactics.teamMentality === 'Attacking') homePossBonus += 2.0;
+  else if (homeTeam.tactics.teamMentality === 'Hard Attacking') homePossBonus += 3.5;
+  else if (homeTeam.tactics.teamMentality === 'Defensive') homePossBonus -= 2.0;
+  else if (homeTeam.tactics.teamMentality === 'Hard Defending') homePossBonus -= 3.5;
+
+  if (awayTeam.tactics.teamMentality === 'Attacking') homePossBonus -= 2.0;
+  else if (awayTeam.tactics.teamMentality === 'Hard Attacking') homePossBonus -= 3.5;
+  else if (awayTeam.tactics.teamMentality === 'Defensive') homePossBonus += 2.0;
+  else if (awayTeam.tactics.teamMentality === 'Hard Defending') homePossBonus += 3.5;
+
+  const calculatedHomePoss = Math.max(36, Math.min(64, Math.round(50 + homePossBonus + (Math.random() * 4 - 2))));
   homeTeam.possession = calculatedHomePoss;
   awayTeam.possession = 100 - calculatedHomePoss;
 
@@ -209,12 +220,17 @@ export async function runLiveEpisodicMatch(
   const simulateTacticalPhase = async (min: number) => {
     // 1. Determine attacking team based on possession roll + mentality modifiers
     let homeAttackingWeight = homeTeam.possession;
-    if (homeTeam.tactics.teamMentality === 'Hard Attacking') homeAttackingWeight += 12;
-    if (homeTeam.tactics.teamMentality === 'Attacking') homeAttackingWeight += 6;
-    if (homeTeam.tactics.teamMentality === 'Hard Defending') homeAttackingWeight -= 15;
-    if (awayTeam.tactics.teamMentality === 'Hard Attacking') homeAttackingWeight -= 12;
+    if (homeTeam.tactics.teamMentality === 'Hard Attacking') homeAttackingWeight += 5;
+    else if (homeTeam.tactics.teamMentality === 'Attacking') homeAttackingWeight += 3;
+    else if (homeTeam.tactics.teamMentality === 'Defensive') homeAttackingWeight -= 3;
+    else if (homeTeam.tactics.teamMentality === 'Hard Defending') homeAttackingWeight -= 5;
 
-    const isHomeAttacking = Math.random() * 100 < Math.max(20, Math.min(80, homeAttackingWeight));
+    if (awayTeam.tactics.teamMentality === 'Hard Attacking') homeAttackingWeight -= 5;
+    else if (awayTeam.tactics.teamMentality === 'Attacking') homeAttackingWeight -= 3;
+    else if (awayTeam.tactics.teamMentality === 'Defensive') homeAttackingWeight += 3;
+    else if (awayTeam.tactics.teamMentality === 'Hard Defending') homeAttackingWeight += 5;
+
+    const isHomeAttacking = Math.random() * 100 < Math.max(30, Math.min(70, homeAttackingWeight));
     const attTeam = isHomeAttacking ? homeTeam : awayTeam;
     const defTeam = isHomeAttacking ? awayTeam : homeTeam;
 
@@ -371,7 +387,7 @@ export async function runLiveEpisodicMatch(
           }
         }
 
-        const isPenalty = Math.random() < 0.22; // 22% of fouls inside penalty box
+        const isPenalty = Math.random() < 0.08; // 8% of fouls inside penalty box (realistic football rate)
 
         if (isPenalty) {
           // --- MULTI-PART PENALTY SEQUENCE ---
@@ -436,8 +452,8 @@ export async function runLiveEpisodicMatch(
           });
           await sleep(2200);
 
-          // 3. Outcome
-          const penGoalChance = Math.min(88, Math.max(50, penTaker.cmp * 0.6 + penTaker.fin * 0.4));
+          // 3. Outcome (70-80% realistic conversion)
+          const penGoalChance = Math.min(80, Math.max(65, Math.round(penTaker.cmp * 0.4 + penTaker.fin * 0.4 + 25)));
           if (Math.random() * 100 < penGoalChance) {
             attTeam.score++;
             penTaker.goals++;
@@ -487,8 +503,8 @@ export async function runLiveEpisodicMatch(
           });
           await sleep(2200);
 
-          // 3. Outcome
-          const fkGoalChance = Math.min(65, Math.max(18, (fkTaker.fin + (fkTaker.pow || 70)) / 2 - 25));
+          // 3. Outcome (Realistic 8% - 20% free kick conversion)
+          const fkGoalChance = Math.min(20, Math.max(7, Math.round(((fkTaker.fin + (fkTaker.pow || 65)) / 2 - 40) * 0.35)));
           if (Math.random() * 100 < fkGoalChance) {
             attTeam.score++;
             fkTaker.goals++;
@@ -817,9 +833,9 @@ export async function runLiveEpisodicMatch(
     }
 
     shooter.shots++;
-    const shooterFinishing = shooter.fin * 1.4 + shooter.cmp + (shooter.playstyle === 'PCH' ? 14 : 0);
-    const defResistance = defPlayer.tck + defPlayer.int + defPlayer.phy;
-    const goalProb = Math.max(22, Math.min(82, 46 + Math.round((shooterFinishing - defResistance) * 0.4)));
+    const shooterFinishing = shooter.fin * 1.1 + shooter.cmp * 0.9 + (shooter.playstyle === 'PCH' ? 8 : 0);
+    const defResistance = (defPlayer.tck + defPlayer.int + defPlayer.phy) / 3 * 2;
+    const goalProb = Math.max(14, Math.min(38, Math.round(22 + (shooterFinishing - defResistance) * 0.25)));
 
     if (Math.random() * 100 < goalProb) {
       // ⚽ GOAL SCORED!
@@ -917,8 +933,8 @@ export async function runLiveEpisodicMatch(
         }
       }
     } else {
-      // Deflection to Corner or Diving Save
-      const isCorner = Math.random() < 0.65;
+      // Deflection to Corner or Diving Save (35% becomes corner, 65% goal kick / save)
+      const isCorner = Math.random() < 0.35;
       if (isCorner) {
         // --- MULTI-PART CORNER SEQUENCE ---
         const cornerTaker = getSpecialist(attTeam, 'CORNER');
@@ -948,10 +964,11 @@ export async function runLiveEpisodicMatch(
           ? defAtt // Defender header!
           : (Math.random() < 0.7 ? striker : midAtt);
 
-        const headerRoll = (headerFinisher.hea || 75) * 1.2 + headerFinisher.phy;
-        const defHeaderRoll = (defPlayer.hea || 70) + defPlayer.phy;
+        const headerRoll = (headerFinisher.hea || 68) * 1.1 + headerFinisher.phy;
+        const defHeaderRoll = (defPlayer.hea || 68) * 1.1 + defPlayer.phy;
 
-        if (headerRoll > defHeaderRoll && Math.random() < 0.45) {
+        // Realistic corner conversion (16%)
+        if (headerRoll > defHeaderRoll && Math.random() < 0.16) {
           attTeam.score++;
           headerFinisher.goals++;
           headerFinisher.shots++;

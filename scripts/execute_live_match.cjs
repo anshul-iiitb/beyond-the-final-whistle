@@ -5,7 +5,7 @@ dotenv.config();
 const token = process.env.DISCORD_TOKEN;
 const GUILD_ID = '1574068651915743272';
 const CHANNEL_ID = '1574439115783409845'; // #๑•⚽│live-match
-const NEWS_CHANNEL_ID = '1574439070992306236'; // #๑•📰│news
+const NEWS_CHANNEL_ID = '1574439119227064402'; // #๑•📰│btfw-news
 
 const client = new Client({
   intents: [
@@ -59,7 +59,7 @@ client.once('clientReady', async () => {
         position: 'ATK',
         playstyle: 'PCH',
         flag: '🇲🇦',
-        fin: 88, pas: 74, tck: 52, dri: 84, int: 50, pac: 86, cmp: 86, vis: 76, phy: 78, wrk: 82,
+        fin: 59, pas: 57, tck: 55, dri: 59, int: 56, pac: 59, cmp: 58, vis: 57, phy: 58, wrk: 58,
         goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 24, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
       },
       mid: {
@@ -68,7 +68,7 @@ client.once('clientReady', async () => {
         position: 'MID',
         playstyle: 'ANC',
         flag: '🇲🇦',
-        fin: 68, pas: 84, tck: 88, dri: 76, int: 86, pac: 80, cmp: 84, vis: 82, phy: 85, wrk: 88,
+        fin: 56, pas: 59, tck: 59, dri: 57, int: 58, pac: 57, cmp: 58, vis: 59, phy: 58, wrk: 59,
         goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 35, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
       },
       def: {
@@ -77,7 +77,7 @@ client.once('clientReady', async () => {
         position: 'DEF',
         playstyle: 'BPD',
         flag: '🇲🇦',
-        fin: 60, pas: 86, tck: 85, dri: 72, int: 88, pac: 78, cmp: 86, vis: 85, phy: 84, wrk: 82,
+        fin: 55, pas: 58, tck: 59, dri: 56, int: 59, pac: 57, cmp: 58, vis: 58, phy: 59, wrk: 58,
         goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 42, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
       }
     }
@@ -94,15 +94,15 @@ client.once('clientReady', async () => {
       teamMentality: 'Defensive',
       focusPassing: 'Down Both Flanks',
       passingStyle: 'Long',
-      forceCounter: 'Off',
-      pressingStyle: 'Low',
-      tacklingStyle: 'Normal',
+      forceCounter: 'On',
+      pressingStyle: 'High',
+      tacklingStyle: 'Hard',
       markingStyle: 'Zonal',
       offsideTrap: 'Off'
     },
     color: [4, 120, 87], // Dark Forest Green #047857
     score: 0,
-    possession: 43,
+    possession: 47,
     players: {
       atk: {
         id: 'mex-1',
@@ -110,8 +110,8 @@ client.once('clientReady', async () => {
         position: 'ATK',
         playstyle: 'ATT',
         flag: '🇲🇽',
-        fin: 50, pas: 50, tck: 50, dri: 50, int: 50, pac: 50, cmp: 50, vis: 50, phy: 50, wrk: 50,
-        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 12, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+        fin: 52, pas: 50, tck: 51, dri: 52, int: 50, pac: 52, cmp: 51, vis: 50, phy: 51, wrk: 52,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 14, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
       },
       mid: {
         id: 'mex-2',
@@ -119,8 +119,8 @@ client.once('clientReady', async () => {
         position: 'MID',
         playstyle: 'MID',
         flag: '🇲🇽',
-        fin: 50, pas: 50, tck: 50, dri: 50, int: 50, pac: 50, cmp: 50, vis: 50, phy: 50, wrk: 50,
-        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 15, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+        fin: 50, pas: 52, tck: 51, dri: 51, int: 51, pac: 50, cmp: 51, vis: 52, phy: 51, wrk: 52,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 18, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
       },
       def: {
         id: 'mex-3',
@@ -128,8 +128,8 @@ client.once('clientReady', async () => {
         position: 'DEF',
         playstyle: 'DEF',
         flag: '🇲🇽',
-        fin: 50, pas: 50, tck: 50, dri: 50, int: 50, pac: 50, cmp: 50, vis: 50, phy: 50, wrk: 50,
-        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 16, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+        fin: 50, pas: 51, tck: 52, dri: 50, int: 52, pac: 51, cmp: 50, vis: 51, phy: 52, wrk: 51,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 19, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
       }
     }
   };
