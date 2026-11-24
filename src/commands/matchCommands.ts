@@ -1,12 +1,18 @@
-import { Message, EmbedBuilder, AttachmentBuilder } from 'discord.js';
+import { Message, EmbedBuilder, AttachmentBuilder, TextChannel } from 'discord.js';
 import path from 'path';
 import fs from 'fs';
 import { simulateFullMatch } from '../engines/matchSimulationEngine.js';
+import { runLiveEpisodicMatch, MatchTeam } from '../engines/liveMatchEngine.js';
 import { prisma } from '../database/prisma.js';
 import { getEmoji } from '../utils/emojiHelper.js';
 import { THEME_COLORS, UI, makeDualProgressBar, subtext } from '../utils/themeHelper.js';
+import { logger } from '../utils/logger.js';
 
 export async function handleMatchCommand(message: Message, args: string[]) {
+  if (args[0]?.toLowerCase() === 'live') {
+    return await handleLiveMatchCommand(message, args.slice(1));
+  }
+
   const opponent = message.mentions.users.first();
   const loading = await message.reply('🏟️ **Kickoff whistle blowing! Simulating 90 minutes of high-intensity tactical football...**');
 
@@ -155,4 +161,144 @@ export async function handleRosterCommand(message: Message, args: string[]) {
     .setTimestamp();
 
   await message.reply({ embeds: [embed] });
+}
+
+/**
+ * Executes a full WITS/Blitz style Live Episodic Match in #live-match
+ */
+export async function handleLiveMatchCommand(message: Message, args: string[]) {
+  const guild = message.guild;
+  if (!guild) return;
+
+  // Locate #live-match channel (ID: 1574439115783409845 or by name)
+  let liveChannel = (guild.channels.cache.get('1574439115783409845') ||
+    guild.channels.cache.find(c => c.name.includes('live-match'))) as TextChannel;
+
+  if (!liveChannel || !liveChannel.isTextBased()) {
+    liveChannel = message.channel as TextChannel;
+  }
+
+  const isFullBroadcast = args.includes('full') || args.includes('broadcast');
+  const tickDelay = isFullBroadcast ? 15000 : 3500;
+  const halfTimePause = isFullBroadcast ? 180000 : 8000;
+
+  await message.reply(
+    `🏟️ **Live Match Broadcast initialized!**\n` +
+    `⚡ Setting up tactical clash in ${liveChannel.toString()} — grab your seats!`
+  );
+
+  // Setup Team 1: Morocco (Poacher + Anchor + Ball-Playing Def) with Deep Tactics
+  const team1: MatchTeam = {
+    name: 'Morocco',
+    alias: 'mor',
+    flag: '🇲🇦',
+    penaltyTakerName: 'Shane',
+    freeKickTakerName: 'Shane',
+    cornerTakerName: 'Mercking',
+    tactics: {
+      teamMentality: 'Attacking',
+      focusPassing: 'Through The Middle',
+      passingStyle: 'Short',
+      forceCounter: 'On',
+      pressingStyle: 'High',
+      tacklingStyle: 'Hard',
+      markingStyle: 'Man-To-Man',
+      offsideTrap: 'On'
+    },
+    color: [16, 185, 129], // Emerald
+    score: 0,
+    possession: 57,
+    players: {
+      atk: {
+        id: 'mor-1',
+        name: 'Shane',
+        position: 'ATK',
+        playstyle: 'PCH',
+        flag: '🇲🇦',
+        fin: 88, pas: 74, tck: 52, dri: 84, int: 50, pac: 86, cmp: 86, vis: 76, phy: 78, wrk: 82,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 24, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      },
+      mid: {
+        id: 'mor-2',
+        name: 'Idkunknown',
+        position: 'MID',
+        playstyle: 'ANC',
+        flag: '🇲🇦',
+        fin: 68, pas: 84, tck: 88, dri: 76, int: 86, pac: 80, cmp: 84, vis: 82, phy: 85, wrk: 88,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 35, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      },
+      def: {
+        id: 'mor-3',
+        name: 'Mercking',
+        position: 'DEF',
+        playstyle: 'BPD',
+        flag: '🇲🇦',
+        fin: 60, pas: 86, tck: 85, dri: 72, int: 88, pac: 78, cmp: 86, vis: 85, phy: 84, wrk: 82,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 42, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      }
+    }
+  };
+
+  // Setup Team 2: Mexico (Base 50 Rookies) with Defensive Tactics
+  const team2: MatchTeam = {
+    name: 'Mexico',
+    alias: 'mex',
+    flag: '🇲🇽',
+    penaltyTakerName: 'Darkvoid',
+    freeKickTakerName: 'Shaquib',
+    cornerTakerName: 'Shaquib',
+    tactics: {
+      teamMentality: 'Defensive',
+      focusPassing: 'Down Both Flanks',
+      passingStyle: 'Long',
+      forceCounter: 'Off',
+      pressingStyle: 'Low',
+      tacklingStyle: 'Normal',
+      markingStyle: 'Zonal',
+      offsideTrap: 'Off'
+    },
+    color: [4, 120, 87], // Dark Forest Green
+    score: 0,
+    possession: 43,
+    players: {
+      atk: {
+        id: 'mex-1',
+        name: 'Darkvoid',
+        position: 'ATK',
+        playstyle: 'ATT',
+        flag: '🇲🇽',
+        fin: 50, pas: 50, tck: 50, dri: 50, int: 50, pac: 50, cmp: 50, vis: 50, phy: 50, wrk: 50,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 12, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      },
+      mid: {
+        id: 'mex-2',
+        name: 'Shaquib',
+        position: 'MID',
+        playstyle: 'MID',
+        flag: '🇲🇽',
+        fin: 50, pas: 50, tck: 50, dri: 50, int: 50, pac: 50, cmp: 50, vis: 50, phy: 50, wrk: 50,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 15, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      },
+      def: {
+        id: 'mex-3',
+        name: 'Theexampleofmiracle',
+        position: 'DEF',
+        playstyle: 'DEF',
+        flag: '🇲🇽',
+        fin: 50, pas: 50, tck: 50, dri: 50, int: 50, pac: 50, cmp: 50, vis: 50, phy: 50, wrk: 50,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 16, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      }
+    }
+  };
+
+  try {
+    await runLiveEpisodicMatch(message.client, liveChannel, team1, team2, {
+      tickDelayMs: tickDelay,
+      halfTimePauseMs: halfTimePause,
+      newsChannelId: '1574439070992306236'
+    });
+  } catch (err: any) {
+    logger.error({ err }, 'Error during live match broadcast');
+    await (message.channel as any).send(`❌ Error running live match simulation: ${err.message}`);
+  }
 }
