@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { simulateFullMatch } from '../engines/matchSimulationEngine.js';
 import { runLiveEpisodicMatch, MatchTeam } from '../engines/liveMatchEngine.js';
+import { generateMatchScorecardGraphic } from '../utils/chartHelper.js';
 import { prisma } from '../database/prisma.js';
 import { getEmoji } from '../utils/emojiHelper.js';
 import { THEME_COLORS, UI, makeDualProgressBar, subtext } from '../utils/themeHelper.js';
@@ -52,17 +53,25 @@ export async function handleMatchCommand(message: Message, args: string[]) {
       .setFooter({ text: 'AI Sports Journalism Engine • Beyond The Final Whistle' })
       .setTimestamp();
 
-    const newsFiles: AttachmentBuilder[] = [];
-    const newsImgPath = path.resolve(process.cwd(), 'assets/match_news.png');
-    if (fs.existsSync(newsImgPath)) {
-      newsFiles.push(new AttachmentBuilder(newsImgPath, { name: 'match_news.png' }));
-      newsEmbed.setImage('attachment://match_news.png');
-    }
+    // Dynamic Matchday Telemetry Graphic
+    const scorecardBuf = generateMatchScorecardGraphic({
+      homeTeam: result.homeTeamName,
+      awayTeam: result.awayTeamName,
+      homeScore: result.homeScore,
+      awayScore: result.awayScore,
+      homePossession: result.homePossession,
+      awayPossession: result.awayPossession,
+      motmName: result.motmPlayerName,
+      motmRating: result.motmRating
+    });
+
+    const newsAttachment = new AttachmentBuilder(scorecardBuf, { name: 'match_scorecard.png' });
+    newsEmbed.setImage('attachment://match_scorecard.png');
 
     await (message.channel as any).send({
       content: '📢 **@News Ping**',
       embeds: [newsEmbed],
-      files: newsFiles
+      files: [newsAttachment]
     });
   } catch (err: any) {
     await loading.edit(`❌ Match simulation error: ${err.message}`);

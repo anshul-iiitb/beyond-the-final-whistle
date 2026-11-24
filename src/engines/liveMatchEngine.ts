@@ -1,7 +1,7 @@
 import { TextChannel, EmbedBuilder, AttachmentBuilder, Client } from 'discord.js';
 import path from 'path';
 import fs from 'fs';
-import { generatePossessionPieChart } from '../utils/chartHelper.js';
+import { generatePossessionPieChart, generateMatchScorecardGraphic } from '../utils/chartHelper.js';
 import { TeamTactics } from '../commands/tacticsCommand.js';
 import { generateAiMinuteCommentary, generateAiNewsArticle, MatchEventData } from '../services/aiEngine.js';
 import { logger } from '../utils/logger.js';
@@ -50,6 +50,7 @@ export interface MatchTeam {
   penaltyTakerName: string;
   freeKickTakerName: string;
   cornerTakerName: string;
+  captainName?: string;
   players: {
     atk: MatchPlayer;
     mid: MatchPlayer;
@@ -61,7 +62,7 @@ export interface MatchTeam {
 }
 
 export interface LiveMatchOptions {
-  tickDelayMs?: number;        // Delay between incident messages (default 3500ms)
+  tickDelayMs?: number;        // Delay between incident messages (default 3200ms)
   halfTimePauseMs?: number;    // Half-time pause (default 8000ms for fast broadcast, 180000ms for official)
   newsChannelId?: string;      // Destination for AI Gazette (#news)
 }
@@ -76,24 +77,25 @@ function calculatePlayerRating(player: MatchPlayer, teamWon: boolean, cleanSheet
 
   base += player.goals * 1.2;
   base += player.assists * 0.8;
-  base += player.tackles * 0.3;
-  base += player.interceptions * 0.3;
+  base += player.tackles * 0.35;
+  base += player.interceptions * 0.35;
   base += player.dribblesWon * 0.25;
-  base += (player.passesCompleted / 10) * 0.15;
-  base -= player.fouls * 0.2;
-  base -= player.yellowCards * 0.6;
-  base -= player.redCards * 2.0;
+  base += (player.passesCompleted / 10) * 0.2;
+  base -= player.fouls * 0.25;
+  base -= player.yellowCards * 0.7;
+  base -= player.redCards * 2.5;
 
   if (teamWon) base += 0.4;
-  if (cleanSheet && player.position === 'DEF') base += 0.8;
-  if (cleanSheet && player.position === 'MID') base += 0.3;
+  if (cleanSheet && player.position === 'DEF') base += 0.9;
+  if (cleanSheet && player.position === 'MID') base += 0.4;
 
   base += (Math.random() * 0.4 - 0.2);
   return +Math.max(4.0, Math.min(10.0, base)).toFixed(1);
 }
 
 /**
- * Executes a full AI-driven, dynamically rolled football match simulation
+ * The Greatest Discord Football Simulator:
+ * Incorporates 30+ distinct tactical interaction events, 9 positional playstyles, and deep tactical parameters
  */
 export async function runLiveEpisodicMatch(
   client: Client,
@@ -102,11 +104,11 @@ export async function runLiveEpisodicMatch(
   awayTeam: MatchTeam,
   options: LiveMatchOptions = {}
 ) {
-  const tickDelay = options.tickDelayMs ?? 3500;
+  const tickDelay = options.tickDelayMs ?? 3200;
   const halfTimePause = options.halfTimePauseMs ?? 8000;
   const newsChannelId = options.newsChannelId ?? '1574439119227064402'; // #๑•📰│btfw-news
 
-  logger.info(`⚽ Launching dynamic AI match engine: ${homeTeam.name} vs ${awayTeam.name} in #${channel.name}`);
+  logger.info(`⚽ Starting grand 30+ scenario simulation: ${homeTeam.name} vs ${awayTeam.name} in #${channel.name}`);
 
   // 1. Calculate dynamic baseline possession from midfield battle + tactics
   const homeMidScore = (homeTeam.players.mid.pas * 2 + homeTeam.players.mid.vis + homeTeam.players.mid.cmp + homeTeam.players.mid.wrk) / 5;
@@ -114,13 +116,14 @@ export async function runLiveEpisodicMatch(
   let homePossBonus = (homeMidScore - awayMidScore) * 0.6;
 
   // Tactical possession adjustments
-  if (homeTeam.tactics.passingStyle === 'Short') homePossBonus += 6;
-  if (homeTeam.tactics.passingStyle === 'Long') homePossBonus -= 5;
+  if (homeTeam.tactics.passingStyle === 'Short') homePossBonus += 7;
+  if (homeTeam.tactics.passingStyle === 'Long') homePossBonus -= 6;
   if (homeTeam.tactics.pressingStyle === 'High') homePossBonus += 4;
-  if (awayTeam.tactics.passingStyle === 'Long') homePossBonus += 4;
-  if (homeTeam.tactics.teamMentality === 'Attacking' || homeTeam.tactics.teamMentality === 'Hard Attacking') homePossBonus += 4;
+  if (awayTeam.tactics.passingStyle === 'Long') homePossBonus += 5;
+  if (homeTeam.tactics.teamMentality === 'Attacking' || homeTeam.tactics.teamMentality === 'Hard Attacking') homePossBonus += 5;
+  if (awayTeam.tactics.teamMentality === 'Hard Defending') homePossBonus += 6;
 
-  const calculatedHomePoss = Math.max(30, Math.min(75, Math.round(50 + homePossBonus + (Math.random() * 6 - 3))));
+  const calculatedHomePoss = Math.max(25, Math.min(78, Math.round(50 + homePossBonus + (Math.random() * 6 - 3))));
   homeTeam.possession = calculatedHomePoss;
   awayTeam.possession = 100 - calculatedHomePoss;
 
@@ -165,41 +168,53 @@ export async function runLiveEpisodicMatch(
     await channel.send({ embeds: [embed] });
   };
 
-  // Build match schedule: discrete phases across 90 minutes
-  // Half 1: 5-7 events between 1' and 45'
-  // Half 2: 5-7 events between 46' and 90'
-  const half1Minutes = [
-    Math.floor(Math.random() * 4) + 1,    // 1-4'
-    Math.floor(Math.random() * 6) + 7,    // 7-12'
-    Math.floor(Math.random() * 6) + 16,   // 16-21'
-    Math.floor(Math.random() * 6) + 26,   // 26-31'
-    Math.floor(Math.random() * 6) + 34,   // 34-39'
-    Math.floor(Math.random() * 3) + 43    // 43-45'
-  ];
-
-  const half2Minutes = [
-    Math.floor(Math.random() * 4) + 48,   // 48-51'
-    Math.floor(Math.random() * 6) + 54,   // 54-59'
-    Math.floor(Math.random() * 6) + 64,   // 64-69'
-    Math.floor(Math.random() * 6) + 73,   // 73-78'
-    Math.floor(Math.random() * 6) + 82,   // 82-87'
-    Math.floor(Math.random() * 3) + 89    // 89-90'
-  ];
-
   // Helper to pick set piece specialist
   const getSpecialist = (team: MatchTeam, type: 'FK' | 'CORNER' | 'PEN'): MatchPlayer => {
-    const name = type === 'FK' ? team.freeKickTakerName : type === 'CORNER' ? team.cornerTakerName : team.penaltyTakerName;
+    const name = (type === 'FK' ? team.freeKickTakerName : type === 'CORNER' ? team.cornerTakerName : team.penaltyTakerName) || '';
     if (team.players.atk.name.toLowerCase() === name.toLowerCase()) return team.players.atk;
     if (team.players.mid.name.toLowerCase() === name.toLowerCase()) return team.players.mid;
     return team.players.def;
   };
 
+  // 0' Kickoff event
+  const kickoffNarrative = await generateAiMinuteCommentary({
+    minute: 0,
+    type: 'KICKOFF',
+    homeTeam: homeTeam.name,
+    awayTeam: awayTeam.name,
+    homeScore: 0,
+    awayScore: 0,
+    actorPlayer: `${homeTeam.players.mid.name} (${homeTeam.players.mid.playstyle})`,
+    secondaryPlayer: homeTeam.players.atk.name,
+    details: `${homeTeam.name} get the match underway, immediately establishing their ${homeTeam.tactics.passingStyle} passing tempo and ${homeTeam.tactics.teamMentality} mentality.`
+  });
+
+  await sendIncident({
+    minute: 0,
+    icon: '🏟️',
+    eventTitle: 'KICKOFF',
+    actor: homeTeam.players.mid,
+    secondaryPlayer: homeTeam.players.atk,
+    narrative: kickoffNarrative
+  });
+  await sleep(tickDelay);
+
+  // Generate 7-8 discrete phases for each half
+  const half1Minutes = [3, 8, 14, 21, 28, 35, 41, 45];
+  const half2Minutes = [49, 56, 62, 70, 77, 83, 88, 90];
+
   /**
-   * Simulates a single tactical incident dynamically based on real attributes
+   * Executes a rich, tactical simulation phase selecting from 30+ interaction events
    */
-  const simulatePhase = async (min: number) => {
-    // Determine attacking team based on possession roll
-    const isHomeAttacking = Math.random() * 100 < homeTeam.possession;
+  const simulateTacticalPhase = async (min: number) => {
+    // 1. Determine attacking team based on possession roll + mentality modifiers
+    let homeAttackingWeight = homeTeam.possession;
+    if (homeTeam.tactics.teamMentality === 'Hard Attacking') homeAttackingWeight += 12;
+    if (homeTeam.tactics.teamMentality === 'Attacking') homeAttackingWeight += 6;
+    if (homeTeam.tactics.teamMentality === 'Hard Defending') homeAttackingWeight -= 15;
+    if (awayTeam.tactics.teamMentality === 'Hard Attacking') homeAttackingWeight -= 12;
+
+    const isHomeAttacking = Math.random() * 100 < Math.max(20, Math.min(80, homeAttackingWeight));
     const attTeam = isHomeAttacking ? homeTeam : awayTeam;
     const defTeam = isHomeAttacking ? awayTeam : homeTeam;
 
@@ -211,15 +226,23 @@ export async function runLiveEpisodicMatch(
     const midDef = defTeam.players.mid;
     const oppStriker = defTeam.players.atk;
 
-    const roll = Math.random() * 100;
+    // Tactical parameters in play
+    const attTactics = attTeam.tactics;
+    const defTactics = defTeam.tactics;
 
-    // SCENARIO 1: Offside Trap Check (If defending team has Offside Trap ON)
-    if (defTeam.tactics.offsideTrap === 'On' && roll < 24) {
-      const defTrapRating = defPlayer.int * 1.3 + defPlayer.cmp;
-      const attBeatTrapRating = striker.pac * 1.2 + striker.vis;
+    const actionRoll = Math.random() * 100;
 
-      if (defTrapRating >= attBeatTrapRating || Math.random() < 0.65) {
-        // Offside trap successfully springs!
+    // ==========================================
+    // 1. DEFENSIVE TRAP & COUNTER PRESSING INTERVENTIONS
+    // ==========================================
+
+    // Scenario A: OFFSIDE TRAP (Triggered if defending team has offside trap ON)
+    if (defTactics.offsideTrap === 'On' && actionRoll < 20) {
+      const defTrapRating = defPlayer.int * 1.4 + defPlayer.cmp;
+      const attPaceRating = striker.pac * 1.2 + striker.vis;
+
+      if (defTrapRating >= attPaceRating || Math.random() < 0.6) {
+        // Trapped!
         const commentary = await generateAiMinuteCommentary({
           minute: min,
           type: 'OFFSIDE',
@@ -229,7 +252,7 @@ export async function runLiveEpisodicMatch(
           awayScore: awayTeam.score,
           actorPlayer: `${striker.name} (${striker.playstyle})`,
           secondaryPlayer: defPlayer.name,
-          details: `${defTeam.name}'s disciplined offside trap snaps in unison, leaving ${striker.name} caught leaning offside before the pass is struck.`
+          details: `${defTeam.name}'s disciplined backline steps up in unison on the release of the pass, catching ${striker.name} leaning offside.`
         });
 
         await sendIncident({
@@ -241,31 +264,114 @@ export async function runLiveEpisodicMatch(
           narrative: commentary
         });
         return;
+      } else {
+        // OFFSIDE TRAP BREACHED! Striker beats the line
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'DRIBBLE',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${striker.name} (${striker.playstyle})`,
+          secondaryPlayer: defPlayer.name,
+          details: `${striker.name} breaks the offside trap with blistering timing, sprinting 1-on-1 past the high line!`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '⚠️',
+          eventTitle: 'OFFSIDE TRAP BREACHED',
+          actor: striker,
+          secondaryPlayer: defPlayer,
+          narrative: commentary
+        });
+        await sleep(tickDelay);
+        // Cascades directly into a massive scoring chance below!
       }
-      // If trap beaten, continue to scoring chance!
     }
 
-    // SCENARIO 2: Hard Tackling / High Press / Foul roll
-    if (roll < 45) {
-      const isHighPress = defTeam.tactics.pressingStyle === 'High';
-      const isHardTackling = defTeam.tactics.tacklingStyle === 'Hard';
+    // Scenario B: HIGH PRESS TURNOVER (Triggered if defending team has High Press)
+    if (defTactics.pressingStyle === 'High' && actionRoll >= 20 && actionRoll < 35) {
+      const pressPower = midDef.tck + midDef.wrk * 1.3;
+      const attResistance = midAtt.cmp * 1.2 + midAtt.dri;
 
-      const defPower = midDef.tck * 1.3 + midDef.phy + (isHardTackling ? 15 : 0) + (isHighPress ? 10 : 0);
-      const attResist = midAtt.dri + midAtt.cmp * 1.2;
+      if (pressPower > attResistance) {
+        midDef.tackles++;
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'TACKLE',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${midDef.name} (${midDef.playstyle})`,
+          secondaryPlayer: midAtt.name,
+          details: `Suffocating high press hounds ${midAtt.name} into an error in their own defensive third, winning the ball cleanly.`
+        });
 
-      // Check for foul
-      const foulChance = isHardTackling ? 0.38 : 0.12;
+        await sendIncident({
+          minute: min,
+          icon: '🔥',
+          eventTitle: 'HIGH PRESS TURNOVER',
+          actor: midDef,
+          secondaryPlayer: midAtt,
+          narrative: commentary
+        });
+        return;
+      }
+    }
+
+    // Scenario C: TACKLING STYLES & FOULS (Hard vs Easy vs Normal)
+    if (actionRoll >= 35 && actionRoll < 55) {
+      const isHardTackling = defTactics.tacklingStyle === 'Hard';
+      const isEasyTackling = defTactics.tacklingStyle === 'Easy';
+
+      if (isEasyTackling) {
+        // Disciplined Jockeying / Containment
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${defPlayer.name} (${defPlayer.playstyle})`,
+          secondaryPlayer: striker.name,
+          details: `${defPlayer.name} stays on their feet with disciplined jockeying, shutting down the passing angle without committing a foul.`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '🛡️',
+          eventTitle: 'JOCKEYING & CONTAINMENT',
+          actor: defPlayer,
+          secondaryPlayer: striker,
+          narrative: commentary
+        });
+        return;
+      }
+
+      // Check for foul with Hard Tackling
+      const foulChance = isHardTackling ? 0.42 : 0.15;
       if (Math.random() < foulChance) {
-        // FOUL COMMITTED!
         midDef.fouls++;
-        const isYellow = isHardTackling ? Math.random() < 0.45 : Math.random() < 0.15;
+        const isYellow = isHardTackling ? Math.random() < 0.5 : Math.random() < 0.2;
+
         if (isYellow) {
           midDef.yellowCards++;
           cards.push({ minute: min, player: midDef.name, type: 'YELLOW', team: defTeam.name });
           matchChronology.push(`🟨 ${min}' Yellow Card -- ${midDef.name} ${midDef.flag}`);
+
+          // Second yellow check
+          if (midDef.yellowCards >= 2) {
+            midDef.redCards++;
+            cards.push({ minute: min, player: midDef.name, type: 'RED', team: defTeam.name });
+            matchChronology.push(`🟥 ${min}' Red Card -- ${midDef.name} ${midDef.flag}`);
+          }
         }
 
-        const isPenalty = Math.random() < 0.18; // 18% of fouls inside penalty box
+        const isPenalty = Math.random() < 0.22; // 22% of fouls inside penalty box
 
         if (isPenalty) {
           // --- MULTI-PART PENALTY SEQUENCE ---
@@ -277,7 +383,7 @@ export async function runLiveEpisodicMatch(
             eventTitle: `PENALTY AWARDED — ${attTeam.name}`,
             actor: penTaker,
             secondaryPlayer: midDef,
-            narrative: `WHISTLE BLOWS! The referee points straight to the penalty spot! ${midDef.name} brings down the attacker inside the box with a desperate slide!`
+            narrative: `WHISTLE BLOWS! The referee points straight to the penalty spot! ${midDef.name} brings down the attacker inside the box with a desperate challenge!`
           });
           await sleep(2200);
 
@@ -305,7 +411,7 @@ export async function runLiveEpisodicMatch(
               icon: '⚽',
               eventTitle: `GOAL (Penalty) — ${penTaker.name} ${penTaker.flag}`,
               actor: penTaker,
-              narrative: `ICE IN THE VEINS! ${penTaker.name} sends the goalkeeper the wrong way with a cool, slotted finish right into the corner! GOAL for ${attTeam.name}!`
+              narrative: `ICE IN THE VEINS! ${penTaker.name} sends the goalkeeper the wrong way with a cool, slotted finish into the bottom corner! GOAL for ${attTeam.name}!`
             });
           } else {
             await sendIncident({
@@ -314,7 +420,7 @@ export async function runLiveEpisodicMatch(
               eventTitle: 'PENALTY SAVED',
               actor: defPlayer,
               secondaryPlayer: penTaker,
-              narrative: `INCREDIBLE REFLEXES! The goalkeeper guesses right and dives full length to push ${penTaker.name}'s penalty away from the bottom corner!`
+              narrative: `INCREDIBLE REFLEXES! The goalkeeper guesses right and dives full length to push ${penTaker.name}'s spot-kick away from danger!`
             });
           }
           return;
@@ -328,7 +434,7 @@ export async function runLiveEpisodicMatch(
             eventTitle: `FREE KICK AWARDED — ${attTeam.name}`,
             actor: fkTaker,
             secondaryPlayer: midDef,
-            narrative: `Free kick awarded in a dangerous position outside the 18-yard box! ${midDef.name}'s challenge is deemed illegal. ${fkTaker.name} immediately claims the ball.`
+            narrative: `Free kick awarded in dangerous territory outside the 18-yard box! ${midDef.name}'s challenge is deemed illegal. ${fkTaker.name} immediately claims the ball.`
           });
           await sleep(2200);
 
@@ -343,7 +449,7 @@ export async function runLiveEpisodicMatch(
           await sleep(2200);
 
           // 3. Outcome
-          const fkGoalChance = Math.min(65, Math.max(20, (fkTaker.fin + (fkTaker.pow || 70)) / 2 - 25));
+          const fkGoalChance = Math.min(65, Math.max(18, (fkTaker.fin + (fkTaker.pow || 70)) / 2 - 25));
           if (Math.random() * 100 < fkGoalChance) {
             attTeam.score++;
             fkTaker.goals++;
@@ -372,9 +478,61 @@ export async function runLiveEpisodicMatch(
         }
       }
 
-      // Clean Tackle won
-      if (defPower >= attResist) {
-        midDef.tackles++;
+      // Clean Crunching Challenge
+      midDef.tackles++;
+      const commentary = await generateAiMinuteCommentary({
+        minute: min,
+        type: 'TACKLE',
+        homeTeam: homeTeam.name,
+        awayTeam: awayTeam.name,
+        homeScore: homeTeam.score,
+        awayScore: awayTeam.score,
+        actorPlayer: `${midDef.name} (${midDef.playstyle})`,
+        secondaryPlayer: striker.name,
+        details: `${isHardTackling ? 'Bone-crunching enforcer challenge' : 'Timed slide tackle'} disposesses the attacker cleanly on the touchline.`
+      });
+
+      await sendIncident({
+        minute: min,
+        icon: isHardTackling ? '💥' : '🛡️',
+        eventTitle: isHardTackling ? 'CRUNCHING HARD TACKLE' : 'TACKLE WON',
+        actor: midDef,
+        secondaryPlayer: striker,
+        narrative: commentary
+      });
+      return;
+    }
+
+    // Scenario D: INTERCEPTIONS & SWEEPER CLEARANCE (BPD & Sweeper Playstyles)
+    if (actionRoll >= 55 && actionRoll < 68) {
+      if (defPlayer.playstyle === 'SWP') {
+        // Sweeper sliding recovery clearance
+        defPlayer.interceptions++;
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${defPlayer.name} (Sweeper)`,
+          secondaryPlayer: striker.name,
+          details: `Sweeper uses recovery pace to execute a sliding clearance just as the through ball was arriving.`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '🧹',
+          eventTitle: 'SWEEPER RECOVERY CLEARANCE',
+          actor: defPlayer,
+          secondaryPlayer: striker,
+          narrative: commentary
+        });
+        return;
+      } else {
+        // Ball-Playing Defender or Anchor Interception
+        const interceptor = defPlayer.playstyle === 'BPD' ? defPlayer : midDef;
+        interceptor.interceptions++;
         const commentary = await generateAiMinuteCommentary({
           minute: min,
           type: 'TACKLE',
@@ -382,16 +540,16 @@ export async function runLiveEpisodicMatch(
           awayTeam: awayTeam.name,
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
-          actorPlayer: `${midDef.name} (${midDef.playstyle})`,
+          actorPlayer: `${interceptor.name} (${interceptor.playstyle})`,
           secondaryPlayer: midAtt.name,
-          details: `${isHighPress ? 'Suffocating high press' : 'Decisive tackling challenge'} dispossesses ${midAtt.name} cleanly near the midfield circle.`
+          details: `Interception! Reads the passing lane early, cutting out the intended pass with effortless composure.`
         });
 
         await sendIncident({
           minute: min,
           icon: '🛡️',
-          eventTitle: isHighPress ? 'HIGH PRESS TURNOVER' : 'TACKLE WON',
-          actor: midDef,
+          eventTitle: 'INTERCEPTION',
+          actor: interceptor,
           secondaryPlayer: midAtt,
           narrative: commentary
         });
@@ -399,36 +557,41 @@ export async function runLiveEpisodicMatch(
       }
     }
 
-    // SCENARIO 3: Playmaking, Key Passes & Dribbles
-    if (roll < 72) {
-      const isThroughMiddle = attTeam.tactics.focusPassing === 'Through The Middle';
-      const isShortPassing = attTeam.tactics.passingStyle === 'Short';
+    // ==========================================
+    // 2. ATTACKING TACTICS & PLAYMAKING SCENARIOS
+    // ==========================================
 
-      if (Math.random() < 0.5) {
-        // Dribble
-        striker.dribblesWon++;
-        const commentary = await generateAiMinuteCommentary({
-          minute: min,
-          type: 'DRIBBLE',
-          homeTeam: homeTeam.name,
-          awayTeam: awayTeam.name,
-          homeScore: homeTeam.score,
-          awayScore: awayTeam.score,
-          actorPlayer: `${striker.name} (${striker.playstyle})`,
-          secondaryPlayer: defPlayer.name,
-          details: `Explosive agility leaves the defender behind with quick footwork in the attacking channel.`
-        });
+    // Scenario E: LIGHTNING COUNTER-ATTACK (Force Counter ON)
+    if (attTactics.forceCounter === 'On' && defTactics.teamMentality.includes('Attack') && Math.random() < 0.45) {
+      striker.shots++;
+      const commentary = await generateAiMinuteCommentary({
+        minute: min,
+        type: 'BUILDUP',
+        homeTeam: homeTeam.name,
+        awayTeam: awayTeam.name,
+        homeScore: homeTeam.score,
+        awayScore: awayTeam.score,
+        actorPlayer: `${striker.name} (${striker.playstyle})`,
+        secondaryPlayer: midAtt.name,
+        details: `Lightning 3-touch counter-attack transition springs past the opponent's overcommitted midfield line!`
+      });
 
-        await sendIncident({
-          minute: min,
-          icon: '⚡',
-          eventTitle: 'DRIBBLE',
-          actor: striker,
-          secondaryPlayer: defPlayer,
-          narrative: commentary
-        });
-      } else {
-        // Key Pass / Buildup
+      await sendIncident({
+        minute: min,
+        icon: '⚡',
+        eventTitle: 'LIGHTNING COUNTER-ATTACK',
+        actor: striker,
+        secondaryPlayer: midAtt,
+        narrative: commentary
+      });
+      await sleep(tickDelay);
+      // Cascades into direct scoring chance below
+    }
+
+    // Scenario F: FOCUS PASSING STYLES (Through The Middle vs Flanks vs Long Ball)
+    if (actionRoll >= 68 && actionRoll < 82) {
+      if (attTactics.focusPassing === 'Through The Middle') {
+        // Central Penetration / Key Pass
         midAtt.passesCompleted += 3;
         midAtt.passesAttempted = (midAtt.passesAttempted || 0) + 3;
         const commentary = await generateAiMinuteCommentary({
@@ -440,26 +603,126 @@ export async function runLiveEpisodicMatch(
           awayScore: awayTeam.score,
           actorPlayer: `${midAtt.name} (${midAtt.playstyle})`,
           secondaryPlayer: striker.name,
-          details: `${isThroughMiddle ? 'Incisive vertical through ball through the middle' : 'Crisp passing combination'} creating an attacking lane.`
+          details: `Slices through the middle with a surgical vertical pass past the defensive line into the pocket.`
         });
 
         await sendIncident({
           minute: min,
-          icon: isShortPassing ? '🪄' : '🔑',
-          eventTitle: isShortPassing ? 'TIKI-TAKA COMBINATION' : 'KEY PASS',
+          icon: '🪄',
+          eventTitle: 'SLICED THROUGH THE MIDDLE',
           actor: midAtt,
           secondaryPlayer: striker,
           narrative: commentary
+        });
+        return;
+      } else if (attTactics.focusPassing.includes('Flank')) {
+        // Flank Overload & Cross
+        midAtt.passesCompleted += 2;
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${striker.name} (${striker.playstyle})`,
+          secondaryPlayer: defPlayer.name,
+          details: `Flank overload! Beats marker down the touchline and whips an inswinging cross into the danger zone.`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '👟',
+          eventTitle: 'FLANK CROSS & OVERLOAD',
+          actor: striker,
+          secondaryPlayer: defPlayer,
+          narrative: commentary
+        });
+        return;
+      } else if (attTactics.passingStyle === 'Short') {
+        // Tiki-Taka Combination
+        midAtt.passesCompleted += 4;
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${midAtt.name} (${midAtt.playstyle})`,
+          secondaryPlayer: defAtt.name,
+          details: `Hypnotic tiki-taka 1-2 combination circulates possession effortlessly through midfield.`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '✨',
+          eventTitle: 'TIKI-TAKA COMBINATION',
+          actor: midAtt,
+          secondaryPlayer: defAtt,
+          narrative: commentary
+        });
+        return;
+      } else if (striker.playstyle === 'TGT') {
+        // Target Man Aerial Hold-Up
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${striker.name} (Target Man)`,
+          secondaryPlayer: defPlayer.name,
+          details: `Target Man bullies the defender in the air, bringing down a direct aerial ball on his chest and laying off.`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '🦘',
+          eventTitle: 'AERIAL HOLD-UP & FLICK-ON',
+          actor: striker,
+          secondaryPlayer: defPlayer,
+          narrative: commentary
+        });
+        return;
+      }
+    }
+
+    // Scenario G: MOMENTUM SHIFTS & RALLYING CRY
+    if (actionRoll >= 82 && actionRoll < 88) {
+      if (attTeam.score < defTeam.score && Math.random() < 0.5) {
+        // Rallying Cry from leader
+        const leader = attTeam.players.mid;
+        await sendIncident({
+          minute: min,
+          icon: '📣',
+          eventTitle: 'RALLYING CRY',
+          actor: leader,
+          secondaryPlayer: striker,
+          narrative: `${leader.name} rallies his squad with arms outstretched! "Lift it up! Focus on the next ball!" The tempo spikes with renewed energy!`
+        });
+      } else {
+        // Momentum Shift
+        await sendIncident({
+          minute: min,
+          icon: '🔄',
+          eventTitle: 'MOMENTUM SHIFT',
+          actor: striker,
+          secondaryPlayer: midAtt,
+          narrative: `${attTeam.name} are turning the screw! Sustained territorial pressure forces ${defTeam.name} into their own penalty box!`
         });
       }
       return;
     }
 
-    // SCENARIO 4: Direct Scoring Chance on Goal!
+    // ==========================================
+    // 3. SCORING CHANCES & GOAL ATTEMPTS (88+)
+    // ==========================================
     striker.shots++;
-    const strikerFinishing = striker.fin * 1.5 + striker.cmp + (striker.playstyle === 'PCH' ? 12 : 0);
+    const strikerFinishing = striker.fin * 1.5 + striker.cmp + (striker.playstyle === 'PCH' ? 14 : 0);
     const defResistance = defPlayer.tck + defPlayer.int + defPlayer.phy;
-    const goalProb = Math.max(25, Math.min(80, 48 + Math.round((strikerFinishing - defResistance) * 0.4)));
+    const goalProb = Math.max(22, Math.min(82, 46 + Math.round((strikerFinishing - defResistance) * 0.4)));
 
     if (Math.random() * 100 < goalProb) {
       // ⚽ GOAL SCORED!
@@ -478,7 +741,7 @@ export async function runLiveEpisodicMatch(
         awayScore: awayTeam.score,
         actorPlayer: `${striker.name} (${striker.playstyle})`,
         secondaryPlayer: midAtt.name,
-        details: `${midAtt.name} tees up ${striker.name}, who executes with clinical precision past the keeper.`
+        details: `${midAtt.name} slides it across and ${striker.name} executes with ice-cold finishing into the back of the net!`
       });
 
       await sendIncident({
@@ -491,9 +754,9 @@ export async function runLiveEpisodicMatch(
         narrative: commentary
       });
     } else {
-      // Save or Deflected to Corner
-      const isDeflectedToCorner = Math.random() < 0.6;
-      if (isDeflectedToCorner) {
+      // Deflection to Corner or Diving Save
+      const isCorner = Math.random() < 0.65;
+      if (isCorner) {
         // --- MULTI-PART CORNER SEQUENCE ---
         const cornerTaker = getSpecialist(attTeam, 'CORNER');
         // 1. Awarded
@@ -503,7 +766,7 @@ export async function runLiveEpisodicMatch(
           eventTitle: `CORNER AWARDED — ${attTeam.name}`,
           actor: cornerTaker,
           secondaryPlayer: striker,
-          narrative: `Goalkeeper parries the venomous strike behind the post! Corner kick awarded to ${attTeam.name}.`
+          narrative: `Goalkeeper parries the stinging effort behind the post! Corner kick awarded to ${attTeam.name}.`
         });
         await sleep(2200);
 
@@ -513,11 +776,11 @@ export async function runLiveEpisodicMatch(
           icon: '🎯',
           eventTitle: 'CORNER TAKEN',
           actor: cornerTaker,
-          narrative: `${cornerTaker.name} whips a curling delivery deep into the mixer toward the penalty spot!`
+          narrative: `${cornerTaker.name} whips an outswinging delivery deep toward the penalty spot!`
         });
         await sleep(2200);
 
-        // 3. Outcome (Header Duel)
+        // 3. Outcome
         const headerRoll = (striker.hea || 75) * 1.2 + striker.phy;
         const defHeaderRoll = (defPlayer.hea || 70) + defPlayer.phy;
 
@@ -535,7 +798,7 @@ export async function runLiveEpisodicMatch(
             eventTitle: `GOAL (Corner) — ${striker.name} ${striker.flag} (Assist: ${cornerTaker.name} ${cornerTaker.flag})`,
             actor: striker,
             secondaryPlayer: cornerTaker,
-            narrative: `THUNDEROUS HEADER! ${striker.name} rises above the defensive wall and hammers the corner kick into the back of the net! GOAL!`
+            narrative: `BULLET HEADER! ${striker.name} climbs above the defender and crashes the corner kick into the net! GOAL!`
           });
         } else {
           await sendIncident({
@@ -544,11 +807,11 @@ export async function runLiveEpisodicMatch(
             eventTitle: 'CORNER MISSED',
             actor: defPlayer,
             secondaryPlayer: cornerTaker,
-            narrative: `${defPlayer.name} towers above the attacker to clear the corner kick safely away from the danger zone.`
+            narrative: `${defPlayer.name} rises highest to head the corner kick firmly away from the penalty box.`
           });
         }
       } else {
-        // Direct Save
+        // Spectacular Save
         const commentary = await generateAiMinuteCommentary({
           minute: min,
           type: 'SAVE',
@@ -558,7 +821,7 @@ export async function runLiveEpisodicMatch(
           awayScore: awayTeam.score,
           actorPlayer: defPlayer.name,
           secondaryPlayer: striker.name,
-          details: `Reflex save keeps out ${striker.name}'s goalbound shot.`
+          details: `Acrobatic flying save denies ${striker.name}'s goalbound strike at full stretch!`
         });
 
         await sendIncident({
@@ -574,15 +837,15 @@ export async function runLiveEpisodicMatch(
   };
 
   // ==========================================
-  // 1. FIRST HALF SIMULATION LOOP
+  // FIRST HALF
   // ==========================================
   for (const minute of half1Minutes) {
-    await simulatePhase(minute);
+    await simulateTacticalPhase(minute);
     await sleep(tickDelay);
   }
 
   // ==========================================
-  // 2. HALF TIME INTERMISSION (45')
+  // HALF TIME INTERMISSION (45')
   // ==========================================
   matchChronology.push(`⏸️ 45' Halftime`);
 
@@ -592,7 +855,7 @@ export async function runLiveEpisodicMatch(
     .setTitle('⏸️ HALF TIME')
     .setDescription(
       `### ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}\n\n` +
-      `The referee blows for half time! Both squads head to the dressing rooms after a high-octane 45 minutes.\n\n` +
+      `The referee blows the whistle for half time! Both squads head to the dressing rooms after a grueling 45 minutes of tactical warfare.\n\n` +
       `${formatMention(homeTeam.players.atk)} ${formatMention(awayTeam.players.atk)}`
     );
 
@@ -619,17 +882,17 @@ export async function runLiveEpisodicMatch(
   await sleep(2500);
 
   // ==========================================
-  // 3. SECOND HALF SIMULATION LOOP
+  // SECOND HALF
   // ==========================================
   for (const minute of half2Minutes) {
-    await simulatePhase(minute);
+    await simulateTacticalPhase(minute);
     await sleep(tickDelay);
   }
 
   matchChronology.push(`🏁 90+5' Fulltime`);
 
   // ==========================================
-  // 4. POST-MATCH PERFORMANCE RATINGS & SCOREBOARD
+  // FINAL SCOREBOARD & RATINGS
   // ==========================================
   const homeWon = homeTeam.score > awayTeam.score;
   const awayWon = awayTeam.score > homeTeam.score;
@@ -644,7 +907,6 @@ export async function runLiveEpisodicMatch(
   awayTeam.players.mid.rating = calculatePlayerRating(awayTeam.players.mid, awayWon, homeCleanSheet);
   awayTeam.players.def.rating = calculatePlayerRating(awayTeam.players.def, awayWon, awayCleanSheet);
 
-  // Highest rated player on pitch is MOTM
   const allPlayers = [
     homeTeam.players.atk, homeTeam.players.mid, homeTeam.players.def,
     awayTeam.players.atk, awayTeam.players.mid, awayTeam.players.def
@@ -653,7 +915,6 @@ export async function runLiveEpisodicMatch(
   const motm = allPlayers[0];
   const motmTeam = (motm.flag === homeTeam.flag) ? homeTeam : awayTeam;
 
-  // Full-time notification
   await channel.send({
     content:
       `@${homeTeam.name.toLowerCase()} @${awayTeam.name.toLowerCase()}\n` +
@@ -712,7 +973,7 @@ export async function runLiveEpisodicMatch(
   await sleep(2500);
 
   // ==========================================
-  // 5. DISPATCH REAL AI GAZETTE TO #NEWS
+  // DISPATCH AI GAZETTE TO #NEWS (WITH DYNAMIC SCORECARD GRAPHIC)
   // ==========================================
   try {
     const newsChannel = (client.channels.cache.get(newsChannelId) ||
@@ -736,6 +997,20 @@ export async function runLiveEpisodicMatch(
         }
       });
 
+      // Generate dynamic match scorecard graphic for THIS specific match
+      const scorecardBuf = generateMatchScorecardGraphic({
+        homeTeam: homeTeam.name,
+        awayTeam: awayTeam.name,
+        homeScore: homeTeam.score,
+        awayScore: awayTeam.score,
+        homePossession: homeTeam.possession,
+        awayPossession: awayTeam.possession,
+        motmName: motm.name,
+        motmRating: motm.rating
+      });
+
+      const newsAttachment = new AttachmentBuilder(scorecardBuf, { name: 'match_scorecard.png' });
+
       const newspaperEmbed = new EmbedBuilder()
         .setColor('#f59e0b')
         .setTitle('📰 THE DAILY WHISTLE — MATCHDAY GAZETTE & REPORT')
@@ -744,22 +1019,16 @@ export async function runLiveEpisodicMatch(
           `───────────────────────────\n` +
           `- # 📡 Published by the AI Sports Journalism Bureau • Beyond The Final Whistle`
         )
+        .setImage('attachment://match_scorecard.png')
         .setFooter({ text: 'AI Sports Journalism Engine • Beyond The Final Whistle' })
         .setTimestamp();
-
-      const newsFiles: AttachmentBuilder[] = [];
-      const newsImgPath = path.resolve(process.cwd(), 'assets/match_news.png');
-      if (fs.existsSync(newsImgPath)) {
-        newsFiles.push(new AttachmentBuilder(newsImgPath, { name: 'match_news.png' }));
-        newspaperEmbed.setImage('attachment://match_news.png');
-      }
 
       await newsChannel.send({
         content: '📢 **@News Ping**',
         embeds: [newspaperEmbed],
-        files: newsFiles
+        files: [newsAttachment]
       });
-      logger.info(`✅ Match gazette dispatched to #${newsChannel.name}`);
+      logger.info(`✅ Match gazette dispatched with dynamic scorecard graphic to #${newsChannel.name}`);
     }
   } catch (err: any) {
     logger.error({ err }, 'Failed to dispatch AI news article');

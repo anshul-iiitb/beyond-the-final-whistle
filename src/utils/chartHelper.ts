@@ -58,8 +58,9 @@ function createPng(width: number, height: number, rgbaBuffer: Buffer): Buffer {
   return Buffer.concat([header, ihdrChunk, idatChunk, iendChunk]);
 }
 
-// 5x7 Basic Bitmap Font for rendering numbers and labels
+// 5x7 Basic Bitmap Font for letters and numbers
 const FONT_MAP: Record<string, string[]> = {
+  // Digits
   '0': ['111', '101', '101', '101', '111'],
   '1': ['010', '110', '010', '010', '111'],
   '2': ['111', '001', '111', '100', '111'],
@@ -70,15 +71,46 @@ const FONT_MAP: Record<string, string[]> = {
   '7': ['111', '001', '010', '010', '010'],
   '8': ['111', '101', '111', '101', '111'],
   '9': ['111', '101', '111', '001', '111'],
+  // Uppercase Letters
+  'A': ['111', '101', '111', '101', '101'],
+  'B': ['110', '101', '110', '101', '110'],
+  'C': ['111', '100', '100', '100', '111'],
+  'D': ['110', '101', '101', '101', '110'],
+  'E': ['111', '100', '110', '100', '111'],
+  'F': ['111', '100', '110', '100', '100'],
+  'G': ['111', '100', '101', '101', '111'],
+  'H': ['101', '101', '111', '101', '101'],
+  'I': ['111', '010', '010', '010', '111'],
+  'J': ['001', '001', '001', '101', '111'],
+  'K': ['101', '110', '100', '110', '101'],
+  'L': ['100', '100', '100', '100', '111'],
+  'M': ['101', '111', '101', '101', '101'],
+  'N': ['101', '111', '111', '101', '101'],
+  'O': ['111', '101', '101', '101', '111'],
+  'P': ['111', '101', '111', '100', '100'],
+  'Q': ['111', '101', '101', '111', '001'],
+  'R': ['111', '101', '110', '101', '101'],
+  'S': ['111', '100', '111', '001', '111'],
+  'T': ['111', '010', '010', '010', '010'],
+  'U': ['101', '101', '101', '101', '111'],
+  'V': ['101', '101', '101', '101', '010'],
+  'W': ['101', '101', '101', '111', '101'],
+  'X': ['101', '101', '010', '101', '101'],
+  'Y': ['101', '101', '111', '010', '010'],
+  'Z': ['111', '001', '010', '100', '111'],
+  // Symbols
   '%': ['101', '001', '010', '100', '101'],
   '-': ['000', '000', '111', '000', '000'],
+  ':': ['000', '010', '000', '010', '000'],
+  '.': ['000', '000', '000', '000', '010'],
+  '•': ['000', '010', '111', '010', '000'],
   ' ': ['000', '000', '000', '000', '000'],
 };
 
 /**
  * Draws bitmap text onto RGBA buffer with custom scale and color
  */
-function drawText(
+export function drawText(
   rgba: Buffer,
   width: number,
   height: number,
@@ -197,17 +229,104 @@ export function generatePossessionPieChart(
   }
 
   // Draw percentage numbers inside slices
-  // Team A number position (at 45% radius along angle ratioA / 2)
   const angleA = -Math.PI / 2 + (ratioA * Math.PI);
   const textAx = Math.round(cx + Math.cos(angleA) * (radius * 0.55)) - 18;
   const textAy = Math.round(cy + Math.sin(angleA) * (radius * 0.55)) - 10;
   drawText(rgba, width, height, `${teamAPoss}%`, textAx, textAy, 2, [255, 255, 255, 230]);
 
-  // Team B number position
   const angleB = -Math.PI / 2 + ratioA * 2 * Math.PI + ((1 - ratioA) * Math.PI);
   const textBx = Math.round(cx + Math.cos(angleB) * (radius * 0.55)) - 18;
   const textBy = Math.round(cy + Math.sin(angleB) * (radius * 0.55)) - 10;
   drawText(rgba, width, height, `${teamBPoss}%`, textBx, textBy, 2, [255, 255, 255, 230]);
+
+  return createPng(width, height, rgba);
+}
+
+/**
+ * Generates an authentic dynamic matchday scorecard graphic for the Sports Gazette
+ */
+export function generateMatchScorecardGraphic(data: {
+  homeTeam: string;
+  awayTeam: string;
+  homeScore: number;
+  awayScore: number;
+  homePossession: number;
+  awayPossession: number;
+  motmName: string;
+  motmRating: number;
+}): Buffer {
+  const width = 640;
+  const height = 320;
+  const rgba = Buffer.alloc(width * height * 4);
+
+  // Background: Obsidian Slate (#0b0f19)
+  const bgR = 11, bgG = 15, bgB = 25, bgA = 255;
+  for (let i = 0; i < width * height; i++) {
+    rgba[i * 4] = bgR;
+    rgba[i * 4 + 1] = bgG;
+    rgba[i * 4 + 2] = bgB;
+    rgba[i * 4 + 3] = bgA;
+  }
+
+  function drawRect(x0: number, y0: number, w: number, h: number, col: [number, number, number, number]) {
+    for (let y = y0; y < y0 + h; y++) {
+      if (y < 0 || y >= height) continue;
+      for (let x = x0; x < x0 + w; x++) {
+        if (x < 0 || x >= width) continue;
+        const idx = (y * width + x) * 4;
+        rgba[idx] = col[0];
+        rgba[idx + 1] = col[1];
+        rgba[idx + 2] = col[2];
+        rgba[idx + 3] = col[3];
+      }
+    }
+  }
+
+  // Top Accent Bar (Champions Gold)
+  drawRect(0, 0, width, 4, [245, 158, 11, 255]);
+
+  // Card Outer Border
+  drawRect(20, 20, width - 40, 2, [30, 41, 59, 255]);
+  drawRect(20, height - 22, width - 40, 2, [30, 41, 59, 255]);
+  drawRect(20, 20, 2, height - 40, [30, 41, 59, 255]);
+  drawRect(width - 22, 20, 2, height - 40, [30, 41, 59, 255]);
+
+  // Header Title
+  drawText(rgba, width, height, 'BEYOND THE FINAL WHISTLE', 190, 36, 2, [245, 158, 11, 255]);
+  drawText(rgba, width, height, 'OFFICIAL MATCHDAY TELEMETRY', 200, 56, 1, [148, 163, 184, 255]);
+
+  // Divider
+  drawRect(40, 72, width - 80, 1, [51, 65, 85, 255]);
+
+  // Team Names and Center Score
+  const scoreText = `${data.homeScore}  -  ${data.awayScore}`;
+  drawText(rgba, width, height, data.homeTeam.slice(0, 10).toUpperCase(), 60, 110, 3, [255, 255, 255, 255]);
+  drawText(rgba, width, height, scoreText, 250, 106, 4, [16, 185, 129, 255]);
+  drawText(rgba, width, height, data.awayTeam.slice(0, 10).toUpperCase(), 430, 110, 3, [255, 255, 255, 255]);
+
+  // Dual Possession Bar in Center
+  const barWidth = 440;
+  const barX = 100;
+  const barY = 170;
+  const homeBarLen = Math.round((data.homePossession / 100) * barWidth);
+  const awayBarLen = barWidth - homeBarLen;
+
+  drawRect(barX, barY, homeBarLen, 12, [16, 185, 129, 255]); // Emerald
+  drawRect(barX + homeBarLen, barY, awayBarLen, 12, [5, 150, 105, 255]); // Forest green
+
+  // Possession labels
+  drawText(rgba, width, height, `${data.homePossession}% POSSESSION`, 100, 190, 1, [16, 185, 129, 255]);
+  drawText(rgba, width, height, `${data.awayPossession}% POSSESSION`, 430, 190, 1, [5, 150, 105, 255]);
+
+  // Divider
+  drawRect(40, 220, width - 80, 1, [51, 65, 85, 255]);
+
+  // MOTM Banner
+  drawText(rgba, width, height, `MOTM: ${data.motmName.toUpperCase()}`, 160, 240, 2, [245, 158, 11, 255]);
+  drawText(rgba, width, height, `RATING: ${data.motmRating.toFixed(1)}`, 430, 240, 2, [255, 255, 255, 255]);
+
+  // Footer Tagline
+  drawText(rgba, width, height, 'AI SPORTS JOURNALISM ENGINE • LIVE MATCH TELEMETRY', 140, 285, 1, [100, 116, 139, 255]);
 
   return createPng(width, height, rgba);
 }
