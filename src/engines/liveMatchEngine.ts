@@ -517,8 +517,13 @@ export async function runLiveEpisodicMatch(
         }
       }
 
+      // Tackler can be Midfielder (45%), Defender (35%), or Attacker pressing high (20%)!
+      const tacklerRoll = Math.random() * 100;
+      const activeTackler = tacklerRoll < 45 ? midDef : tacklerRoll < 80 ? defPlayer : oppStriker;
+      const tackledPlayer = Math.random() < 0.6 ? striker : midAtt;
+
       // Clean Crunching Challenge
-      midDef.tackles++;
+      activeTackler.tackles++;
       const commentary = await generateAiMinuteCommentary({
         minute: min,
         type: 'TACKLE',
@@ -526,43 +531,44 @@ export async function runLiveEpisodicMatch(
         awayTeam: awayTeam.name,
         homeScore: homeTeam.score,
         awayScore: awayTeam.score,
-        actorPlayer: `${midDef.name} (${midDef.playstyle})`,
-        secondaryPlayer: striker.name,
-        details: `${isHardTackling ? 'Bone-crunching enforcer challenge' : 'Timed slide tackle'} disposesses the attacker cleanly on the touchline.`
+        actorPlayer: `${activeTackler.name} (${activeTackler.playstyle})`,
+        secondaryPlayer: tackledPlayer.name,
+        details: `${isHardTackling ? 'Bone-crunching enforcer challenge' : 'Timed slide tackle'} dispossesses ${tackledPlayer.name} cleanly on the pitch.`
       });
 
       await sendIncident({
         minute: min,
         icon: isHardTackling ? '💥' : '🛡️',
         eventTitle: isHardTackling ? 'CRUNCHING HARD TACKLE' : 'TACKLE WON',
-        actor: midDef,
-        secondaryPlayer: striker,
+        actor: activeTackler,
+        secondaryPlayer: tackledPlayer,
+        extraMentions: [tackledPlayer === striker ? midAtt : striker],
         narrative: commentary
       });
 
       // 📺 VAR Dangerous Challenge / Red Card Check (12% probability on hard tackling)
-      if (isHardTackling && Math.random() < 0.12 && midDef.redCards === 0) {
+      if (isHardTackling && Math.random() < 0.12 && activeTackler.redCards === 0) {
         await sleep(2000);
         await sendIncident({
           minute: min,
           icon: '📺',
           eventTitle: 'VAR REVIEW — Serious Foul Play',
-          actor: midDef,
-          secondaryPlayer: striker,
-          narrative: `The referee stops play! VAR calls for an on-field review to check for serious foul play on ${midDef.name}'s studs-up challenge on ${striker.name}!`
+          actor: activeTackler,
+          secondaryPlayer: tackledPlayer,
+          narrative: `The referee stops play! VAR calls for an on-field review to check for serious foul play on ${activeTackler.name}'s studs-up challenge on ${tackledPlayer.name}!`
         });
         await sleep(2600);
 
-        midDef.redCards++;
-        cards.push({ minute: min, player: midDef.name, type: 'RED', team: defTeam.name });
-        matchChronology.push(`🟥 ${min}' Red Card Upgraded by VAR -- ${midDef.name} ${midDef.flag}`);
+        activeTackler.redCards++;
+        cards.push({ minute: min, player: activeTackler.name, type: 'RED', team: defTeam.name });
+        matchChronology.push(`🟥 ${min}' Red Card Upgraded by VAR -- ${activeTackler.name} ${activeTackler.flag}`);
 
         await sendIncident({
           minute: min,
           icon: '🟥',
-          eventTitle: `VAR DECISION: STRAIGHT RED CARD — ${midDef.name} ${midDef.flag}`,
-          actor: midDef,
-          secondaryPlayer: striker,
+          eventTitle: `VAR DECISION: STRAIGHT RED CARD — ${activeTackler.name} ${activeTackler.flag}`,
+          actor: activeTackler,
+          secondaryPlayer: tackledPlayer,
           narrative: `RED CARD! The referee returns from the pitchside monitor and brandishes a straight red card! Excessive force with studs caught above the ankle—${defTeam.name} are down to 10 men!`
         });
       }
@@ -785,18 +791,62 @@ export async function runLiveEpisodicMatch(
     // ==========================================
     // 3. SCORING CHANCES & GOAL ATTEMPTS (88+)
     // ==========================================
-    striker.shots++;
-    const strikerFinishing = striker.fin * 1.5 + striker.cmp + (striker.playstyle === 'PCH' ? 14 : 0);
+    // Dynamic shooter selection: Strikers lead the line, but Midfielders arrive from deep and Defenders push forward!
+    const shooterRoll = Math.random() * 100;
+    let shooter: MatchPlayer;
+    let assister: MatchPlayer | undefined;
+
+    if (shooterRoll < 55) {
+      shooter = striker;
+      const assistRoll = Math.random() * 100;
+      if (assistRoll < 55) assister = midAtt;
+      else if (assistRoll < 85) assister = defAtt; // Defender overlapping assist!
+      else assister = undefined; // Solo unassisted
+    } else if (shooterRoll < 85) {
+      shooter = midAtt; // Midfielder box-to-box run or long-range screamer!
+      const assistRoll = Math.random() * 100;
+      if (assistRoll < 60) assister = striker; // Striker hold-up / layoff assist!
+      else if (assistRoll < 85) assister = defAtt; // Defender 50-yard through-ball!
+      else assister = undefined; // Solo run
+    } else {
+      shooter = defAtt; // Overlapping full-back or center-back stepping into attack!
+      const assistRoll = Math.random() * 100;
+      if (assistRoll < 55) assister = striker;
+      else if (assistRoll < 90) assister = midAtt;
+      else assister = undefined; // Solo finish
+    }
+
+    shooter.shots++;
+    const shooterFinishing = shooter.fin * 1.4 + shooter.cmp + (shooter.playstyle === 'PCH' ? 14 : 0);
     const defResistance = defPlayer.tck + defPlayer.int + defPlayer.phy;
-    const goalProb = Math.max(22, Math.min(82, 46 + Math.round((strikerFinishing - defResistance) * 0.4)));
+    const goalProb = Math.max(22, Math.min(82, 46 + Math.round((shooterFinishing - defResistance) * 0.4)));
 
     if (Math.random() * 100 < goalProb) {
       // ⚽ GOAL SCORED!
       attTeam.score++;
-      striker.goals++;
-      midAtt.assists++;
-      scorers.push({ minute: min, player: striker.name, team: attTeam.name, assistBy: midAtt.name });
-      matchChronology.push(`⚽ ${min}' Goal -- ${striker.name} ${striker.flag} (assist: ${midAtt.name} ${midAtt.flag})`);
+      shooter.goals++;
+      if (assister) assister.assists++;
+
+      const scorerEntry = {
+        minute: min,
+        player: shooter.name,
+        team: attTeam.name,
+        assistBy: assister ? assister.name : undefined
+      };
+      scorers.push(scorerEntry);
+
+      const chronoText = assister
+        ? `⚽ ${min}' Goal -- ${shooter.name} ${shooter.flag} (assist: ${assister.name} ${assister.flag})`
+        : `⚽ ${min}' Goal -- ${shooter.name} ${shooter.flag} (solo effort)`;
+      matchChronology.push(chronoText);
+
+      const goalDetails = assister
+        ? (shooter.position === 'DEF'
+            ? `${assister.name} slides it into the channel and defender ${shooter.name} steps onto it with a lethal finish!`
+            : shooter.position === 'MID'
+            ? `${assister.name} lays it off and midfielder ${shooter.name} arrives late in the box with a thunderous strike!`
+            : `${assister.name} slides it across and ${shooter.name} executes with ice-cold finishing into the back of the net!`)
+        : `${shooter.name} opens his body, beats his marker, and unleashes a glorious solo finish!`;
 
       const commentary = await generateAiMinuteCommentary({
         minute: min,
@@ -805,17 +855,21 @@ export async function runLiveEpisodicMatch(
         awayTeam: awayTeam.name,
         homeScore: homeTeam.score,
         awayScore: awayTeam.score,
-        actorPlayer: `${striker.name} (${striker.playstyle})`,
-        secondaryPlayer: midAtt.name,
-        details: `${midAtt.name} slides it across and ${striker.name} executes with ice-cold finishing into the back of the net!`
+        actorPlayer: `${shooter.name} (${shooter.playstyle})`,
+        secondaryPlayer: assister ? assister.name : defPlayer.name,
+        details: goalDetails
       });
+
+      const goalTitle = assister
+        ? `GOAL — ${shooter.name} ${shooter.flag} (Assist: ${assister.name} ${assister.flag})`
+        : `GOAL — ${shooter.name} ${shooter.flag}`;
 
       await sendIncident({
         minute: min,
         icon: '⚽',
-        eventTitle: `GOAL — ${striker.name} ${striker.flag} (Assist: ${midAtt.name} ${midAtt.flag})`,
-        actor: striker,
-        secondaryPlayer: midAtt,
+        eventTitle: goalTitle,
+        actor: shooter,
+        secondaryPlayer: assister,
         extraMentions: [defPlayer],
         narrative: commentary
       });
@@ -827,27 +881,27 @@ export async function runLiveEpisodicMatch(
           minute: min,
           icon: '📺',
           eventTitle: 'VAR REVIEW IN PROGRESS — Possible Offside',
-          actor: striker,
-          secondaryPlayer: midAtt,
-          narrative: `HOLD ON! The referee holds his ear! The VAR room in Stockley Park is drawing lines to check if ${striker.name} was offside in the buildup to the goal!`
+          actor: shooter,
+          secondaryPlayer: assister || defPlayer,
+          narrative: `HOLD ON! The referee holds his ear! The VAR room in Stockley Park is drawing lines to check if ${shooter.name} was offside in the buildup to the goal!`
         });
         await sleep(2600);
 
         if (Math.random() < 0.28) {
           // Disallowed!
           attTeam.score--;
-          striker.goals--;
-          midAtt.assists--;
+          shooter.goals--;
+          if (assister) assister.assists--;
           scorers.pop();
-          matchChronology.push(`🚫 ${min}' Goal Disallowed by VAR (Offside) -- ${striker.name} ${striker.flag}`);
+          matchChronology.push(`🚫 ${min}' Goal Disallowed by VAR (Offside) -- ${shooter.name} ${shooter.flag}`);
 
           await sendIncident({
             minute: min,
             icon: '🚫',
             eventTitle: 'VAR DECISION: GOAL DISALLOWED!',
-            actor: striker,
+            actor: shooter,
             secondaryPlayer: defPlayer,
-            narrative: `GOAL DISALLOWED! The semi-automated technology confirms ${striker.name}'s shoulder was mere inches offside when the through ball was played! The goal is chalked off! Scoreline resets to ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}!`
+            narrative: `GOAL DISALLOWED! The semi-automated technology confirms ${shooter.name}'s shoulder was mere inches offside when the ball was played! The goal is chalked off! Scoreline resets to ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}!`
           });
           return;
         } else {
@@ -856,9 +910,9 @@ export async function runLiveEpisodicMatch(
             minute: min,
             icon: '✅',
             eventTitle: 'VAR DECISION: GOAL STANDS!',
-            actor: striker,
-            secondaryPlayer: midAtt,
-            narrative: `GOAL CONFIRMED! Replays show the trailing defender's heel played ${striker.name} onside! The goal officially stands! ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}`
+            actor: shooter,
+            secondaryPlayer: assister || defPlayer,
+            narrative: `GOAL CONFIRMED! Replays show the trailing defender's heel played ${shooter.name} onside! The goal officially stands! ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}`
           });
         }
       }
@@ -874,7 +928,7 @@ export async function runLiveEpisodicMatch(
           icon: '🚩',
           eventTitle: `CORNER AWARDED — ${attTeam.name}`,
           actor: cornerTaker,
-          secondaryPlayer: striker,
+          secondaryPlayer: shooter,
           narrative: `Goalkeeper parries the stinging effort behind the post! Corner kick awarded to ${attTeam.name}.`
         });
         await sleep(2200);
@@ -889,25 +943,29 @@ export async function runLiveEpisodicMatch(
         });
         await sleep(2200);
 
-        // 3. Outcome
-        const headerRoll = (striker.hea || 75) * 1.2 + striker.phy;
+        // 3. Outcome (Towering Defender Header vs Striker vs Midfielder)
+        const headerFinisher = (Math.random() < 0.45 && defAtt.name !== cornerTaker.name)
+          ? defAtt // Defender header!
+          : (Math.random() < 0.7 ? striker : midAtt);
+
+        const headerRoll = (headerFinisher.hea || 75) * 1.2 + headerFinisher.phy;
         const defHeaderRoll = (defPlayer.hea || 70) + defPlayer.phy;
 
         if (headerRoll > defHeaderRoll && Math.random() < 0.45) {
           attTeam.score++;
-          striker.goals++;
-          striker.shots++;
+          headerFinisher.goals++;
+          headerFinisher.shots++;
           cornerTaker.assists++;
-          scorers.push({ minute: min, player: striker.name, team: attTeam.name, assistBy: cornerTaker.name });
-          matchChronology.push(`⚽ ${min}' Goal (Corner) -- ${striker.name} ${striker.flag} (assist: ${cornerTaker.name} ${cornerTaker.flag})`);
+          scorers.push({ minute: min, player: headerFinisher.name, team: attTeam.name, assistBy: cornerTaker.name });
+          matchChronology.push(`⚽ ${min}' Goal (Corner) -- ${headerFinisher.name} ${headerFinisher.flag} (assist: ${cornerTaker.name} ${cornerTaker.flag})`);
 
           await sendIncident({
             minute: min,
             icon: '⚽',
-            eventTitle: `GOAL (Corner) — ${striker.name} ${striker.flag} (Assist: ${cornerTaker.name} ${cornerTaker.flag})`,
-            actor: striker,
+            eventTitle: `GOAL (Corner) — ${headerFinisher.name} ${headerFinisher.flag} (Assist: ${cornerTaker.name} ${cornerTaker.flag})`,
+            actor: headerFinisher,
             secondaryPlayer: cornerTaker,
-            narrative: `BULLET HEADER! ${striker.name} climbs above the defender and crashes the corner kick into the net! GOAL!`
+            narrative: `BULLET HEADER! ${headerFinisher.name} climbs above the defender and crashes ${cornerTaker.name}'s corner kick into the net! GOAL!`
           });
         } else {
           await sendIncident({
@@ -929,8 +987,8 @@ export async function runLiveEpisodicMatch(
           homeScore: homeTeam.score,
           awayScore: awayTeam.score,
           actorPlayer: defPlayer.name,
-          secondaryPlayer: striker.name,
-          details: `Acrobatic flying save denies ${striker.name}'s goalbound strike at full stretch!`
+          secondaryPlayer: shooter.name,
+          details: `Acrobatic flying save denies ${shooter.name}'s goalbound strike at full stretch!`
         });
 
         await sendIncident({
@@ -938,7 +996,7 @@ export async function runLiveEpisodicMatch(
           icon: '🧤',
           eventTitle: 'SPECTACULAR SAVE',
           actor: defPlayer,
-          secondaryPlayer: striker,
+          secondaryPlayer: shooter,
           narrative: commentary
         });
       }
