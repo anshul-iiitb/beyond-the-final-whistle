@@ -387,6 +387,45 @@ export async function runLiveEpisodicMatch(
           });
           await sleep(2200);
 
+          // 📺 VAR Penalty Review Check (18% probability of VAR review)
+          if (Math.random() < 0.18) {
+            await sendIncident({
+              minute: min,
+              icon: '📺',
+              eventTitle: 'VAR REVIEW IN PROGRESS — Penalty Check',
+              actor: penTaker,
+              secondaryPlayer: midDef,
+              narrative: `HOLD ON! The referee holds his ear! The VAR team is reviewing whether ${midDef.name} touched the ball first or if ${penTaker.name} initiated contact!`
+            });
+            await sleep(2600);
+
+            // 35% chance VAR overturns the penalty
+            if (Math.random() < 0.35) {
+              matchChronology.push(`🚫 ${min}' Penalty Overturned by VAR`);
+              penTaker.yellowCards++;
+              cards.push({ minute: min, player: penTaker.name, type: 'YELLOW', team: attTeam.name });
+              await sendIncident({
+                minute: min,
+                icon: '🚫',
+                eventTitle: 'VAR DECISION: PENALTY OVERTURNED!',
+                actor: penTaker,
+                secondaryPlayer: midDef,
+                narrative: `PENALTY OVERTURNED! Replays clearly show ${midDef.name} touched the ball cleanly! The referee signals simulation and books ${penTaker.name} with a yellow card! No penalty!`
+              });
+              return;
+            } else {
+              await sendIncident({
+                minute: min,
+                icon: '✅',
+                eventTitle: 'VAR DECISION: PENALTY CONFIRMED!',
+                actor: penTaker,
+                secondaryPlayer: midDef,
+                narrative: `DECISION CONFIRMED! Replays show clear knee-on-ankle contact with no ball touched! The spot-kick stands!`
+              });
+              await sleep(1800);
+            }
+          }
+
           // 2. Taken
           await sendIncident({
             minute: min,
@@ -500,6 +539,33 @@ export async function runLiveEpisodicMatch(
         secondaryPlayer: striker,
         narrative: commentary
       });
+
+      // 📺 VAR Dangerous Challenge / Red Card Check (12% probability on hard tackling)
+      if (isHardTackling && Math.random() < 0.12 && midDef.redCards === 0) {
+        await sleep(2000);
+        await sendIncident({
+          minute: min,
+          icon: '📺',
+          eventTitle: 'VAR REVIEW — Serious Foul Play',
+          actor: midDef,
+          secondaryPlayer: striker,
+          narrative: `The referee stops play! VAR calls for an on-field review to check for serious foul play on ${midDef.name}'s studs-up challenge on ${striker.name}!`
+        });
+        await sleep(2600);
+
+        midDef.redCards++;
+        cards.push({ minute: min, player: midDef.name, type: 'RED', team: defTeam.name });
+        matchChronology.push(`🟥 ${min}' Red Card Upgraded by VAR -- ${midDef.name} ${midDef.flag}`);
+
+        await sendIncident({
+          minute: min,
+          icon: '🟥',
+          eventTitle: `VAR DECISION: STRAIGHT RED CARD — ${midDef.name} ${midDef.flag}`,
+          actor: midDef,
+          secondaryPlayer: striker,
+          narrative: `RED CARD! The referee returns from the pitchside monitor and brandishes a straight red card! Excessive force with studs caught above the ankle—${defTeam.name} are down to 10 men!`
+        });
+      }
       return;
     }
 
@@ -753,6 +819,49 @@ export async function runLiveEpisodicMatch(
         extraMentions: [defPlayer],
         narrative: commentary
       });
+
+      // 📺 VAR Goal Review (15% probability of checking offside/handball)
+      if (Math.random() < 0.15) {
+        await sleep(2000);
+        await sendIncident({
+          minute: min,
+          icon: '📺',
+          eventTitle: 'VAR REVIEW IN PROGRESS — Possible Offside',
+          actor: striker,
+          secondaryPlayer: midAtt,
+          narrative: `HOLD ON! The referee holds his ear! The VAR room in Stockley Park is drawing lines to check if ${striker.name} was offside in the buildup to the goal!`
+        });
+        await sleep(2600);
+
+        if (Math.random() < 0.28) {
+          // Disallowed!
+          attTeam.score--;
+          striker.goals--;
+          midAtt.assists--;
+          scorers.pop();
+          matchChronology.push(`🚫 ${min}' Goal Disallowed by VAR (Offside) -- ${striker.name} ${striker.flag}`);
+
+          await sendIncident({
+            minute: min,
+            icon: '🚫',
+            eventTitle: 'VAR DECISION: GOAL DISALLOWED!',
+            actor: striker,
+            secondaryPlayer: defPlayer,
+            narrative: `GOAL DISALLOWED! The semi-automated technology confirms ${striker.name}'s shoulder was mere inches offside when the through ball was played! The goal is chalked off! Scoreline resets to ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}!`
+          });
+          return;
+        } else {
+          // Goal stands!
+          await sendIncident({
+            minute: min,
+            icon: '✅',
+            eventTitle: 'VAR DECISION: GOAL STANDS!',
+            actor: striker,
+            secondaryPlayer: midAtt,
+            narrative: `GOAL CONFIRMED! Replays show the trailing defender's heel played ${striker.name} onside! The goal officially stands! ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}`
+          });
+        }
+      }
     } else {
       // Deflection to Corner or Diving Save
       const isCorner = Math.random() < 0.65;
