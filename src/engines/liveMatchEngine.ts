@@ -1346,7 +1346,11 @@ export async function runLiveEpisodicMatch(
         homePossession: homeTeam.possession,
         awayPossession: awayTeam.possession,
         motmName: motm.name,
-        motmRating: motm.rating
+        motmRating: motm.rating,
+        homeFlag: homeTeam.flag,
+        awayFlag: awayTeam.flag,
+        homeColor: homeTeam.color,
+        awayColor: awayTeam.color
       });
 
       const newsAttachment = new AttachmentBuilder(scorecardBuf, { name: 'match_scorecard.png' });

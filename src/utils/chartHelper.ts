@@ -1,251 +1,6 @@
-import zlib from 'zlib';
+import { createCanvas, CanvasRenderingContext2D } from '@napi-rs/canvas';
 
-// Precomputed CRC32 lookup table
-const crcTable = new Uint32Array(256);
-for (let n = 0; n < 256; n++) {
-  let c = n;
-  for (let k = 0; k < 8; k++) {
-    c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
-  }
-  crcTable[n] = c >>> 0;
-}
-
-function crc32(buf: Buffer): number {
-  let crc = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) {
-    crc = crcTable[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function makeChunk(type: string, data: Buffer): Buffer {
-  const len = data.length;
-  const buf = Buffer.alloc(4 + 4 + len + 4);
-  buf.writeUInt32BE(len, 0);
-  buf.write(type, 4, 4, 'ascii');
-  data.copy(buf, 8);
-  const typeAndData = buf.subarray(4, 8 + len);
-  buf.writeUInt32BE(crc32(typeAndData), 8 + len);
-  return buf;
-}
-
-function createPng(width: number, height: number, rgbaBuffer: Buffer): Buffer {
-  const header = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-
-  // IHDR chunk
-  const ihdrData = Buffer.alloc(13);
-  ihdrData.writeUInt32BE(width, 0);
-  ihdrData.writeUInt32BE(height, 4);
-  ihdrData[8] = 8; // 8 bits per channel
-  ihdrData[9] = 6; // RGBA
-  ihdrData[10] = 0; // compression
-  ihdrData[11] = 0; // filter
-  ihdrData[12] = 0; // interlace
-  const ihdrChunk = makeChunk('IHDR', ihdrData);
-
-  // Scanlines with filter byte 0 (None)
-  const scanlines = Buffer.alloc(height * (1 + width * 4));
-  for (let y = 0; y < height; y++) {
-    const rowOffset = y * (1 + width * 4);
-    scanlines[rowOffset] = 0;
-    rgbaBuffer.copy(scanlines, rowOffset + 1, y * width * 4, (y + 1) * width * 4);
-  }
-
-  const compressed = zlib.deflateSync(scanlines);
-  const idatChunk = makeChunk('IDAT', compressed);
-  const iendChunk = makeChunk('IEND', Buffer.alloc(0));
-
-  return Buffer.concat([header, ihdrChunk, idatChunk, iendChunk]);
-}
-
-// 5x7 Basic Bitmap Font for letters and numbers
-const FONT_MAP: Record<string, string[]> = {
-  // Digits
-  '0': ['111', '101', '101', '101', '111'],
-  '1': ['010', '110', '010', '010', '111'],
-  '2': ['111', '001', '111', '100', '111'],
-  '3': ['111', '001', '111', '001', '111'],
-  '4': ['101', '101', '111', '001', '001'],
-  '5': ['111', '100', '111', '001', '111'],
-  '6': ['111', '100', '111', '101', '111'],
-  '7': ['111', '001', '010', '010', '010'],
-  '8': ['111', '101', '111', '101', '111'],
-  '9': ['111', '101', '111', '001', '111'],
-  // Uppercase Letters
-  'A': ['111', '101', '111', '101', '101'],
-  'B': ['110', '101', '110', '101', '110'],
-  'C': ['111', '100', '100', '100', '111'],
-  'D': ['110', '101', '101', '101', '110'],
-  'E': ['111', '100', '110', '100', '111'],
-  'F': ['111', '100', '110', '100', '100'],
-  'G': ['111', '100', '101', '101', '111'],
-  'H': ['101', '101', '111', '101', '101'],
-  'I': ['111', '010', '010', '010', '111'],
-  'J': ['001', '001', '001', '101', '111'],
-  'K': ['101', '110', '100', '110', '101'],
-  'L': ['100', '100', '100', '100', '111'],
-  'M': ['101', '111', '101', '101', '101'],
-  'N': ['101', '111', '111', '101', '101'],
-  'O': ['111', '101', '101', '101', '111'],
-  'P': ['111', '101', '111', '100', '100'],
-  'Q': ['111', '101', '101', '111', '001'],
-  'R': ['111', '101', '110', '101', '101'],
-  'S': ['111', '100', '111', '001', '111'],
-  'T': ['111', '010', '010', '010', '010'],
-  'U': ['101', '101', '101', '101', '111'],
-  'V': ['101', '101', '101', '101', '010'],
-  'W': ['101', '101', '101', '111', '101'],
-  'X': ['101', '101', '010', '101', '101'],
-  'Y': ['101', '101', '111', '010', '010'],
-  'Z': ['111', '001', '010', '100', '111'],
-  // Symbols
-  '%': ['101', '001', '010', '100', '101'],
-  '-': ['000', '000', '111', '000', '000'],
-  ':': ['000', '010', '000', '010', '000'],
-  '.': ['000', '000', '000', '000', '010'],
-  '•': ['000', '010', '111', '010', '000'],
-  ' ': ['000', '000', '000', '000', '000'],
-};
-
-/**
- * Draws bitmap text onto RGBA buffer with custom scale and color
- */
-export function drawText(
-  rgba: Buffer,
-  width: number,
-  height: number,
-  text: string,
-  startX: number,
-  startY: number,
-  scale: number,
-  col: [number, number, number, number]
-) {
-  let curX = startX;
-  for (const char of text.toUpperCase()) {
-    const glyph = FONT_MAP[char] || FONT_MAP[' '];
-    const charW = glyph[0].length;
-    const charH = glyph.length;
-
-    for (let r = 0; r < charH; r++) {
-      for (let c = 0; c < charW; c++) {
-        if (glyph[r][c] === '1') {
-          for (let sy = 0; sy < scale; sy++) {
-            for (let sx = 0; sx < scale; sx++) {
-              const px = curX + c * scale + sx;
-              const py = startY + r * scale + sy;
-              if (px >= 0 && px < width && py >= 0 && py < height) {
-                const idx = (py * width + px) * 4;
-                rgba[idx] = col[0];
-                rgba[idx + 1] = col[1];
-                rgba[idx + 2] = col[2];
-                rgba[idx + 3] = col[3];
-              }
-            }
-          }
-        }
-      }
-    }
-    curX += (charW + 1) * scale;
-  }
-}
-
-/**
- * Generates an authentic WITS/Blitz style possession pie chart
- */
-export function generatePossessionPieChart(
-  teamAName: string,
-  teamAPoss: number,
-  teamAColor: [number, number, number] = [16, 185, 129], // Emerald
-  teamBName: string,
-  teamBPoss: number,
-  teamBColor: [number, number, number] = [5, 150, 105]   // Forest Green
-): Buffer {
-  const width = 580;
-  const height = 360;
-  const rgba = Buffer.alloc(width * height * 4);
-
-  // Background: Deep obsidian/slate (#0f172a / #111827)
-  const bgR = 17, bgG = 24, bgB = 39, bgA = 255;
-  for (let i = 0; i < width * height; i++) {
-    rgba[i * 4] = bgR;
-    rgba[i * 4 + 1] = bgG;
-    rgba[i * 4 + 2] = bgB;
-    rgba[i * 4 + 3] = bgA;
-  }
-
-  // Draw rectangle helper
-  function drawRect(x0: number, y0: number, w: number, h: number, col: [number, number, number]) {
-    for (let y = y0; y < y0 + h; y++) {
-      if (y < 0 || y >= height) continue;
-      for (let x = x0; x < x0 + w; x++) {
-        if (x < 0 || x >= width) continue;
-        const idx = (y * width + x) * 4;
-        rgba[idx] = col[0];
-        rgba[idx + 1] = col[1];
-        rgba[idx + 2] = col[2];
-        rgba[idx + 3] = 255;
-      }
-    }
-  }
-
-  // Legend swatches at top
-  drawRect(140, 24, 32, 10, teamAColor);
-  drawRect(340, 24, 32, 10, teamBColor);
-
-  // Draw circle
-  const cx = width / 2;
-  const cy = 200;
-  const radius = 115;
-  const total = teamAPoss + teamBPoss || 100;
-  const ratioA = teamAPoss / total;
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const dx = x - cx;
-      const dy = y - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist <= radius) {
-        // Clockwise from top (-PI/2)
-        const angle = Math.atan2(dy, dx);
-        let normAngle = angle - (-Math.PI / 2);
-        if (normAngle < 0) normAngle += 2 * Math.PI;
-
-        const isTeamA = normAngle < ratioA * 2 * Math.PI;
-        const color = isTeamA ? teamAColor : teamBColor;
-
-        let alpha = 255;
-        if (dist > radius - 1) {
-          alpha = Math.round(255 * (radius - dist));
-        }
-
-        const idx = (y * width + x) * 4;
-        rgba[idx] = color[0];
-        rgba[idx + 1] = color[1];
-        rgba[idx + 2] = color[2];
-        rgba[idx + 3] = alpha;
-      }
-    }
-  }
-
-  // Draw percentage numbers inside slices
-  const angleA = -Math.PI / 2 + (ratioA * Math.PI);
-  const textAx = Math.round(cx + Math.cos(angleA) * (radius * 0.55)) - 18;
-  const textAy = Math.round(cy + Math.sin(angleA) * (radius * 0.55)) - 10;
-  drawText(rgba, width, height, `${teamAPoss}%`, textAx, textAy, 2, [255, 255, 255, 230]);
-
-  const angleB = -Math.PI / 2 + ratioA * 2 * Math.PI + ((1 - ratioA) * Math.PI);
-  const textBx = Math.round(cx + Math.cos(angleB) * (radius * 0.55)) - 18;
-  const textBy = Math.round(cy + Math.sin(angleB) * (radius * 0.55)) - 10;
-  drawText(rgba, width, height, `${teamBPoss}%`, textBx, textBy, 2, [255, 255, 255, 230]);
-
-  return createPng(width, height, rgba);
-}
-
-/**
- * Generates an authentic dynamic matchday scorecard graphic for the Sports Gazette
- */
-export function generateMatchScorecardGraphic(data: {
+export interface ScorecardData {
   homeTeam: string;
   awayTeam: string;
   homeScore: number;
@@ -254,79 +9,410 @@ export function generateMatchScorecardGraphic(data: {
   awayPossession: number;
   motmName: string;
   motmRating: number;
-}): Buffer {
+  homeFlag?: string;
+  awayFlag?: string;
+  homeColor?: [number, number, number];
+  awayColor?: [number, number, number];
+}
+
+/**
+ * Helper to determine if two RGB colors are too similar (low contrast)
+ */
+function areColorsTooClose(c1: [number, number, number], c2: [number, number, number]): boolean {
+  const dist = Math.sqrt(
+    Math.pow(c1[0] - c2[0], 2) +
+    Math.pow(c1[1] - c2[1], 2) +
+    Math.pow(c1[2] - c2[2], 2)
+  );
+  return dist < 85;
+}
+
+function rgbToHex(rgb: [number, number, number]): string {
+  return '#' + rgb.map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Helper to draw rounded rectangles
+ */
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius: number
+) {
+  const r = Math.min(radius, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/**
+ * Generates an authentic, high-definition broadcast-quality possession donut chart
+ */
+export function generatePossessionPieChart(
+  teamAName: string,
+  teamAPoss: number,
+  teamAColor: [number, number, number] = [16, 185, 129], // Emerald
+  teamBName: string,
+  teamBPoss: number,
+  teamBColor: [number, number, number] = [5, 150, 105]   // Default away
+): Buffer {
   const width = 640;
-  const height = 320;
-  const rgba = Buffer.alloc(width * height * 4);
+  const height = 380;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
 
-  // Background: Obsidian Slate (#0b0f19)
-  const bgR = 11, bgG = 15, bgB = 25, bgA = 255;
-  for (let i = 0; i < width * height; i++) {
-    rgba[i * 4] = bgR;
-    rgba[i * 4 + 1] = bgG;
-    rgba[i * 4 + 2] = bgB;
-    rgba[i * 4 + 3] = bgA;
-  }
+  // Avoid blending if both teams use similar green/color palettes
+  let colorA = rgbToHex(teamAColor);
+  let colorB = areColorsTooClose(teamAColor, teamBColor)
+    ? '#06b6d4' // Contrast Electric Cyan if away is also green
+    : rgbToHex(teamBColor);
 
-  function drawRect(x0: number, y0: number, w: number, h: number, col: [number, number, number, number]) {
-    for (let y = y0; y < y0 + h; y++) {
-      if (y < 0 || y >= height) continue;
-      for (let x = x0; x < x0 + w; x++) {
-        if (x < 0 || x >= width) continue;
-        const idx = (y * width + x) * 4;
-        rgba[idx] = col[0];
-        rgba[idx + 1] = col[1];
-        rgba[idx + 2] = col[2];
-        rgba[idx + 3] = col[3];
-      }
-    }
-  }
+  // Background: Deep stadium obsidian
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+  bgGrad.addColorStop(0, '#090d16');
+  bgGrad.addColorStop(1, '#0f172a');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, width, height);
 
-  // Top Accent Bar (Champions Gold)
-  drawRect(0, 0, width, 4, [245, 158, 11, 255]);
+  // Card Outer Glow Border
+  roundRect(ctx, 16, 16, width - 32, height - 32, 16);
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
 
-  // Card Outer Border
-  drawRect(20, 20, width - 40, 2, [30, 41, 59, 255]);
-  drawRect(20, height - 22, width - 40, 2, [30, 41, 59, 255]);
-  drawRect(20, 20, 2, height - 40, [30, 41, 59, 255]);
-  drawRect(width - 22, 20, 2, height - 40, [30, 41, 59, 255]);
+  // Top Accent Stripe
+  const stripeGrad = ctx.createLinearGradient(0, 0, width, 0);
+  stripeGrad.addColorStop(0, colorA);
+  stripeGrad.addColorStop(0.5, '#f59e0b');
+  stripeGrad.addColorStop(1, colorB);
+  ctx.fillStyle = stripeGrad;
+  ctx.fillRect(16, 16, width - 32, 4);
 
   // Header Title
-  drawText(rgba, width, height, 'BEYOND THE FINAL WHISTLE', 190, 36, 2, [245, 158, 11, 255]);
-  drawText(rgba, width, height, 'OFFICIAL MATCHDAY TELEMETRY', 200, 56, 1, [148, 163, 184, 255]);
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#f59e0b';
+  ctx.textAlign = 'center';
+  ctx.fillText('BEYOND THE FINAL WHISTLE • MATCHDAY ANALYTICS', width / 2, 44);
 
-  // Divider
-  drawRect(40, 72, width - 80, 1, [51, 65, 85, 255]);
+  // Legend Swatches at Top
+  const legendY = 74;
+  // Team A Legend
+  roundRect(ctx, 80, legendY - 14, 18, 18, 5);
+  ctx.fillStyle = colorA;
+  ctx.fill();
+  ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.fillText(`${teamAName.toUpperCase()}  ${teamAPoss}%`, 108, legendY);
 
-  // Team Names and Center Score
-  const scoreText = `${data.homeScore}  -  ${data.awayScore}`;
-  drawText(rgba, width, height, data.homeTeam.slice(0, 10).toUpperCase(), 60, 110, 3, [255, 255, 255, 255]);
-  drawText(rgba, width, height, scoreText, 250, 106, 4, [16, 185, 129, 255]);
-  drawText(rgba, width, height, data.awayTeam.slice(0, 10).toUpperCase(), 430, 110, 3, [255, 255, 255, 255]);
+  // Team B Legend
+  roundRect(ctx, width - 210, legendY - 14, 18, 18, 5);
+  ctx.fillStyle = colorB;
+  ctx.fill();
+  ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.fillText(`${teamBName.toUpperCase()}  ${teamBPoss}%`, width - 182, legendY);
 
-  // Dual Possession Bar in Center
-  const barWidth = 440;
-  const barX = 100;
-  const barY = 170;
-  const homeBarLen = Math.round((data.homePossession / 100) * barWidth);
-  const awayBarLen = barWidth - homeBarLen;
+  // Donut Geometry
+  const cx = width / 2;
+  const cy = 230;
+  const outerR = 105;
+  const innerR = 64;
 
-  drawRect(barX, barY, homeBarLen, 12, [16, 185, 129, 255]); // Emerald
-  drawRect(barX + homeBarLen, barY, awayBarLen, 12, [5, 150, 105, 255]); // Forest green
+  const total = teamAPoss + teamBPoss || 100;
+  const angleA = (teamAPoss / total) * 2 * Math.PI;
 
-  // Possession labels
-  drawText(rgba, width, height, `${data.homePossession}% POSSESSION`, 100, 190, 1, [16, 185, 129, 255]);
-  drawText(rgba, width, height, `${data.awayPossession}% POSSESSION`, 430, 190, 1, [5, 150, 105, 255]);
+  // Arc A (Team A)
+  ctx.beginPath();
+  ctx.arc(cx, cy, outerR, -Math.PI / 2, -Math.PI / 2 + angleA, false);
+  ctx.arc(cx, cy, innerR, -Math.PI / 2 + angleA, -Math.PI / 2, true);
+  ctx.closePath();
+  ctx.fillStyle = colorA;
+  ctx.shadowColor = colorA;
+  ctx.shadowBlur = 10;
+  ctx.fill();
 
-  // Divider
-  drawRect(40, 220, width - 80, 1, [51, 65, 85, 255]);
+  // Arc B (Team B)
+  ctx.beginPath();
+  ctx.arc(cx, cy, outerR, -Math.PI / 2 + angleA, -Math.PI / 2 + 2 * Math.PI, false);
+  ctx.arc(cx, cy, innerR, -Math.PI / 2 + 2 * Math.PI, -Math.PI / 2 + angleA, true);
+  ctx.closePath();
+  ctx.fillStyle = colorB;
+  ctx.shadowColor = colorB;
+  ctx.shadowBlur = 10;
+  ctx.fill();
+  ctx.shadowBlur = 0; // reset shadow
 
-  // MOTM Banner
-  drawText(rgba, width, height, `MOTM: ${data.motmName.toUpperCase()}`, 160, 240, 2, [245, 158, 11, 255]);
-  drawText(rgba, width, height, `RATING: ${data.motmRating.toFixed(1)}`, 430, 240, 2, [255, 255, 255, 255]);
+  // Donut Center Hub
+  ctx.beginPath();
+  ctx.arc(cx, cy, innerR - 2, 0, 2 * Math.PI);
+  ctx.fillStyle = '#0f172a';
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Donut Center Text
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('BALL CONTROL', cx, cy - 6);
+  ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(`${teamAPoss}% : ${teamBPoss}%`, cx, cy + 14);
 
   // Footer Tagline
-  drawText(rgba, width, height, 'AI SPORTS JOURNALISM ENGINE • LIVE MATCH TELEMETRY', 140, 285, 1, [100, 116, 139, 255]);
+  ctx.font = '10px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#475569';
+  ctx.fillText('OFFICIAL POSSESSION TELEMETRY BUREAU', width / 2, height - 24);
 
-  return createPng(width, height, rgba);
+  return canvas.toBuffer('image/png');
 }
+
+/**
+ * Generates an authentic dynamic matchday scorecard graphic for the Sports Gazette
+ */
+export function generateMatchScorecardGraphic(data: ScorecardData): Buffer {
+  const width = 800;
+  const height = 410;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  // Determine contrasting team colors
+  const homeColorRgb: [number, number, number] = data.homeColor || [16, 185, 129];
+  const awayColorRgb: [number, number, number] = data.awayColor || [5, 150, 105];
+
+  const colorHome = rgbToHex(homeColorRgb);
+  let colorAway = areColorsTooClose(homeColorRgb, awayColorRgb)
+    ? '#06b6d4' // Electric Cyan if away color clashes with home color
+    : rgbToHex(awayColorRgb);
+
+  // Background: Obsidian Slate Gradient
+  const bg = ctx.createLinearGradient(0, 0, 0, height);
+  bg.addColorStop(0, '#090d16');
+  bg.addColorStop(0.5, '#0d1322');
+  bg.addColorStop(1, '#080c14');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+
+  // Subtle Stadium Center Glow
+  const radialGlow = ctx.createRadialGradient(width / 2, 130, 20, width / 2, 130, 320);
+  radialGlow.addColorStop(0, 'rgba(30, 41, 59, 0.45)');
+  radialGlow.addColorStop(1, 'rgba(9, 13, 22, 0)');
+  ctx.fillStyle = radialGlow;
+  ctx.fillRect(0, 0, width, height);
+
+  // Outer Card Border
+  roundRect(ctx, 16, 16, width - 32, height - 32, 18);
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Top Champions Gold Accent Stripe
+  const stripe = ctx.createLinearGradient(16, 0, width - 32, 0);
+  stripe.addColorStop(0, colorHome);
+  stripe.addColorStop(0.5, '#f59e0b');
+  stripe.addColorStop(1, colorAway);
+  ctx.fillStyle = stripe;
+  ctx.fillRect(16, 16, width - 32, 4);
+
+  // Header
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillText('BEYOND THE FINAL WHISTLE', width / 2, 44);
+
+  ctx.font = '11px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('OFFICIAL MATCHDAY TELEMETRY • FULL TIME', width / 2, 60);
+
+  // Divider
+  ctx.beginPath();
+  ctx.moveTo(40, 74);
+  ctx.lineTo(width - 40, 74);
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // ==========================================
+  // SCOREBOARD DISPLAY
+  // ==========================================
+
+  // Home Team Display (Left)
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(data.homeTeam.toUpperCase(), 50, 132);
+
+  roundRect(ctx, 50, 144, 56, 20, 4);
+  ctx.fillStyle = '#1e293b';
+  ctx.fill();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = colorHome;
+  ctx.fillText('HOME', 50 + 28, 158);
+
+  // Center Score Glass Badge
+  const scoreBadgeW = 150;
+  const scoreBadgeH = 68;
+  const scoreBadgeX = width / 2 - scoreBadgeW / 2;
+  const scoreBadgeY = 96;
+
+  roundRect(ctx, scoreBadgeX, scoreBadgeY, scoreBadgeW, scoreBadgeH, 12);
+  ctx.fillStyle = '#0f172a';
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Glowing Score Text
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 38px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = 'rgba(255, 255, 255, 0.35)';
+  ctx.shadowBlur = 8;
+  ctx.fillText(`${data.homeScore} - ${data.awayScore}`, width / 2, scoreBadgeY + 47);
+  ctx.shadowBlur = 0;
+
+  // FT Pill below score
+  roundRect(ctx, width / 2 - 20, scoreBadgeY + scoreBadgeH - 8, 40, 16, 8);
+  ctx.fillStyle = '#10b981';
+  ctx.fill();
+  ctx.font = 'bold 9px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('FT', width / 2, scoreBadgeY + scoreBadgeH + 4);
+
+  // Away Team Display (Right)
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(data.awayTeam.toUpperCase(), width - 50, 132);
+
+  roundRect(ctx, width - 106, 144, 56, 20, 4);
+  ctx.fillStyle = '#1e293b';
+  ctx.fill();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = colorAway;
+  ctx.fillText('AWAY', width - 106 + 28, 158);
+
+  // ==========================================
+  // POSSESSION TELEMETRY BAR
+  // ==========================================
+  const barW = 680;
+  const barH = 16;
+  const barX = (width - barW) / 2;
+  const barY = 200;
+
+  const homePoss = Math.max(5, Math.min(95, data.homePossession));
+  const awayPoss = 100 - homePoss;
+  const homeLen = Math.round((homePoss / 100) * barW);
+  const awayLen = barW - homeLen;
+
+  // Background track
+  roundRect(ctx, barX, barY, barW, barH, 8);
+  ctx.fillStyle = '#1e293b';
+  ctx.fill();
+
+  // Home Segment (Left Rounded)
+  ctx.save();
+  roundRect(ctx, barX, barY, barW, barH, 8);
+  ctx.clip();
+
+  ctx.fillStyle = colorHome;
+  ctx.fillRect(barX, barY, homeLen, barH);
+
+  // Away Segment
+  ctx.fillStyle = colorAway;
+  ctx.fillRect(barX + homeLen, barY, awayLen, barH);
+
+  // Divider Notch
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(barX + homeLen - 1.5, barY, 3, barH);
+  ctx.restore();
+
+  // Possession Text Indicators
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = colorHome;
+  ctx.fillText(`${homePoss}% POSSESSION`, barX, barY + 34);
+
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#64748b';
+  ctx.fillText('BALL CONTROL', width / 2, barY + 34);
+
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = colorAway;
+  ctx.fillText(`${awayPoss}% POSSESSION`, barX + barW, barY + 34);
+
+  // ==========================================
+  // MAN OF THE MATCH SPOTLIGHT
+  // ==========================================
+  const motmBoxW = 700;
+  const motmBoxH = 68;
+  const motmBoxX = (width - motmBoxW) / 2;
+  const motmBoxY = 265;
+
+  roundRect(ctx, motmBoxX, motmBoxY, motmBoxW, motmBoxH, 12);
+  const motmBg = ctx.createLinearGradient(motmBoxX, 0, motmBoxX + motmBoxW, 0);
+  motmBg.addColorStop(0, 'rgba(30, 41, 59, 0.7)');
+  motmBg.addColorStop(1, 'rgba(15, 23, 42, 0.7)');
+  ctx.fillStyle = motmBg;
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // MOTM Info (Left inside box)
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillText('👑  MAN OF THE MATCH', motmBoxX + 24, motmBoxY + 26);
+
+  ctx.font = 'bold 20px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(data.motmName.toUpperCase(), motmBoxX + 24, motmBoxY + 52);
+
+  // Rating Badge (Right inside box)
+  const ratingBadgeW = 100;
+  const ratingBadgeH = 36;
+  const ratingBadgeX = motmBoxX + motmBoxW - ratingBadgeW - 20;
+  const ratingBadgeY = motmBoxY + (motmBoxH - ratingBadgeH) / 2;
+
+  roundRect(ctx, ratingBadgeX, ratingBadgeY, ratingBadgeW, ratingBadgeH, 18);
+  ctx.fillStyle = '#1e293b';
+  ctx.fill();
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillText(`⭐ ${data.motmRating.toFixed(1)}`, ratingBadgeX + ratingBadgeW / 2, ratingBadgeY + 24);
+
+  // ==========================================
+  // FOOTER TAGLINE
+  // ==========================================
+  ctx.textAlign = 'center';
+  ctx.font = '10px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#475569';
+  ctx.fillText('AI SPORTS JOURNALISM ENGINE • OFFICIAL LIVE MATCH TELEMETRY', width / 2, height - 24);
+
+  return canvas.toBuffer('image/png');
+}
+
+/**
+ * Backward compatibility stub for drawText
+ */
+export function drawText() {}
