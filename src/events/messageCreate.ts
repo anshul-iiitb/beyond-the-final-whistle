@@ -4,7 +4,7 @@ import { handleTravelCommand, handleLocationsCommand, handleShowroomCommand, han
 import { handleTrainCommand, handleSpTrainCommand, handleRecoveryCommand, handleConvertCommand } from '../commands/trainingCommands.js';
 import { handleAdvertCommand, handleCoachingCommand, handleMeetGreetCommand, handleChirpCommand } from '../commands/socialCommands.js';
 import { handleBuyCommand, handleIntelCommand } from '../commands/marketCommands.js';
-import { handleMatchCommand, handleLiveMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand } from '../commands/matchCommands.js';
+import { handleMatchCommand, handleLiveMatchCommand, handleBatchMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand } from '../commands/matchCommands.js';
 import { handleTacticsCommand } from '../commands/tacticsCommand.js';
 import { handleSetupCommand, handleVipCommand, handleAddItemCommand, handleAddVarCommand, handleSetupEmojisCommand } from '../commands/adminCommands.js';
 import { handleHelpCommand } from '../commands/helpCommand.js';
@@ -121,6 +121,11 @@ export async function onMessageCreate(message: Message) {
       case 'simlive':
       case 'live':
         await handleLiveMatchCommand(message, args);
+        break;
+      case 'batchmatch':
+      case 'batchsim':
+      case 'simulatemany':
+        await handleBatchMatchCommand(message, args);
         break;
       case 'intstats':
         await handleIntStatsCommand(message, args);

@@ -236,6 +236,18 @@ export async function runLiveEpisodicMatch(
   });
   await sleep(tickDelay);
 
+  // Track dynamic comeback momentum & lead psychology
+  let recentComebackTeamAlias: string | null = null;
+  let comebackSurgeRemaining: number = 0;
+
+  /**
+   * Probabilistic duel helper: higher stats win more often, but upsets always remain possible!
+   */
+  const calcDuelWinProb = (statA: number, statB: number, baseChance: number = 50, scale: number = 1.4): number => {
+    const diff = statA - statB;
+    return Math.max(22, Math.min(78, Math.round(baseChance + diff * scale)));
+  };
+
   // Generate 7-8 discrete phases for each half
   const half1Minutes = [3, 8, 14, 21, 28, 35, 41, 45];
   const half2Minutes = [49, 56, 62, 70, 77, 83, 88, 90];
@@ -249,8 +261,8 @@ export async function runLiveEpisodicMatch(
     const awayRedCount = [awayTeam.players.atk, awayTeam.players.mid, awayTeam.players.def].filter(p => p.redCards > 0).length;
 
     let homeAttackingWeight = homeTeam.possession;
-    homeAttackingWeight -= homeRedCount * 12; // Ejected player penalty!
-    homeAttackingWeight += awayRedCount * 12; // Man advantage boost!
+    homeAttackingWeight -= homeRedCount * 14; // Ejected player penalty!
+    homeAttackingWeight += awayRedCount * 14; // Man advantage boost!
 
     if (homeTeam.tactics.teamMentality === 'Hard Attacking') homeAttackingWeight += 5;
     else if (homeTeam.tactics.teamMentality === 'Attacking') homeAttackingWeight += 3;
@@ -261,6 +273,35 @@ export async function runLiveEpisodicMatch(
     else if (awayTeam.tactics.teamMentality === 'Attacking') homeAttackingWeight -= 3;
     else if (awayTeam.tactics.teamMentality === 'Defensive') homeAttackingWeight += 3;
     else if (awayTeam.tactics.teamMentality === 'Hard Defending') homeAttackingWeight += 5;
+
+    // Game-state psychology & anti-snowball lead management
+    const currentGoalDiff = homeTeam.score - awayTeam.score; // Positive if home leads
+    if (currentGoalDiff >= 2) {
+      // Home leading by 2+ manages tempo, drops back
+      homeAttackingWeight -= (currentGoalDiff >= 3 ? 15 : 8);
+    } else if (currentGoalDiff <= -2) {
+      // Away leading by 2+ manages tempo, drops back
+      homeAttackingWeight += (currentGoalDiff <= -3 ? 15 : 8);
+    }
+
+    // Trailing team desperation in final 20 minutes (70'+)
+    if (min >= 70) {
+      if (currentGoalDiff < 0) {
+        homeAttackingWeight += 14; // Home throws kitchen sink
+      } else if (currentGoalDiff > 0) {
+        homeAttackingWeight -= 14; // Away throws kitchen sink
+      }
+    }
+
+    // "Bam Bam" Rapid Comeback Surge (Momentum adrenaline spike)
+    if (comebackSurgeRemaining > 0 && recentComebackTeamAlias) {
+      if (recentComebackTeamAlias === homeTeam.alias) {
+        homeAttackingWeight += 20;
+      } else if (recentComebackTeamAlias === awayTeam.alias) {
+        homeAttackingWeight -= 20;
+      }
+      comebackSurgeRemaining--;
+    }
 
     const isHomeAttacking = Math.random() * 100 < Math.max(20, Math.min(80, homeAttackingWeight));
     const attTeam = isHomeAttacking ? homeTeam : awayTeam;
@@ -306,19 +347,72 @@ export async function runLiveEpisodicMatch(
     // ==========================================
     // SHARED SCORING RESOLUTION HELPER
     // ==========================================
-    const resolveGoalAttempt = async (targetShooter: MatchPlayer, targetAssister?: MatchPlayer, isHeader: boolean = false) => {
+    const resolveGoalAttempt = async (
+      targetShooter: MatchPlayer,
+      targetAssister?: MatchPlayer,
+      isHeader: boolean = false,
+      isCounterAttack: boolean = false,
+      isLongShot: boolean = false
+    ) => {
       targetShooter.shots++;
-      const shooterFinishing = isHeader
-        ? (targetShooter.hea || 65) * 1.1 + targetShooter.phy * 0.9
-        : targetShooter.fin * 1.1 + targetShooter.cmp * 0.9 + (targetShooter.playstyle === 'PCH' ? 8 : 0);
-      const defResistance = (defPlayer.tck + defPlayer.int + defPlayer.phy) / 3 * 2;
-      const goalProb = Math.max(14, Math.min(38, Math.round(22 + (shooterFinishing - defResistance) * 0.25)));
+
+      // 1. Low-Block Shot Suppression (Heroic Sliding Block)
+      if (!isCounterAttack && (defTactics.teamMentality.includes('Defend') || (defTeam.score > attTeam.score && min >= 70))) {
+        const blockChance = defTactics.teamMentality === 'Hard Defending' ? 0.30 : 0.20;
+        if (Math.random() < blockChance) {
+          defPlayer.tackles++;
+          await sendIncident({
+            minute: min,
+            icon: '🛡️',
+            eventTitle: 'HEROIC SLIDING BLOCK',
+            actor: defPlayer,
+            secondaryPlayer: targetShooter,
+            narrative: `WHAT A HEROIC BLOCK! ${defPlayer.name} throws his body on the line, producing an astonishing sliding block to divert ${targetShooter.name}'s goalbound shot away from danger!`
+          });
+          return;
+        }
+      }
+
+      // 2. Calculate Shooting Power vs Defensive Resistance
+      let shooterFinishing: number;
+      if (isHeader) {
+        shooterFinishing = (targetShooter.hea || 65) * 1.1 + targetShooter.phy * 0.9;
+      } else if (isLongShot) {
+        shooterFinishing = (targetShooter.pow || 66) * 1.0 + targetShooter.fin * 0.9 + targetShooter.cmp * 0.7;
+      } else {
+        shooterFinishing = targetShooter.fin * 1.0 + targetShooter.cmp * 0.9 + (targetShooter.playstyle === 'PCH' ? 8 : 0);
+      }
+
+      // If counter-attack, defense is stretched and caught upfield
+      const defResistance = isCounterAttack
+        ? ((defPlayer.tck + defPlayer.int) / 2) * 1.25
+        : ((defPlayer.tck + defPlayer.int + defPlayer.phy) / 3) * 1.75;
+
+      let goalProb = isCounterAttack
+        ? Math.max(24, Math.min(48, Math.round(34 + (shooterFinishing - defResistance) * 0.22)))
+        : Math.max(14, Math.min(38, Math.round(22 + (shooterFinishing - defResistance) * 0.20)));
+
+      // Comeback adrenaline spike (trailing team fighting back)
+      if (recentComebackTeamAlias === attTeam.alias) {
+        goalProb += 6;
+      }
+
+      // Late-game clutch drama (80'+) for trailing or level team
+      if (min >= 80 && attTeam.score <= defTeam.score) {
+        goalProb += 4;
+      }
 
       if (Math.random() * 100 < goalProb) {
         // ⚽ GOAL SCORED!
         attTeam.score++;
         targetShooter.goals++;
         if (targetAssister) targetAssister.assists++;
+
+        // Trigger comeback surge if team was trailing
+        if (attTeam.score <= defTeam.score) {
+          recentComebackTeamAlias = attTeam.alias;
+          comebackSurgeRemaining = 2; // Next 2 phases get intense comeback surge!
+        }
 
         const scorerEntry = {
           minute: min,
@@ -335,6 +429,10 @@ export async function runLiveEpisodicMatch(
 
         const goalDetails = isHeader
           ? `${targetAssister ? targetAssister.name + ' delivers the cross and ' : ''}${targetShooter.name} rises in the air to power a bullet header into the net!`
+          : isLongShot
+          ? `${targetShooter.name} unleashes an absolute thunderbolt screamer from 25 yards that rockets straight into the top postage stamp!`
+          : isCounterAttack
+          ? `Devastating smash-and-grab counter-attack! ${targetAssister ? targetAssister.name + ' squares it and ' : ''}${targetShooter.name} finishes ruthlessly past the stranded keeper!`
           : targetAssister
           ? (targetShooter.position === 'DEF'
               ? `${targetAssister.name} slides it into the channel and defender ${targetShooter.name} steps onto it with a lethal finish!`
@@ -363,7 +461,7 @@ export async function runLiveEpisodicMatch(
 
         await sendIncident({
           minute: min,
-          icon: '⚽',
+          icon: isLongShot ? '🚀' : '⚽',
           eventTitle: goalTitle,
           actor: targetShooter,
           secondaryPlayer: targetAssister,
@@ -446,10 +544,11 @@ export async function runLiveEpisodicMatch(
             ? headerCandidates[Math.floor(Math.random() * headerCandidates.length)]
             : cornerTaker;
 
-          const headerRoll = (headerFinisher.hea || 68) * 1.1 + headerFinisher.phy;
-          const defHeaderRoll = (defPlayer.hea || 68) * 1.1 + defPlayer.phy;
+          const attHeaderStat = (headerFinisher.hea || 68) * 1.1 + headerFinisher.phy;
+          const defHeaderStat = (defPlayer.hea || 68) * 1.1 + defPlayer.phy;
+          const headerDuelProb = calcDuelWinProb(attHeaderStat, defHeaderStat, 48);
 
-          if (headerRoll > defHeaderRoll && Math.random() < 0.16) {
+          if (Math.random() * 100 < headerDuelProb && Math.random() < 0.28) {
             attTeam.score++;
             headerFinisher.goals++;
             headerFinisher.shots++;
@@ -466,14 +565,33 @@ export async function runLiveEpisodicMatch(
               narrative: `BULLET HEADER! ${headerFinisher.name} climbs above the defender and crashes ${cornerTaker.name}'s corner kick into the net! GOAL!`
             });
           } else {
-            await sendIncident({
-              minute: min,
-              icon: '❌',
-              eventTitle: 'CORNER MISSED',
-              actor: defPlayer,
-              secondaryPlayer: cornerTaker,
-              narrative: `${defPlayer.name} rises highest to head the corner kick firmly away from the penalty box.`
-            });
+            // Cleared corner! Check for half-volley screamer from edge of box (26% chance)!
+            if (Math.random() < 0.26) {
+              const volleyCandidate = activeAtt.find(p => p.name !== cornerTaker.name && p.name !== headerFinisher.name) || activeAtt[0];
+              attTeam.score++;
+              volleyCandidate.goals++;
+              volleyCandidate.shots++;
+              scorers.push({ minute: min, player: volleyCandidate.name, team: attTeam.name });
+              matchChronology.push(`⚽ ${min}' Goal (Corner Half-Volley) -- ${volleyCandidate.name} ${volleyCandidate.flag}`);
+
+              await sendIncident({
+                minute: min,
+                icon: '🚀',
+                eventTitle: `GOAL (Half-Volley) — ${volleyCandidate.name} ${volleyCandidate.flag}`,
+                actor: volleyCandidate,
+                secondaryPlayer: cornerTaker,
+                narrative: `UNSTOPPABLE HALF-VOLLEY SCREAMER! The cleared corner drops 22 yards out, and ${volleyCandidate.name} arrives at pace to strike an absolute rocket into the top corner through a crowd of bodies! WHAT A GOAL!`
+              });
+            } else {
+              await sendIncident({
+                minute: min,
+                icon: '❌',
+                eventTitle: 'CORNER MISSED',
+                actor: defPlayer,
+                secondaryPlayer: cornerTaker,
+                narrative: `${defPlayer.name} rises highest to head the corner kick firmly away from the penalty box.`
+              });
+            }
           }
         } else {
           // Spectacular Save
@@ -508,11 +626,12 @@ export async function runLiveEpisodicMatch(
     // ==========================================
 
     // Scenario A: OFFSIDE TRAP (Triggered if defending team has offside trap ON)
-    if (defTactics.offsideTrap === 'On' && actionRoll < 20) {
-      const defTrapRating = defPlayer.int * 1.4 + defPlayer.cmp;
-      const attPaceRating = striker.pac * 1.2 + striker.vis;
+    if (defTactics.offsideTrap === 'On' && actionRoll < 18) {
+      const defTrapRating = defPlayer.int * 1.3 + defPlayer.cmp;
+      const attPaceRating = striker.pac * 1.1 + striker.vis;
+      const trapSuccessProb = calcDuelWinProb(defTrapRating, attPaceRating, 54);
 
-      if (defTrapRating >= attPaceRating || Math.random() < 0.6) {
+      if (Math.random() * 100 < trapSuccessProb) {
         // Trapped!
         const commentary = await generateAiMinuteCommentary({
           minute: min,
@@ -569,11 +688,12 @@ export async function runLiveEpisodicMatch(
     }
 
     // Scenario B: HIGH PRESS TURNOVER (Triggered if defending team has High Press)
-    if (defTactics.pressingStyle === 'High' && actionRoll >= 20 && actionRoll < 35) {
-      const pressPower = midDef.tck + midDef.wrk * 1.3;
-      const attResistance = midAtt.cmp * 1.2 + midAtt.dri;
+    if (defTactics.pressingStyle === 'High' && actionRoll >= 18 && actionRoll < 32) {
+      const pressPower = midDef.tck + midDef.wrk * 1.2;
+      const attResistance = midAtt.cmp * 1.1 + midAtt.dri;
+      const pressSuccessProb = calcDuelWinProb(pressPower, attResistance, 52);
 
-      if (pressPower > attResistance) {
+      if (Math.random() * 100 < pressSuccessProb) {
         midDef.tackles++;
         const commentary = await generateAiMinuteCommentary({
           minute: min,
@@ -602,7 +722,7 @@ export async function runLiveEpisodicMatch(
     }
 
     // Scenario C: TACKLING STYLES & FOULS (Hard vs Easy vs Normal)
-    if (actionRoll >= 35 && actionRoll < 55) {
+    if (actionRoll >= 32 && actionRoll < 50) {
       const isHardTackling = defTactics.tacklingStyle === 'Hard';
       const isEasyTackling = defTactics.tacklingStyle === 'Easy';
 
@@ -633,8 +753,9 @@ export async function runLiveEpisodicMatch(
         return;
       }
 
-      // Check for foul with Hard Tackling
-      const foulChance = isHardTackling ? 0.42 : 0.15;
+      // Check for foul with Hard Tackling (fatigued late lunges increase foul risk)
+      const lateLungeFactor = (min >= 80 && defTeam.score <= attTeam.score + 1) ? 0.12 : 0;
+      const foulChance = isHardTackling ? (0.42 + lateLungeFactor) : (0.16 + lateLungeFactor);
       if (Math.random() < foulChance) {
         midDef.fouls++;
         const isYellow = isHardTackling ? Math.random() < 0.5 : Math.random() < 0.2;
@@ -708,21 +829,31 @@ export async function runLiveEpisodicMatch(
           }
 
           // 2. Taken
+          const isLatePen = min >= 80;
           await sendIncident({
             minute: min,
             icon: '🎯',
-            eventTitle: 'PENALTY TAKEN',
+            eventTitle: isLatePen ? 'CLUTCH LATE PENALTY TAKEN' : 'PENALTY TAKEN',
             actor: penTaker,
-            narrative: `${penTaker.name} places the ball on the spot, takes four measured steps back, and stares down the goalkeeper... the whistle sounds!`
+            narrative: isLatePen
+              ? `HEART IN MOUTH! ${penTaker.name} places the ball on the spot in the dying stages with everything on the line... the entire stadium falls deathly silent!`
+              : `${penTaker.name} places the ball on the spot, takes four measured steps back, and stares down the goalkeeper... the whistle sounds!`
           });
           await sleep(2200);
 
-          // 3. Outcome (70-80% realistic conversion)
-          const penGoalChance = Math.min(80, Math.max(65, Math.round(penTaker.cmp * 0.4 + penTaker.fin * 0.4 + 25)));
+          // 3. Outcome (High-stakes clutch conversion: 76-88% late, 70-84% normal)
+          const penGoalChance = isLatePen
+            ? Math.min(88, Math.max(76, Math.round(penTaker.cmp * 0.4 + penTaker.fin * 0.4 + 32)))
+            : Math.min(84, Math.max(68, Math.round(penTaker.cmp * 0.4 + penTaker.fin * 0.4 + 26)));
+
           if (Math.random() * 100 < penGoalChance) {
             attTeam.score++;
             penTaker.goals++;
             penTaker.shots++;
+            if (attTeam.score <= defTeam.score) {
+              recentComebackTeamAlias = attTeam.alias;
+              comebackSurgeRemaining = 2;
+            }
             scorers.push({ minute: min, player: penTaker.name, team: attTeam.name });
             matchChronology.push(`⚽ ${min}' Goal (Penalty) -- ${penTaker.name} ${penTaker.flag}`);
 
@@ -747,14 +878,18 @@ export async function runLiveEpisodicMatch(
         } else {
           // --- MULTI-PART FREE KICK SEQUENCE ---
           const fkTaker = getSpecialist(attTeam, 'FK');
+          const isLateGameFk = min >= 80;
+
           // 1. Awarded
           await sendIncident({
             minute: min,
             icon: '🚩',
-            eventTitle: `FREE KICK AWARDED — ${attTeam.name}`,
+            eventTitle: isLateGameFk ? `LATE FREE KICK DRAMA — ${attTeam.name}` : `FREE KICK AWARDED — ${attTeam.name}`,
             actor: fkTaker,
             secondaryPlayer: midDef,
-            narrative: `Free kick awarded in dangerous territory outside the 18-yard box! ${midDef.name}'s challenge is deemed illegal. ${fkTaker.name} immediately claims the ball.`
+            narrative: isLateGameFk
+              ? `LATE FREE KICK DRAMA! In the dying embers of the match, ${midDef.name} commits a foul in prime shooting territory outside the box! ${fkTaker.name} immediately claims the ball!`
+              : `Free kick awarded in dangerous territory outside the 18-yard box! ${midDef.name}'s challenge is deemed illegal. ${fkTaker.name} immediately claims the ball.`
           });
           await sleep(2200);
 
@@ -768,21 +903,30 @@ export async function runLiveEpisodicMatch(
           });
           await sleep(2200);
 
-          // 3. Outcome (Realistic 8% - 20% free kick conversion)
-          const fkGoalChance = Math.min(20, Math.max(7, Math.round(((fkTaker.fin + (fkTaker.pow || 65)) / 2 - 40) * 0.35)));
+          // 3. Outcome (Late game dramatic conversion: 35-48%, normal: 14-25%)
+          const fkGoalChance = isLateGameFk
+            ? Math.min(48, Math.max(34, Math.round(38 + (fkTaker.fin - 50) * 0.25)))
+            : Math.min(24, Math.max(12, Math.round(16 + (fkTaker.fin - 50) * 0.22)));
+
           if (Math.random() * 100 < fkGoalChance) {
             attTeam.score++;
             fkTaker.goals++;
             fkTaker.shots++;
+            if (attTeam.score <= defTeam.score) {
+              recentComebackTeamAlias = attTeam.alias;
+              comebackSurgeRemaining = 2;
+            }
             scorers.push({ minute: min, player: fkTaker.name, team: attTeam.name });
             matchChronology.push(`⚽ ${min}' Goal (Free Kick) -- ${fkTaker.name} ${fkTaker.flag}`);
 
             await sendIncident({
               minute: min,
               icon: '⚽',
-              eventTitle: `GOAL — ${fkTaker.name} ${fkTaker.flag}`,
+              eventTitle: isLateGameFk ? `GOAL AT THE DEATH! — ${fkTaker.name} ${fkTaker.flag}` : `GOAL — ${fkTaker.name} ${fkTaker.flag}`,
               actor: fkTaker,
-              narrative: `WHAT A STUNNER! ${fkTaker.name} whips the free kick over the wall and into the top corner! Absolute perfection!`
+              narrative: isLateGameFk
+                ? `WHAT AN UNBELIEVABLE STUNNER AT THE DEATH! ${fkTaker.name} whips the free kick over the wall and into the top stanchion! BEDLAM IN THE STADIUM!`
+                : `WHAT A STUNNER! ${fkTaker.name} whips the free kick over the wall and into the top corner! Absolute perfection!`
             });
           } else {
             await sendIncident({
@@ -859,60 +1003,66 @@ export async function runLiveEpisodicMatch(
     }
 
     // Scenario D: INTERCEPTIONS & SWEEPER CLEARANCE (BPD & Sweeper Playstyles)
-    if (actionRoll >= 55 && actionRoll < 68) {
+    if (actionRoll >= 50 && actionRoll < 60) {
       if (defPlayer.playstyle === 'SWP') {
-        // Sweeper sliding recovery clearance
-        defPlayer.interceptions++;
-        const commentary = await generateAiMinuteCommentary({
-          minute: min,
-          type: 'BUILDUP',
-          homeTeam: homeTeam.name,
-          awayTeam: awayTeam.name,
-          homeScore: homeTeam.score,
-          awayScore: awayTeam.score,
-          actorPlayer: `${defPlayer.name} (Sweeper)`,
-          actorTeam: defTeam.name,
-          secondaryPlayer: striker.name,
-          secondaryTeam: attTeam.name,
-          details: `Sweeper ${defPlayer.name} (${defTeam.name}) uses recovery pace to execute a sliding clearance just as the through ball was arriving for ${striker.name} (${attTeam.name}).`
-        });
+        const swpDuel = calcDuelWinProb(defPlayer.pac * 1.2 + defPlayer.int, striker.pac * 1.2, 54);
+        if (Math.random() * 100 < swpDuel) {
+          // Sweeper sliding recovery clearance
+          defPlayer.interceptions++;
+          const commentary = await generateAiMinuteCommentary({
+            minute: min,
+            type: 'BUILDUP',
+            homeTeam: homeTeam.name,
+            awayTeam: awayTeam.name,
+            homeScore: homeTeam.score,
+            awayScore: awayTeam.score,
+            actorPlayer: `${defPlayer.name} (Sweeper)`,
+            actorTeam: defTeam.name,
+            secondaryPlayer: striker.name,
+            secondaryTeam: attTeam.name,
+            details: `Sweeper ${defPlayer.name} (${defTeam.name}) uses recovery pace to execute a sliding clearance just as the through ball was arriving for ${striker.name} (${attTeam.name}).`
+          });
 
-        await sendIncident({
-          minute: min,
-          icon: '🧹',
-          eventTitle: 'SWEEPER RECOVERY CLEARANCE',
-          actor: defPlayer,
-          secondaryPlayer: striker,
-          narrative: commentary
-        });
-        return;
+          await sendIncident({
+            minute: min,
+            icon: '🧹',
+            eventTitle: 'SWEEPER RECOVERY CLEARANCE',
+            actor: defPlayer,
+            secondaryPlayer: striker,
+            narrative: commentary
+          });
+          return;
+        }
       } else {
         // Ball-Playing Defender or Anchor Interception
         const interceptor = defPlayer.playstyle === 'BPD' ? defPlayer : midDef;
-        interceptor.interceptions++;
-        const commentary = await generateAiMinuteCommentary({
-          minute: min,
-          type: 'TACKLE',
-          homeTeam: homeTeam.name,
-          awayTeam: awayTeam.name,
-          homeScore: homeTeam.score,
-          awayScore: awayTeam.score,
-          actorPlayer: `${interceptor.name} (${interceptor.playstyle})`,
-          actorTeam: defTeam.name,
-          secondaryPlayer: midAtt.name,
-          secondaryTeam: attTeam.name,
-          details: `Interception! ${interceptor.name} (${defTeam.name}) reads the passing lane early, cutting out the intended pass for ${midAtt.name} (${attTeam.name}) with effortless composure.`
-        });
+        const intDuel = calcDuelWinProb(interceptor.int * 1.2 + interceptor.cmp, midAtt.pas * 1.1 + midAtt.vis, 52);
+        if (Math.random() * 100 < intDuel) {
+          interceptor.interceptions++;
+          const commentary = await generateAiMinuteCommentary({
+            minute: min,
+            type: 'TACKLE',
+            homeTeam: homeTeam.name,
+            awayTeam: awayTeam.name,
+            homeScore: homeTeam.score,
+            awayScore: awayTeam.score,
+            actorPlayer: `${interceptor.name} (${interceptor.playstyle})`,
+            actorTeam: defTeam.name,
+            secondaryPlayer: midAtt.name,
+            secondaryTeam: attTeam.name,
+            details: `Interception! ${interceptor.name} (${defTeam.name}) reads the passing lane early, cutting out the intended pass for ${midAtt.name} (${attTeam.name}) with effortless composure.`
+          });
 
-        await sendIncident({
-          minute: min,
-          icon: '🛡️',
-          eventTitle: 'INTERCEPTION',
-          actor: interceptor,
-          secondaryPlayer: midAtt,
-          narrative: commentary
-        });
-        return;
+          await sendIncident({
+            minute: min,
+            icon: '🛡️',
+            eventTitle: 'INTERCEPTION',
+            actor: interceptor,
+            secondaryPlayer: midAtt,
+            narrative: commentary
+          });
+          return;
+        }
       }
     }
 
@@ -920,8 +1070,8 @@ export async function runLiveEpisodicMatch(
     // 2. ATTACKING TACTICS & PLAYMAKING SCENARIOS
     // ==========================================
 
-    // Scenario E: LIGHTNING COUNTER-ATTACK (Force Counter ON)
-    if (attTactics.forceCounter === 'On' && defTactics.teamMentality.includes('Attack') && Math.random() < 0.45) {
+    // Scenario E: LIGHTNING COUNTER-ATTACK (Force Counter ON or Underdog Breakout)
+    if ((attTactics.forceCounter === 'On' || (attTeam.score < defTeam.score && Math.random() < 0.35)) && Math.random() < 0.50) {
       const commentary = await generateAiMinuteCommentary({
         minute: min,
         type: 'BUILDUP',
@@ -946,9 +1096,9 @@ export async function runLiveEpisodicMatch(
       });
       await sleep(tickDelay);
 
-      // 65% chance breaks cleanly through on goal to shoot!
+      // 65% chance breaks cleanly through on goal to shoot with counter-attack bonus!
       if (Math.random() < 0.65) {
-        await resolveGoalAttempt(striker, midAtt);
+        await resolveGoalAttempt(striker, midAtt, false, true);
       } else {
         await sendIncident({
           minute: min,
@@ -962,8 +1112,65 @@ export async function runLiveEpisodicMatch(
       return;
     }
 
+    // Scenario H: OVERLAPPING DEFENDER RUN & MIDFIELD VISION (Total Football Plays)
+    if (actionRoll >= 60 && actionRoll < 72) {
+      const visionScore = midAtt.vis * 1.2 + midAtt.pas;
+      const interceptScore = defPlayer.int * 1.2 + defPlayer.tck;
+      const passSuccessProb = calcDuelWinProb(visionScore, interceptScore, 58);
+
+      if (Math.random() * 100 < passSuccessProb) {
+        defAtt.dribblesWon++;
+        midAtt.passesCompleted += 2;
+        const isLongScreamer = Math.random() < 0.50;
+
+        const commentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${defAtt.name} (${defAtt.playstyle})`,
+          actorTeam: attTeam.name,
+          secondaryPlayer: midAtt.name,
+          secondaryTeam: attTeam.name,
+          details: `Total football! Defender ${defAtt.name} makes a galloping overlapping run into the attacking third, spotted by ${midAtt.name}'s laser-precise vision with an exquisite threaded pass!`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '🏃💨',
+          eventTitle: 'OVERLAPPING DEFENDER RUN',
+          actor: defAtt,
+          secondaryPlayer: midAtt,
+          narrative: commentary
+        });
+        await sleep(tickDelay);
+
+        if (isLongScreamer) {
+          // 25-yard thunderbolt screamer attempt!
+          await resolveGoalAttempt(defAtt, midAtt, false, false, true);
+        } else {
+          // Cut-back inside the box
+          await resolveGoalAttempt(defAtt, midAtt, false, false, false);
+        }
+        return;
+      } else {
+        defPlayer.interceptions++;
+        await sendIncident({
+          minute: min,
+          icon: '🛡️',
+          eventTitle: 'INTERCEPTED OVERLAP',
+          actor: defPlayer,
+          secondaryPlayer: defAtt,
+          narrative: `${defPlayer.name} snuffs out the danger, stepping across to cut out the through-ball intended for ${defAtt.name}'s overlapping charge.`
+        });
+        return;
+      }
+    }
+
     // Scenario F: FOCUS PASSING STYLES (Through The Middle vs Flanks vs Long Ball)
-    if (actionRoll >= 68 && actionRoll < 82) {
+    if (actionRoll >= 72 && actionRoll < 85) {
       if (attTactics.focusPassing === 'Through The Middle') {
         // Central Penetration / Key Pass
         midAtt.passesCompleted += 3;
@@ -1113,7 +1320,7 @@ export async function runLiveEpisodicMatch(
     }
 
     // Scenario G: MOMENTUM SHIFTS & RALLYING CRY
-    if (actionRoll >= 82 && actionRoll < 88) {
+    if (actionRoll >= 85 && actionRoll < 90) {
       if (attTeam.score < defTeam.score && Math.random() < 0.5) {
         // Rallying Cry from leader
         const leader = attTeam.players.mid;
@@ -1140,7 +1347,7 @@ export async function runLiveEpisodicMatch(
     }
 
     // ==========================================
-    // 3. SCORING CHANCES & GOAL ATTEMPTS (88+)
+    // 3. SCORING CHANCES & GOAL ATTEMPTS (90+)
     // ==========================================
     // Dynamic shooter selection: Strikers lead the line, but Midfielders arrive from deep and Defenders push forward!
     const shooterRoll = Math.random() * 100;
@@ -1229,6 +1436,16 @@ export async function runLiveEpisodicMatch(
     await sleep(tickDelay);
   }
 
+  // Stoppage Time Drama (90+3') if match is on a knife edge (within 1 goal)
+  if (Math.abs(homeTeam.score - awayTeam.score) <= 1 && Math.random() < 0.70) {
+    await channel.send({
+      content: `⏱️ **+3' Stoppage time signaled by the fourth official! Knife-edge drama to the death!**`
+    });
+    await sleep(2000);
+    await simulateTacticalPhase(93);
+    await sleep(tickDelay);
+  }
+
   matchChronology.push(`🏁 90+5' Fulltime`);
 
   // ==========================================
@@ -1286,6 +1503,25 @@ export async function runLiveEpisodicMatch(
     scoreboardEmbed.setThumbnail(client.user.displayAvatarURL());
   }
 
+  // Generate authentic broadcast-grade match scorecard graphic
+  const scorecardBuf = generateMatchScorecardGraphic({
+    homeTeam: homeTeam.name,
+    awayTeam: awayTeam.name,
+    homeScore: homeTeam.score,
+    awayScore: awayTeam.score,
+    homePossession: homeTeam.possession,
+    awayPossession: awayTeam.possession,
+    motmName: motm.name,
+    motmRating: motm.rating,
+    homeFlag: homeTeam.flag,
+    awayFlag: awayTeam.flag,
+    homeColor: homeTeam.color,
+    awayColor: awayTeam.color
+  });
+
+  const scorecardAttachment = new AttachmentBuilder(scorecardBuf, { name: 'match_scorecard.png' });
+  scoreboardEmbed.setImage('attachment://match_scorecard.png');
+
   // Generate authentic possession pie chart based on real possession
   const pieChartBuf = generatePossessionPieChart(
     homeTeam.name,
@@ -1306,7 +1542,7 @@ export async function runLiveEpisodicMatch(
 
   await channel.send({
     embeds: [scoreboardEmbed, chartEmbed],
-    files: [chartAttachment]
+    files: [scorecardAttachment, chartAttachment]
   });
 
   logger.info(`✅ Match completed: ${homeTeam.name} ${homeTeam.score} - ${awayTeam.score} ${awayTeam.name}`);
@@ -1335,22 +1571,6 @@ export async function runLiveEpisodicMatch(
           rating: motm.rating,
           stats: `${motm.goals} Goal(s), ${motm.assists} Assist(s), ${motm.tackles} Tackle(s)`
         }
-      });
-
-      // Generate dynamic match scorecard graphic for THIS specific match
-      const scorecardBuf = generateMatchScorecardGraphic({
-        homeTeam: homeTeam.name,
-        awayTeam: awayTeam.name,
-        homeScore: homeTeam.score,
-        awayScore: awayTeam.score,
-        homePossession: homeTeam.possession,
-        awayPossession: awayTeam.possession,
-        motmName: motm.name,
-        motmRating: motm.rating,
-        homeFlag: homeTeam.flag,
-        awayFlag: awayTeam.flag,
-        homeColor: homeTeam.color,
-        awayColor: awayTeam.color
       });
 
       const newsAttachment = new AttachmentBuilder(scorecardBuf, { name: 'match_scorecard.png' });

@@ -8,10 +8,14 @@ import { prisma } from '../database/prisma.js';
 import { getEmoji } from '../utils/emojiHelper.js';
 import { THEME_COLORS, UI, makeDualProgressBar, subtext } from '../utils/themeHelper.js';
 import { logger } from '../utils/logger.js';
+import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 
 export async function handleMatchCommand(message: Message, args: string[]) {
   if (args[0]?.toLowerCase() === 'live') {
     return await handleLiveMatchCommand(message, args.slice(1));
+  }
+  if (args[0]?.toLowerCase() === 'batch' || args[0]?.toLowerCase() === 'many') {
+    return await handleBatchMatchCommand(message, args.slice(1));
   }
 
   const opponent = message.mentions.users.first();
@@ -172,6 +176,112 @@ export async function handleRosterCommand(message: Message, args: string[]) {
   await message.reply({ embeds: [embed] });
 }
 
+export function getBalancedMorocco(): MatchTeam {
+  return {
+    name: 'Morocco',
+    alias: 'mor',
+    flag: '🇲🇦',
+    penaltyTakerName: 'Shane',
+    freeKickTakerName: 'Shane',
+    cornerTakerName: 'Mercking',
+    tactics: {
+      teamMentality: 'Attacking',
+      focusPassing: 'Through The Middle',
+      passingStyle: 'Short',
+      forceCounter: 'On',
+      pressingStyle: 'High',
+      tacklingStyle: 'Hard',
+      markingStyle: 'Man-To-Man',
+      offsideTrap: 'On'
+    },
+    color: [16, 185, 129], // Emerald
+    score: 0,
+    possession: 55,
+    players: {
+      atk: {
+        id: 'mor-1',
+        name: 'Shane',
+        position: 'ATK',
+        playstyle: 'PCH',
+        flag: '🇲🇦',
+        fin: 59, pas: 57, tck: 55, dri: 59, int: 56, pac: 59, cmp: 58, vis: 57, phy: 58, wrk: 58, hea: 58, pow: 58,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 24, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      },
+      mid: {
+        id: 'mor-2',
+        name: 'Idkunknown',
+        position: 'MID',
+        playstyle: 'ANC',
+        flag: '🇲🇦',
+        fin: 56, pas: 59, tck: 59, dri: 57, int: 58, pac: 57, cmp: 58, vis: 59, phy: 58, wrk: 59, hea: 57, pow: 58,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 35, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      },
+      def: {
+        id: 'mor-3',
+        name: 'Mercking',
+        position: 'DEF',
+        playstyle: 'BPD',
+        flag: '🇲🇦',
+        fin: 55, pas: 58, tck: 59, dri: 56, int: 59, pac: 58, cmp: 57, vis: 57, phy: 59, wrk: 58, hea: 59, pow: 59,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 42, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      }
+    }
+  };
+}
+
+export function getBalancedMexico(): MatchTeam {
+  return {
+    name: 'Mexico',
+    alias: 'mex',
+    flag: '🇲🇽',
+    penaltyTakerName: 'Shaquib',
+    freeKickTakerName: 'Shaquib',
+    cornerTakerName: 'Theexampleofmiracle',
+    tactics: {
+      teamMentality: 'Defensive',
+      focusPassing: 'Down Both Flanks',
+      passingStyle: 'Long',
+      forceCounter: 'On',
+      pressingStyle: 'Low',
+      tacklingStyle: 'Hard',
+      markingStyle: 'Zonal',
+      offsideTrap: 'Off'
+    },
+    color: [5, 150, 105], // Green
+    score: 0,
+    possession: 45,
+    players: {
+      atk: {
+        id: 'mex-1',
+        name: 'Shaquib',
+        position: 'ATK',
+        playstyle: 'TGT',
+        flag: '🇲🇽',
+        fin: 52, pas: 50, tck: 50, dri: 51, int: 50, pac: 52, cmp: 51, vis: 50, phy: 52, wrk: 51, hea: 52, pow: 52,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 15, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      },
+      mid: {
+        id: 'mex-2',
+        name: 'Darkvoid',
+        position: 'MID',
+        playstyle: 'DLP',
+        flag: '🇲🇽',
+        fin: 50, pas: 52, tck: 51, dri: 50, int: 51, pac: 50, cmp: 51, vis: 52, phy: 51, wrk: 52, hea: 50, pow: 51,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 22, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      },
+      def: {
+        id: 'mex-3',
+        name: 'Theexampleofmiracle',
+        position: 'DEF',
+        playstyle: 'SWP',
+        flag: '🇲🇽',
+        fin: 50, pas: 50, tck: 52, dri: 50, int: 52, pac: 51, cmp: 50, vis: 50, phy: 52, wrk: 51, hea: 51, pow: 51,
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 16, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      }
+    }
+  };
+}
+
 /**
  * Executes a full WITS/Blitz style Live Episodic Match in #live-match
  */
@@ -196,118 +306,197 @@ export async function handleLiveMatchCommand(message: Message, args: string[]) {
     `⚡ Setting up tactical clash in ${liveChannel.toString()} — grab your seats!`
   );
 
-  // Setup Team 1: Morocco (Poacher + Anchor + Ball-Playing Def) with Deep Tactics
-  const team1: MatchTeam = {
-    name: 'Morocco',
-    alias: 'mor',
-    flag: '🇲🇦',
-    penaltyTakerName: 'Shane',
-    freeKickTakerName: 'Shane',
-    cornerTakerName: 'Mercking',
-    tactics: {
-      teamMentality: 'Attacking',
-      focusPassing: 'Through The Middle',
-      passingStyle: 'Short',
-      forceCounter: 'On',
-      pressingStyle: 'High',
-      tacklingStyle: 'Hard',
-      markingStyle: 'Man-To-Man',
-      offsideTrap: 'On'
-    },
-    color: [16, 185, 129], // Emerald
-    score: 0,
-    possession: 57,
-    players: {
-      atk: {
-        id: 'mor-1',
-        name: 'Shane',
-        position: 'ATK',
-        playstyle: 'PCH',
-        flag: '🇲🇦',
-        fin: 88, pas: 74, tck: 52, dri: 84, int: 50, pac: 86, cmp: 86, vis: 76, phy: 78, wrk: 82,
-        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 24, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
-      },
-      mid: {
-        id: 'mor-2',
-        name: 'Idkunknown',
-        position: 'MID',
-        playstyle: 'ANC',
-        flag: '🇲🇦',
-        fin: 68, pas: 84, tck: 88, dri: 76, int: 86, pac: 80, cmp: 84, vis: 82, phy: 85, wrk: 88,
-        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 35, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
-      },
-      def: {
-        id: 'mor-3',
-        name: 'Mercking',
-        position: 'DEF',
-        playstyle: 'BPD',
-        flag: '🇲🇦',
-        fin: 60, pas: 86, tck: 85, dri: 72, int: 88, pac: 78, cmp: 86, vis: 85, phy: 84, wrk: 82,
-        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 42, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
-      }
-    }
-  };
-
-  // Setup Team 2: Mexico (Base 50 Rookies) with Defensive Tactics
-  const team2: MatchTeam = {
-    name: 'Mexico',
-    alias: 'mex',
-    flag: '🇲🇽',
-    penaltyTakerName: 'Darkvoid',
-    freeKickTakerName: 'Shaquib',
-    cornerTakerName: 'Shaquib',
-    tactics: {
-      teamMentality: 'Defensive',
-      focusPassing: 'Down Both Flanks',
-      passingStyle: 'Long',
-      forceCounter: 'Off',
-      pressingStyle: 'Low',
-      tacklingStyle: 'Normal',
-      markingStyle: 'Zonal',
-      offsideTrap: 'Off'
-    },
-    color: [4, 120, 87], // Dark Forest Green
-    score: 0,
-    possession: 43,
-    players: {
-      atk: {
-        id: 'mex-1',
-        name: 'Darkvoid',
-        position: 'ATK',
-        playstyle: 'ATT',
-        flag: '🇲🇽',
-        fin: 50, pas: 50, tck: 50, dri: 50, int: 50, pac: 50, cmp: 50, vis: 50, phy: 50, wrk: 50,
-        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 12, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
-      },
-      mid: {
-        id: 'mex-2',
-        name: 'Shaquib',
-        position: 'MID',
-        playstyle: 'MID',
-        flag: '🇲🇽',
-        fin: 50, pas: 50, tck: 50, dri: 50, int: 50, pac: 50, cmp: 50, vis: 50, phy: 50, wrk: 50,
-        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 15, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
-      },
-      def: {
-        id: 'mex-3',
-        name: 'Theexampleofmiracle',
-        position: 'DEF',
-        playstyle: 'DEF',
-        flag: '🇲🇽',
-        fin: 50, pas: 50, tck: 50, dri: 50, int: 50, pac: 50, cmp: 50, vis: 50, phy: 50, wrk: 50,
-        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 16, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
-      }
-    }
-  };
+  const team1 = getBalancedMorocco();
+  const team2 = getBalancedMexico();
 
   try {
     await runLiveEpisodicMatch(message.client, liveChannel, team1, team2, {
       tickDelayMs: tickDelay,
       halfTimePauseMs: halfTimePause,
-      newsChannelId: '1574439070992306236'
+      newsChannelId: '1574439119227064402'
     });
   } catch (err: any) {
     logger.error({ err }, 'Error during live match broadcast');
     await (message.channel as any).send(`❌ Error running live match simulation: ${err.message}`);
   }
+}
+
+/**
+ * Executes a Grand Batch Simulation of N matches (default 40), records all telemetry,
+ * and exports the final CSV dataset directly into #live-match and the command channel.
+ */
+export async function handleBatchMatchCommand(message: Message, args: string[]) {
+  const guild = message.guild;
+  if (!guild) return;
+
+  const rawCount = parseInt(args[0], 10);
+  const totalMatches = isNaN(rawCount) || rawCount <= 0 ? 40 : Math.min(100, rawCount);
+
+  // Locate #live-match channel (ID: 1574439115783409845 or by name)
+  let liveChannel = (guild.channels.cache.get('1574439115783409845') ||
+    guild.channels.cache.find(c => c.name.includes('live-match'))) as TextChannel;
+
+  if (!liveChannel || !liveChannel.isTextBased()) {
+    liveChannel = message.channel as TextChannel;
+  }
+
+  const isFullSpeed = args.includes('full') || args.includes('broadcast');
+  const tickDelay = isFullSpeed ? 3500 : 650;
+  const halfTimePause = isFullSpeed ? 8000 : 1500;
+
+  const loadingMsg = await sendThinkingMessage(
+    message,
+    `Initializing ${totalMatches}-match grand simulation in ${liveChannel.name}...`
+  );
+
+  await liveChannel.send({
+    content:
+      `🚨 **GRAND TOURNAMENT SIMULATION INITIALIZED: ${totalMatches} MATCHES** 🚨\n` +
+      `⚔️ **Morocco 🇲🇦 (57–59 Stats) vs Mexico 🇲🇽 (50–52 Stats)**\n` +
+      `📊 Every match will be broadcast live with authentic matchday incidents, scorecards, and possession analytics.\n` +
+      `📁 Complete tournament dataset will be exported as a CSV report upon completion!`
+  });
+
+  const records: Array<{
+    matchId: number;
+    homeTeam: string;
+    homeScore: number;
+    awayScore: number;
+    awayTeam: string;
+    outcome: string;
+    margin: number;
+    homePoss: number;
+    awayPoss: number;
+    homeShots: number;
+    awayShots: number;
+    homeTackles: number;
+    awayTackles: number;
+    homeInterceptions: number;
+    awayInterceptions: number;
+    motmPlayer: string;
+    motmRating: number;
+    scorersSummary: string;
+  }> = [];
+
+  const goalscorersTally: Record<string, number> = {};
+
+  for (let i = 1; i <= totalMatches; i++) {
+    const team1 = getBalancedMorocco();
+    const team2 = getBalancedMexico();
+
+    try {
+      await liveChannel.send({
+        content: `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🏟️ **[MATCH ${i}/${totalMatches}] KICKOFF — Morocco 🇲🇦 vs Mexico 🇲🇽**`
+      });
+
+      const res = await runLiveEpisodicMatch(message.client, liveChannel, team1, team2, {
+        tickDelayMs: tickDelay,
+        halfTimePauseMs: halfTimePause,
+        newsChannelId: '1574439119227064402'
+      });
+
+      const homeGoals = res.homeScore;
+      const awayGoals = res.awayScore;
+      const margin = Math.abs(homeGoals - awayGoals);
+      const outcome = homeGoals > awayGoals ? 'Morocco Win' : awayGoals > homeGoals ? 'Mexico Win' : 'Draw';
+
+      // Collect scorers
+      const scorerList: string[] = [];
+      for (const p of [team1.players.atk, team1.players.mid, team1.players.def, team2.players.atk, team2.players.mid, team2.players.def]) {
+        if (p.goals > 0) {
+          scorerList.push(`${p.name} (${p.goals})`);
+          goalscorersTally[p.name] = (goalscorersTally[p.name] || 0) + p.goals;
+        }
+      }
+
+      records.push({
+        matchId: i,
+        homeTeam: 'Morocco',
+        homeScore: homeGoals,
+        awayScore: awayGoals,
+        awayTeam: 'Mexico',
+        outcome,
+        margin,
+        homePoss: res.homePossession,
+        awayPoss: res.awayPossession,
+        homeShots: team1.players.atk.shots + team1.players.mid.shots + team1.players.def.shots,
+        awayShots: team2.players.atk.shots + team2.players.mid.shots + team2.players.def.shots,
+        homeTackles: team1.players.atk.tackles + team1.players.mid.tackles + team1.players.def.tackles,
+        awayTackles: team2.players.atk.tackles + team2.players.mid.tackles + team2.players.def.tackles,
+        homeInterceptions: team1.players.atk.interceptions + team1.players.mid.interceptions + team1.players.def.interceptions,
+        awayInterceptions: team2.players.atk.interceptions + team2.players.mid.interceptions + team2.players.def.interceptions,
+        motmPlayer: res.motmPlayerName,
+        motmRating: res.motmRating,
+        scorersSummary: scorerList.join('; ') || 'None'
+      });
+    } catch (err: any) {
+      logger.error({ err }, `Error during batch simulation match ${i}`);
+    }
+
+    // Small breather between broadcasts
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  // 1. Generate CSV
+  const csvHeaders = 'Match_ID,Home_Team,Home_Score,Away_Score,Away_Team,Outcome,Margin,Home_Possession,Away_Possession,Home_Shots,Away_Shots,Home_Tackles,Away_Tackles,Home_Interceptions,Away_Interceptions,MOTM_Player,MOTM_Rating,Goal_Summary\n';
+  const csvRows = records.map(r =>
+    `${r.matchId},"${r.homeTeam}",${r.homeScore},${r.awayScore},"${r.awayTeam}","${r.outcome}",${r.margin},${r.homePoss},${r.awayPoss},${r.homeShots},${r.awayShots},${r.homeTackles},${r.awayTackles},${r.homeInterceptions},${r.awayInterceptions},"${r.motmPlayer}",${r.motmRating},"${r.scorersSummary}"`
+  ).join('\n');
+
+  const csvContent = csvHeaders + csvRows;
+  const outDir = path.join(process.cwd(), 'data');
+  if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+  const csvFileName = `simulation_results_${totalMatches}_matches_${Date.now()}.csv`;
+  const csvFilePath = path.join(outDir, csvFileName);
+  fs.writeFileSync(csvFilePath, csvContent, 'utf-8');
+
+  const csvAttachment = new AttachmentBuilder(Buffer.from(csvContent, 'utf-8'), { name: `simulation_results_${totalMatches}_matches.csv` });
+
+  // 2. Compute tournament aggregates
+  const moroccoWins = records.filter(r => r.outcome === 'Morocco Win').length;
+  const mexicoWins = records.filter(r => r.outcome === 'Mexico Win').length;
+  const draws = records.filter(r => r.outcome === 'Draw').length;
+  const blowouts = records.filter(r => r.margin >= 4).length;
+  const normalWins = records.filter(r => r.margin >= 1 && r.margin <= 2).length;
+  const totalGoals = records.reduce((acc, r) => acc + r.homeScore + r.awayScore, 0);
+  const avgMoroccoGoals = (records.reduce((acc, r) => acc + r.homeScore, 0) / (records.length || 1)).toFixed(2);
+  const avgMexicoGoals = (records.reduce((acc, r) => acc + r.awayScore, 0) / (records.length || 1)).toFixed(2);
+
+  // Top Scorer
+  const sortedScorers = Object.entries(goalscorersTally).sort((a, b) => b[1] - a[1]);
+  const goldenBoot = sortedScorers.length > 0 ? `${sortedScorers[0][0]} (${sortedScorers[0][1]} goals)` : 'N/A';
+
+  const summaryEmbed = new EmbedBuilder()
+    .setColor('#f59e0b')
+    .setTitle(`🏆 GRAND TOURNAMENT REPORT: ${totalMatches} MATCHES COMPLETED`)
+    .setDescription(
+      `### Morocco 🇲🇦 (57–59) vs Mexico 🇲🇽 (50–52)\n\n` +
+      `• **Morocco Wins (Favorite):** \`${moroccoWins}\` (${((moroccoWins / (records.length || 1)) * 100).toFixed(1)}%)\n` +
+      `• **Mexico Upset Wins (Underdog):** \`${mexicoWins}\` (${((mexicoWins / (records.length || 1)) * 100).toFixed(1)}%)\n` +
+      `• **Competitive Draws:** \`${draws}\` (${((draws / (records.length || 1)) * 100).toFixed(1)}%)\n` +
+      `• **Normal Competitive Scorelines (1-0, 2-0, 2-1, 3-1):** \`${normalWins}\` (${((normalWins / (records.length || 1)) * 100).toFixed(1)}%)\n` +
+      `• **Blowouts (Margin ≥ 4):** \`${blowouts}\` (${((blowouts / (records.length || 1)) * 100).toFixed(1)}%)\n\n` +
+      `📊 **Average Match Scoreline:** \`${avgMoroccoGoals} – ${avgMexicoGoals}\`\n` +
+      `⚽ **Total Goals Scored:** \`${totalGoals}\`\n` +
+      `🥇 **Tournament Golden Boot:** **${goldenBoot}**\n\n` +
+      `📁 **Telemetry Dataset Attached Below:** \`simulation_results_${totalMatches}_matches.csv\``
+    )
+    .setFooter({ text: 'Beyond The Final Whistle • Match Telemetry Bureau' })
+    .setTimestamp();
+
+  await liveChannel.send({
+    content: `📢 **@Tournament Ping** — All ${totalMatches} matches have concluded!`,
+    embeds: [summaryEmbed],
+    files: [csvAttachment]
+  });
+
+  const responseAttachment = new AttachmentBuilder(Buffer.from(csvContent, 'utf-8'), { name: `simulation_results_${totalMatches}_matches.csv` });
+  await updateLoadingMessage(
+    loadingMsg,
+    {
+      content: `✅ **Batch Simulation of ${totalMatches} matches completed successfully!** All telemetry logged and CSV exported.`,
+      embeds: [summaryEmbed],
+      files: [responseAttachment]
+    }
+  );
 }

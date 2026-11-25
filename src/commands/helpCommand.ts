@@ -83,6 +83,7 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '⚽ AI Match Simulations & Team Tactics',
         value:
+          '• `-batchmatch [count]` / `-simulatemany` — Runs a tournament simulation of N matches (default 40) in `#live-match`, tracking full telemetry, realistic comeback dynamics, and outputs a complete CSV dataset report!\n' +
           '• `-livematch [full]` / `-match live` — Broadcasts an authentic WITS-style live episodic match in `#live-match` with real-time incident pings, multi-part set pieces, 3-minute half-time break for tactical adjustments, full-time ratings scoreboard, possession pie chart, and AI Gazette in `#news`!\n' +
           '• `-match [@user]` — Triggers instant 90-minute AI-simulated match with commentary & sports newspaper report.\n' +
           '  *Mentions `@News Ping` and attaches full matchday telemetry infographic!*\n' +
