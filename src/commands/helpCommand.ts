@@ -46,7 +46,7 @@ export async function handleHelpCommand(message: Message) {
           '  `ph`: Photoshoot Hall • `ps`: Player Sauna • `lc`: Local Club\n' +
           '  `vs`: Showroom • `ih`: Intel Hub\n' +
           '• `-showroom` — Inspect exotic vehicles catalog with side-view sprites.\n' +
-          '• `-vehiclebuy <alias>` — Purchase vehicles (`basic`, `honda`, `toyota`, `porsche`, `nissan`, `audi`, `lamborghini`, `rollsroyce`, `ferrari`, `bugatti`). Slashes cooldowns down to 1 min ⏱️.'
+          '• `-vehiclebuy <alias>` — Purchase any of the 17 exotic rides (`mini`, `bmwm3`, `corvettec8`, `shelbymustang`, `jaguartype`, `bentley`, `mclarenf1`, plus legacy fleet). Slashes cooldowns down to 1 min ⏱️.'
       },
       {
         name: '🏋️ Training & Biomechanics Development',
