@@ -118,6 +118,14 @@ export interface VehicleDef {
 }
 
 export const VEHICLE_CATALOG: VehicleDef[] = [
+  { key: 'mini', name: 'Mini Cooper', cost: 700000n, cooldownMinutes: 16, emoji: '🚗' },
+  { key: 'bmwm3', name: 'BMW M3', cost: 3500000n, cooldownMinutes: 9, emoji: '🚙' },
+  { key: 'corvettec8', name: 'Corvette C8', cost: 6500000n, cooldownMinutes: 4, emoji: '🏎️' },
+  { key: 'jaguartype', name: 'Jaguar E-Type', cost: 6500000n, cooldownMinutes: 4, emoji: '🏎️' },
+  { key: 'shelbymustang', name: 'Shelby Mustang', cost: 6500000n, cooldownMinutes: 4, emoji: '🏎️' },
+  { key: 'bentley', name: 'Bentley Bentayga', cost: 9000000n, cooldownMinutes: 3, emoji: '🚙' },
+  { key: 'mclarenf1', name: 'McLaren F1', cost: 19500000n, cooldownMinutes: 1, emoji: '🏎️' },
+  // Backward-compatible catalog items
   { key: 'basic', name: 'Basic Car', cost: 700000n, cooldownMinutes: 16, emoji: '🚗' },
   { key: 'honda', name: 'Honda Civic', cost: 1000000n, cooldownMinutes: 14, emoji: '<:hcfront:1574441090503938158><:hcback:1574441085294616640>' },
   { key: 'toyota', name: 'Toyota Supra', cost: 3000000n, cooldownMinutes: 10, emoji: '<:tsfront:1574441146850082917><:tsback:1574441142022570014>' },
