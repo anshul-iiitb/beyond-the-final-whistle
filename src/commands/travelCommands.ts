@@ -1,4 +1,6 @@
-import { Message, EmbedBuilder } from 'discord.js';
+import { Message, EmbedBuilder, AttachmentBuilder } from 'discord.js';
+import path from 'path';
+import fs from 'fs';
 import { CAMPUS_LOCATIONS, VEHICLE_CATALOG } from '../config/constants.js';
 import { travelToLocation, getPlayerTravelCooldown } from '../engines/campusEngine.js';
 import { buyVehicle } from '../engines/marketEngine.js';
@@ -57,9 +59,17 @@ export async function handleShowroomCommand(message: Message) {
       ? `${millions % 1 === 0 ? millions : parseFloat(millions.toFixed(2))}M`
       : `${formatK(v.cost)}`;
 
-    return `${v.emoji} **${v.name.toUpperCase()}** \`[ alias: ${v.key} ]\`\n` +
+    const frontEmoji = getEmoji(message.guild, `${v.key}front`);
+    const backEmoji = getEmoji(message.guild, `${v.key}back`);
+    const hasSplitEmoji = frontEmoji.includes('<:') && backEmoji.includes('<:');
+    const displayEmoji = hasSplitEmoji ? `${frontEmoji}${backEmoji}` : v.emoji;
+
+    return `${displayEmoji} **${v.name.toUpperCase()}** \`[ alias: ${v.key} ]\`\n` +
       `• **Campus Cooldown:** \`${v.cooldownMinutes} min\` ⏱️   •   **Price:** \`${priceDisplay}\` ${coinEmoji}`;
   });
+
+  const fleetPath = path.resolve(process.cwd(), 'assets/branding/showroom_fleet.png');
+  const files: AttachmentBuilder[] = [];
 
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.SCARLET)
@@ -74,7 +84,12 @@ export async function handleShowroomCommand(message: Message) {
     .setFooter({ text: `Current Ride: ${vehicleName} (${cooldownMinutes}m cooldown) • Beyond The Final Whistle` })
     .setTimestamp();
 
-  await message.reply({ embeds: [embed] });
+  if (fs.existsSync(fleetPath)) {
+    files.push(new AttachmentBuilder(fleetPath, { name: 'showroom_fleet.png' }));
+    embed.setImage('attachment://showroom_fleet.png');
+  }
+
+  await message.reply({ embeds: [embed], files });
 }
 
 export async function handleVehicleBuyCommand(message: Message, args: string[]) {
