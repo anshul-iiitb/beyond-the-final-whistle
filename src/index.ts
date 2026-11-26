@@ -18,6 +18,19 @@ async function bootstrap() {
 
   const client = new BTFWClient();
 
+  // Crash Prevention & Global Error Handling
+  client.on('error', (err) => {
+    logger.error({ err }, 'Discord client emitted error');
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    logger.error({ reason }, 'Unhandled Promise Rejection caught');
+  });
+
+  process.on('uncaughtException', (err) => {
+    logger.error({ err }, 'Uncaught Exception caught');
+  });
+
   client.on('ready', async () => {
     logger.info(`⚽ Beyond The Final Whistle is LIVE as ${client.user?.tag}! Ready for kickoff.`);
     // Fetch and warm up server emojis across all guilds
@@ -28,15 +41,27 @@ async function bootstrap() {
   });
 
   client.on('messageCreate', async (message) => {
-    await onMessageCreate(message);
+    try {
+      await onMessageCreate(message);
+    } catch (err) {
+      logger.error({ err }, 'Error in messageCreate event listener');
+    }
   });
 
   client.on('messageReactionAdd', async (reaction, user) => {
-    await onMessageReactionAdd(reaction as any, user as any);
+    try {
+      await onMessageReactionAdd(reaction as any, user as any);
+    } catch (err) {
+      logger.error({ err }, 'Error in messageReactionAdd event listener');
+    }
   });
 
   client.on('interactionCreate', async (interaction) => {
-    await onInteractionCreate(interaction);
+    try {
+      await onInteractionCreate(interaction);
+    } catch (err) {
+      logger.error({ err }, 'Error in interactionCreate event listener');
+    }
   });
 
   await client.start();
