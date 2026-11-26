@@ -1,6 +1,4 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
+import 'dotenv/config';
 import { BTFWClient } from './client/BTFWClient.js';
 import { onMessageCreate } from './events/messageCreate.js';
 import { onMessageReactionAdd } from './events/messageReactionAdd.js';
