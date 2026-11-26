@@ -120,29 +120,29 @@ export interface VehicleDef {
 export const VEHICLE_CATALOG: VehicleDef[] = [
   // Tier 1: Starter Roadsters (16m - 14m)
   { key: 'basic', name: 'Basic Car', cost: 700000n, cooldownMinutes: 16, emoji: '🚗' },
-  { key: 'mini', name: 'Mini Cooper', cost: 850000n, cooldownMinutes: 16, emoji: '🚗' },
+  { key: 'mini', name: 'Mini Cooper', cost: 850000n, cooldownMinutes: 16, emoji: '<:minifront:1575602186698760290><:miniback:1575602191182340226>' },
   { key: 'honda', name: 'Honda Civic', cost: 1000000n, cooldownMinutes: 14, emoji: '<:hcfront:1574441090503938158><:hcback:1574441085294616640>' },
 
   // Tier 2: Mid-Range Sports & Sedans (10m - 7m)
   { key: 'toyota', name: 'Toyota Supra', cost: 3000000n, cooldownMinutes: 10, emoji: '<:tsfront:1574441146850082917><:tsback:1574441142022570014>' },
-  { key: 'bmwm3', name: 'BMW M3', cost: 3800000n, cooldownMinutes: 9, emoji: '🚙' },
+  { key: 'bmwm3', name: 'BMW M3', cost: 3800000n, cooldownMinutes: 9, emoji: '<:bmwm3front:1575602195741675681><:bmwm3back:1575602200074522635>' },
   { key: 'porsche', name: 'Porsche 911', cost: 5350000n, cooldownMinutes: 7, emoji: '<:p911front:1574441127464014015><:p911back:1574441122716065923>' },
 
   // Tier 3: Track Weapons & Classic Muscle (4m)
-  { key: 'corvettec8', name: 'Corvette C8', cost: 6500000n, cooldownMinutes: 4, emoji: '🏎️' },
+  { key: 'corvettec8', name: 'Corvette C8', cost: 6500000n, cooldownMinutes: 4, emoji: '<:corvettec8front:1575602205040443592><:corvettec8back:1575602209717092382>' },
   { key: 'nissan', name: 'Nissan GTR', cost: 6750000n, cooldownMinutes: 4, emoji: '<:ngtrfront:1574441117662052483><:ngtrback:1574441112632958999>' },
   { key: 'audi', name: 'Audi R8', cost: 6750000n, cooldownMinutes: 4, emoji: '<:ar8front:1574441060116074632><:ar8back:1574441055099813898>' },
-  { key: 'shelbymustang', name: 'Shelby Mustang', cost: 6900000n, cooldownMinutes: 4, emoji: '🏎️' },
-  { key: 'jaguartype', name: 'Jaguar E-Type', cost: 7250000n, cooldownMinutes: 4, emoji: '🏎️' },
+  { key: 'shelbymustang', name: 'Shelby Mustang', cost: 6900000n, cooldownMinutes: 4, emoji: '<:shelbymustangfront:1575602214167117854><:shelbymustangback:1575602218684522601>' },
+  { key: 'jaguartype', name: 'Jaguar E-Type', cost: 7250000n, cooldownMinutes: 4, emoji: '<:jaguartypefront:1575602223088668828><:jaguartypeback:1575602228025106462>' },
 
   // Tier 4: Ultra-Luxury & Grand Tourers (3m - 2m)
   { key: 'lamborghini', name: 'Lamborghini Huracan', cost: 8400000n, cooldownMinutes: 3, emoji: '<:lhfront:1574441105301315615><:lhback:1574441100280602727>' },
-  { key: 'bentley', name: 'Bentley Bentayga', cost: 9200000n, cooldownMinutes: 3, emoji: '🚙' },
+  { key: 'bentley', name: 'Bentley Bentayga', cost: 9200000n, cooldownMinutes: 3, emoji: '<:bentleyfront:1575602232685232159><:bentleyback:1575602237562953869>' },
   { key: 'rollsroyce', name: 'Rolls Royce Ghost', cost: 10250000n, cooldownMinutes: 2, emoji: '<:rrgfront:1574441137098195125><:rrgback:1574441132413292725>' },
 
   // Tier 5: Pinnacle Hypercars (1m)
   { key: 'ferrari', name: 'Ferrari La Ferrari', cost: 17700000n, cooldownMinutes: 1, emoji: '<:ffront:1574441080403787816><:fback:1574441075366564000>' },
-  { key: 'mclarenf1', name: 'McLaren F1', cost: 19500000n, cooldownMinutes: 1, emoji: '🏎️' },
+  { key: 'mclarenf1', name: 'McLaren F1', cost: 19500000n, cooldownMinutes: 1, emoji: '<:mclarenf1front:1575602242256371782><:mclarenf1back:1575602252666904768>' },
   { key: 'bugatti', name: 'Bugatti Chiron', cost: 20500000n, cooldownMinutes: 1, emoji: '<:bcfront:1574441070484394104><:bcback:1574441065535246396>' }
 ];
 

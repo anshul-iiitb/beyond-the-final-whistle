@@ -71,7 +71,21 @@ export const APPLICATION_EMOJIS: Record<string, string> = {
   ffront: '<:ffront:1574441080403787816>',
   fback: '<:fback:1574441075366564000>',
   bcfront: '<:bcfront:1574441070484394104>',
-  bcback: '<:bcback:1574441065535246396>'
+  bcback: '<:bcback:1574441065535246396>',
+  minifront: '<:minifront:1575602186698760290>',
+  miniback: '<:miniback:1575602191182340226>',
+  bmwm3front: '<:bmwm3front:1575602195741675681>',
+  bmwm3back: '<:bmwm3back:1575602200074522635>',
+  corvettec8front: '<:corvettec8front:1575602205040443592>',
+  corvettec8back: '<:corvettec8back:1575602209717092382>',
+  shelbymustangfront: '<:shelbymustangfront:1575602214167117854>',
+  shelbymustangback: '<:shelbymustangback:1575602218684522601>',
+  jaguartypefront: '<:jaguartypefront:1575602223088668828>',
+  jaguartypeback: '<:jaguartypeback:1575602228025106462>',
+  bentleyfront: '<:bentleyfront:1575602232685232159>',
+  bentleyback: '<:bentleyback:1575602237562953869>',
+  mclarenf1front: '<:mclarenf1front:1575602242256371782>',
+  mclarenf1back: '<:mclarenf1back:1575602252666904768>'
 };
 
 /**

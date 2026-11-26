@@ -15,7 +15,14 @@ const CAR_EMOJI_NAMES = [
   'lhfront', 'lhback',
   'rrgfront', 'rrgback',
   'ffront', 'fback',
-  'bcfront', 'bcback'
+  'bcfront', 'bcback',
+  'minifront', 'miniback',
+  'bmwm3front', 'bmwm3back',
+  'corvettec8front', 'corvettec8back',
+  'shelbymustangfront', 'shelbymustangback',
+  'jaguartypefront', 'jaguartypeback',
+  'bentleyfront', 'bentleyback',
+  'mclarenf1front', 'mclarenf1back'
 ];
 
 async function uploadCarEmojis() {

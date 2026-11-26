@@ -1,6 +1,4 @@
-import { Message, EmbedBuilder, AttachmentBuilder } from 'discord.js';
-import path from 'path';
-import fs from 'fs';
+import { Message, EmbedBuilder } from 'discord.js';
 import { CAMPUS_LOCATIONS, VEHICLE_CATALOG } from '../config/constants.js';
 import { travelToLocation, getPlayerTravelCooldown } from '../engines/campusEngine.js';
 import { buyVehicle } from '../engines/marketEngine.js';
@@ -68,9 +66,6 @@ export async function handleShowroomCommand(message: Message) {
       `• **Campus Cooldown:** \`${v.cooldownMinutes} min\` ⏱️   •   **Price:** \`${priceDisplay}\` ${coinEmoji}`;
   });
 
-  const fleetPath = path.resolve(process.cwd(), 'assets/branding/showroom_fleet.png');
-  const files: AttachmentBuilder[] = [];
-
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.SCARLET)
     .setTitle('🏎️ Luxury Dealership — Exotic Supercars & Hypercars')
@@ -84,12 +79,7 @@ export async function handleShowroomCommand(message: Message) {
     .setFooter({ text: `Current Ride: ${vehicleName} (${cooldownMinutes}m cooldown) • Beyond The Final Whistle` })
     .setTimestamp();
 
-  if (fs.existsSync(fleetPath)) {
-    files.push(new AttachmentBuilder(fleetPath, { name: 'showroom_fleet.png' }));
-    embed.setImage('attachment://showroom_fleet.png');
-  }
-
-  await message.reply({ embeds: [embed], files });
+  await message.reply({ embeds: [embed] });
 }
 
 export async function handleVehicleBuyCommand(message: Message, args: string[]) {
