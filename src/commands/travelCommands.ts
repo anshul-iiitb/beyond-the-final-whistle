@@ -20,7 +20,7 @@ export async function handleLocationsCommand(message: Message) {
       `Fast-travel between campus facilities to train, recover, trade, and sign sponsor contracts.\n\n` +
       lines.join('\n\n') +
       `\n\n${UI.DIVIDER}\n` +
-      subtext('💡 Travel syntax: `-travel <alias>` (e.g. `-travel tc` for Training Center). Cooldown reduced by vehicles.')
+      subtext('💡 Travel syntax: `-travel <alias>` (e.g. `-travel ch` for Player Clubhouse, `-travel gm` for Global Market & Showroom).')
     )
     .setFooter({ text: 'Beyond The Final Whistle • Football Campus' })
     .setTimestamp();

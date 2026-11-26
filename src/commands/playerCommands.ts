@@ -1,11 +1,66 @@
-import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, User, Guild } from 'discord.js';
+import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, User, Guild, AttachmentBuilder } from 'discord.js';
 import { prisma } from '../database/prisma.js';
-import { CAMPUS_LOCATIONS, PLAYSTYLES, ITEM_CATALOG, VEHICLE_CATALOG } from '../config/constants.js';
+import {
+  CAMPUS_LOCATIONS,
+  PLAYSTYLES,
+  ITEM_CATALOG,
+  VEHICLE_CATALOG,
+  COSMETIC_CATALOG,
+  PROFILE_THEMES
+} from '../config/constants.js';
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { giveMoney } from '../engines/socialEngine.js';
-import { formatK, getNationFlag } from '../utils/formatHelper.js';
+import { generatePlayerProfileCard } from '../utils/chartHelper.js';
+import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
+import { formatK, parseCoinAmount, getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
 import { THEME_COLORS, UI, makeProgressBar, subtext } from '../utils/themeHelper.js';
+
+export function computeSeasonRank(ovr: number, matchesPlayed: number): string {
+  if (ovr >= 88 && matchesPlayed >= 50) return 'Legendary';
+  if (ovr >= 80 && matchesPlayed >= 20) return 'World Class';
+  if (ovr >= 72 && matchesPlayed >= 5) return 'Pro';
+  return 'Rookie';
+}
+
+export function getUnlockedMilestones(player: any): string[] {
+  const badges: string[] = [];
+  if ((player.goalsScored || 0) >= 100) badges.push('100 GOALS');
+  if ((player.possessionWon || 0) >= 600) badges.push('600 POSS WON');
+  if ((player.motmCount || 0) >= 50) badges.push('50 MVPs');
+  if ((player.matchesPlayed || 0) >= 200) badges.push('200 CAPS');
+  if ((player.cleanSheets || 0) >= 50) badges.push('50 CLEAN SHEETS');
+  if ((player.inventory || []).some((i: any) => String(i.itemKey || '').includes('worldcup'))) {
+    badges.push('WORLD CHAMPION');
+  }
+  return badges;
+}
+
+export async function buildProfileBannerAttachment(player: any, targetUser: User): Promise<AttachmentBuilder> {
+  const derived = calculateDerivedRatings(player);
+  const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
+  const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
+  const milestones = getUnlockedMilestones(player);
+
+  const buffer = await generatePlayerProfileCard({
+    username: player.username || targetUser.username,
+    avatarUrl: targetUser.displayAvatarURL({ extension: 'png', size: 256 }),
+    clubName: player.club?.name || 'Free Agent',
+    nationName: player.nation?.name || 'Free Agent',
+    ovr,
+    atk: derived.atk,
+    mid: derived.mid,
+    def: derived.def,
+    seasonRank,
+    vipTier: player.vipTier || 0,
+    themeKey: player.profileTheme,
+    equippedAvatar: player.equippedAvatar,
+    equippedBanner: player.equippedBanner,
+    milestones
+  });
+
+  return new AttachmentBuilder(buffer, { name: 'profile_banner.png' });
+}
 
 export function buildProfileTabsRow(targetUserId: string, currentTab: 'main' | 'stats' | 'attr') {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -64,8 +119,12 @@ export function buildProfileEmbed(
 
   if (tab === 'main') {
     const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
+    const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
     const staminaBar = makeProgressBar(player.stamina, 100, 10);
     const color = isVip ? THEME_COLORS.GOLD : THEME_COLORS.PRIMARY;
+    const themeObj = PROFILE_THEMES.find(t => t.key === player.profileTheme) || PROFILE_THEMES[0];
+    const eqAvatar = COSMETIC_CATALOG.find(c => c.key === player.equippedAvatar);
+    const eqBanner = COSMETIC_CATALOG.find(c => c.key === player.equippedBanner);
 
     return new EmbedBuilder()
       .setColor(color)
@@ -75,8 +134,9 @@ export function buildProfileEmbed(
         `### ⚡ BIOMETRIC STATUS & VITALS\n` +
         `${staminaEmoji} **Stamina:** \`${player.stamina}/100\`\n` +
         `${staminaBar} **${player.stamina}%**\n` +
-        `${tpEmoji} **Training Points:** \`${player.trainingPoints} TP\`\n` +
-        `📍 **Campus Facility:** ${loc.emoji} **${loc.name}** \`(-travel ${loc.alias})\`\n\n` +
+        `${tpEmoji} **Training Points:** \`${player.trainingPoints} TP\` • 🏆 **Season Rank:** \`${seasonRank}\`\n` +
+        `📍 **Campus Facility:** ${loc.emoji} **${loc.name}** \`(-travel ${loc.alias})\`\n` +
+        `🎨 **Studio Setup:** Theme \`${themeObj.name}\` • Avatar: \`${eqAvatar ? eqAvatar.name : 'Default'}\` • Banner: \`${eqBanner ? eqBanner.name : 'None'}\`\n\n` +
         `### 💰 FINANCIALS & CLOUT\n` +
         `${coinEmoji} **Net Worth:** \`${formatK(player.coins)}\`\n` +
         `${followersEmoji} **Global Fans:** \`${formatK(player.followers)}\`\n` +
@@ -113,46 +173,59 @@ export function buildProfileEmbed(
           inline: false
         }
       )
-      .setThumbnail(targetUser.displayAvatarURL())
-      .setFooter({ text: 'Beyond The Final Whistle • Career Dossier • Tab 1/3' })
+      .setImage('attachment://profile_banner.png')
+      .setFooter({ text: 'Beyond The Final Whistle • Career Dossier • Tab 1/3 (-theme to customize)' })
       .setTimestamp();
   }
 
   if (tab === 'stats') {
     const motmEmoji = getEmoji(guild, 'motm');
+    const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
+    const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
+    const milestones = getUnlockedMilestones(player);
+    const gaTotal = (player.goalsScored || 0) + (player.assists || 0);
+    const wins = player.wins || 0;
+    const draws = player.draws || 0;
+    const losses = player.losses || 0;
+
     return new EmbedBuilder()
       .setColor(THEME_COLORS.TURF)
       .setTitle(`📊 ${player.username} ${flag} Career Match Telemetry`)
       .setDescription(
         `Comprehensive on-pitch performance records for **${player.username}** across all competitions.\n` +
+        `🏅 **Season Rank:** \`${seasonRank}\` • 🎖️ **Record (W-D-L):** \`${wins}-${draws}-${losses}\` • 🔥 **Total G/A:** \`${gaTotal}\`\n` +
+        (milestones.length > 0 ? `🏆 **Milestone Plaques:** ${milestones.map(m => `\`${m}\``).join(' ')}\n` : '') +
         `${UI.DIVIDER}`
       )
       .addFields(
         {
-          name: '🎯 Attacking & Playmaking Telemetry',
+          name: '🎯 Attacking & Playmaking',
           value:
-            `• **Matches Played:** \`${player.matchesPlayed}\` 🎯\n` +
-            `• **Goals Scored:** \`${player.goalsScored}\` ⚽\n` +
-            `• **Assists Provided:** \`${player.assists}\` 👟\n` +
-            `• **Shots (On Target):** \`${player.shots}\` (\`${player.shotsOnTarget}\` on target)\n` +
-            `• **Passes (Completed):** \`${player.passesAttempted}\` (\`${player.passesCompleted}\` completed)\n` +
-            `• **Key Chances Created:** \`${player.keyPasses}\` 🪄\n` +
-            `• **Second Assists:** \`${player.secondAssists}\`\n` +
-            `• **Dribbles Attempted:** \`${player.dribblesAttempted}\``,
+            `• **Matches (W-D-L):** \`${player.matchesPlayed}\` (\`${wins}-${draws}-${losses}\`)\n` +
+            `• **Goals / Assists (G/A):** \`${player.goalsScored}G\` / \`${player.assists}A\` (\`${gaTotal}\`) ⚽\n` +
+            `• **Shots (On Target):** \`${player.shots}\` (\`${player.shotsOnTarget}\` OT)\n` +
+            `• **Passes (Comp):** \`${player.passesAttempted}\` (\`${player.passesCompleted}\`) 🪄\n` +
+            `• **Key Chances:** \`${player.keyPasses}\` • **2nd Assists:** \`${player.secondAssists}\`\n` +
+            `• **Dribbles (Won):** \`${player.dribblesAttempted}\` (\`${player.dribblesCompleted}\` won)`,
           inline: true
         },
         {
-          name: '🛡️ Defending & Discipline',
+          name: '🛡️ Defending & Control',
           value:
-            `• **Dribbles Won:** \`${player.dribblesCompleted}\`\n` +
-            `• **Tackles (Won):** \`${player.tacklesAttempted}\` (\`${player.tacklesWon}\` won) 🛑\n` +
-            `• **Interceptions:** \`${player.interceptions}\` 🧠\n` +
-            `• **Defensive Clearances:** \`${player.clearances}\` 🧹\n` +
-            `• **Clean Sheets:** \`${player.cleanSheets}\` 🧤\n` +
-            `• **Yellow Cards:** \`${player.yellowCards}\` 🟨\n` +
-            `• **Red Cards:** \`${player.redCards}\` 🟥\n` +
-            `• **MOTM Accolades:** \`${player.motmCount}\` ${motmEmoji}`,
+            `• **Tackles (Won):** \`${player.tacklesAttempted}\` (\`${player.tacklesWon}\`) 🛑\n` +
+            `• **Interceptions:** \`${player.interceptions}\` 🧠 • **Clearances:** \`${player.clearances}\` 🧹\n` +
+            `• **Possession Won / Lost:** \`${player.possessionWon || 0}\` / \`${player.possessionLost || 0}\`\n` +
+            `• **Fouls Comm / Earned:** \`${player.foulsCommitted || 0}\` / \`${player.foulsEarned || 0}\`\n` +
+            `• **Saves / Clean Sheets:** \`${player.savesMade || 0}\` / \`${player.cleanSheets}\` 🧤\n` +
+            `• **Cards (🟨/🟥) & MOTM:** \`${player.yellowCards}/${player.redCards}\` • \`${player.motmCount}\` ${motmEmoji}`,
           inline: true
+        },
+        {
+          name: '🥅 Spot-Kick & Discipline Ledger',
+          value:
+            `• **Penalties Won:** \`${player.penaltiesWon || 0}\` • **Penalties Conceded:** \`${player.penaltiesLost || 0}\`\n` +
+            `• **Penalties Scored:** \`${player.penaltiesScored || 0}\` ⚽ • **Penalties Saved:** \`${player.penaltiesSaved || 0}\` 🧤`,
+          inline: false
         }
       )
       .setThumbnail(targetUser.displayAvatarURL())
@@ -216,33 +289,51 @@ export function buildProfileEmbed(
  */
 export async function handleProfileCommand(message: Message, args: string[]) {
   const targetUser = message.mentions.users.first() || message.author;
+  const thinkingMsg = await sendThinkingMessage(message, 'Compiling Career Dossier & Studio Card...');
 
-  let player = await prisma.player.findUnique({
-    where: { id: targetUser.id },
-    include: { vehicles: true, nation: true, club: true, inventory: true }
-  });
-
-  if (!player && targetUser.id === message.author.id) {
-    player = await prisma.player.create({
-      data: {
-        id: message.author.id,
-        username: message.author.username,
-        discriminator: message.author.discriminator !== '0' ? message.author.discriminator : null,
-        avatar: message.author.displayAvatarURL(),
-        currentLocation: 'tc'
-      },
+  try {
+    let player = await prisma.player.findUnique({
+      where: { id: targetUser.id },
       include: { vehicles: true, nation: true, club: true, inventory: true }
     });
+
+    if (!player && targetUser.id === message.author.id) {
+      player = await prisma.player.create({
+        data: {
+          id: message.author.id,
+          username: message.author.username,
+          discriminator: message.author.discriminator !== '0' ? message.author.discriminator : null,
+          avatar: message.author.displayAvatarURL(),
+          currentLocation: 'tc'
+        },
+        include: { vehicles: true, nation: true, club: true, inventory: true }
+      });
+    }
+
+    if (!player) {
+      return await updateLoadingMessage(thinkingMsg, {
+        content: '❌ That player has not registered on Beyond The Final Whistle yet.',
+        embeds: [],
+        files: []
+      });
+    }
+
+    const embed = buildProfileEmbed(player, targetUser, 'main', message.guild);
+    const row = buildProfileTabsRow(targetUser.id, 'main');
+    const bannerAttachment = await buildProfileBannerAttachment(player, targetUser);
+
+    await updateLoadingMessage(thinkingMsg, {
+      embeds: [embed],
+      files: [bannerAttachment],
+      components: [row]
+    });
+  } catch (err) {
+    await updateLoadingMessage(thinkingMsg, {
+      content: '❌ Failed to render player dossier.',
+      embeds: [],
+      files: []
+    });
   }
-
-  if (!player) {
-    return await message.reply('❌ That player has not registered on Beyond The Final Whistle yet.');
-  }
-
-  const embed = buildProfileEmbed(player, targetUser, 'main', message.guild);
-  const row = buildProfileTabsRow(targetUser.id, 'main');
-
-  await message.reply({ embeds: [embed], components: [row] });
 }
 
 export async function handleSetDescCommand(message: Message, args: string[]) {
@@ -270,15 +361,15 @@ export async function handleSetDescCommand(message: Message, args: string[]) {
 
 export async function handleGiveCommand(message: Message, args: string[]) {
   const targetUser = message.mentions.users.first();
-  const amountStr = args[1];
+  const amountStr = args.find(a => !a.startsWith('<@'));
 
   if (!targetUser || !amountStr) {
-    return await message.reply('❌ Usage: `-give @user <amount>` (e.g. `-give @teammate 50000`)');
+    return await message.reply('❌ Usage: `-give @user <amount>` (e.g. `-give @teammate 50k`)');
   }
 
-  const amount = BigInt(amountStr.replace(/[^0-9]/g, ''));
-  if (amount <= 0n) {
-    return await message.reply('❌ Invalid amount.');
+  const amount = parseCoinAmount(amountStr);
+  if (!amount || amount <= 0n) {
+    return await message.reply('❌ Invalid amount. Examples: `50000`, `50k`, `1.5m`.');
   }
 
   const result = await giveMoney(message.author.id, targetUser.id, amount);

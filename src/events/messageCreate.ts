@@ -4,9 +4,11 @@ import { handleTravelCommand, handleLocationsCommand, handleShowroomCommand, han
 import { handleTrainCommand, handleSpTrainCommand, handleRecoveryCommand, handleConvertCommand } from '../commands/trainingCommands.js';
 import { handleAdvertCommand, handleCoachingCommand, handleMeetGreetCommand, handleChirpCommand } from '../commands/socialCommands.js';
 import { handleBuyCommand, handleIntelCommand } from '../commands/marketCommands.js';
-import { handleMatchCommand, handleLiveMatchCommand, handleBatchMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand } from '../commands/matchCommands.js';
+import { handleAvatarCommand, handleAvatarBuyCommand, handleAvatarClaimCommand, handleEquipCommand, handleThemeCommand } from '../commands/cosmeticCommands.js';
+import { handleAuctionHouseCommand, handleBidCommand, handleSeedAuctionCommand } from '../commands/auctionCommands.js';
+import { handleMatchCommand, handleFriendlyCommand, handleLiveMatchCommand, handleBatchMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand } from '../commands/matchCommands.js';
 import { handleTacticsCommand } from '../commands/tacticsCommand.js';
-import { handleSetupCommand, handleVipCommand, handleAddItemCommand, handleAddVarCommand, handleSetupEmojisCommand } from '../commands/adminCommands.js';
+import { handleSetupCommand, handleVipCommand, handleDevFundCommand, handleAddItemCommand, handleAddVarCommand, handleSetupEmojisCommand } from '../commands/adminCommands.js';
 import { handleHelpCommand } from '../commands/helpCommand.js';
 import { handleBTFWGitPull, handleBTFWGitPullBack } from '../services/gitService.js';
 import { logger } from '../utils/logger.js';
@@ -112,10 +114,42 @@ export async function onMessageCreate(message: Message) {
         await handleChirpCommand(message, args);
         break;
 
+      // Cosmetics, Studio Themes & Auction House
+      case 'avatar':
+      case 'avatars':
+      case 'boutique':
+        await handleAvatarCommand(message);
+        break;
+      case 'avatarbuy':
+        await handleAvatarBuyCommand(message, args);
+        break;
+      case 'avatarclaim':
+        await handleAvatarClaimCommand(message, args);
+        break;
+      case 'equip':
+        await handleEquipCommand(message, args);
+        break;
+      case 'theme':
+      case 'themes':
+        await handleThemeCommand(message, args);
+        break;
+      case 'ah':
+      case 'auction':
+      case 'auctions':
+        await handleAuctionHouseCommand(message);
+        break;
+      case 'bid':
+        await handleBidCommand(message, args);
+        break;
+
       // Match Simulation & Statistics
       case 'match':
       case 'play':
         await handleMatchCommand(message, args);
+        break;
+      case 'friendly':
+      case 'exhibition':
+        await handleFriendlyCommand(message, args);
         break;
       case 'livematch':
       case 'simlive':
@@ -152,6 +186,12 @@ export async function onMessageCreate(message: Message) {
         break;
       case 'vip':
         await handleVipCommand(message, args);
+        break;
+      case 'devfund':
+        await handleDevFundCommand(message, args);
+        break;
+      case 'seedauction':
+        await handleSeedAuctionCommand(message, args);
         break;
       case 'additem':
         await handleAddItemCommand(message, args);

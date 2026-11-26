@@ -122,8 +122,8 @@ export async function buyVehicle(playerId: string, vehicleAlias: string): Promis
   });
   if (!player) return { success: false, message: '❌ Player not found.' };
 
-  if (player.currentLocation !== 'vs') {
-    return { success: false, message: '❌ You must be at the **🏎️ Vehicle Showroom** (`-travel vs`) to buy a vehicle!' };
+  if (player.currentLocation !== 'gm') {
+    return { success: false, message: '❌ You must be at the **🛍️ Global Market** (`-travel gm`) to buy a vehicle!' };
   }
 
   const targetDef = VEHICLE_CATALOG.find(v => v.key.toLowerCase() === vehicleAlias.toLowerCase() || v.name.toLowerCase().includes(vehicleAlias.toLowerCase()));

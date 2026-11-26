@@ -65,10 +65,10 @@ export function buildTrainingSelectionMenu(user: User, guild?: Guild | null) {
       `> High-intensity bespoke biometric training for VIP footballers.\n` +
       `• **Yield:** \`+6 TP\` ${tpEmoji}\n` +
       `• **Cooldown:** \`6 hours\` • **Stamina Cost:** \`5\` ${staminaEmoji}\n\n` +
-      `⚡ **No Effort Intensive Prep**\n` +
-      `> Instant matchday intensive tactical prep.\n` +
+      `⚡ **VIP 20h Endurance Prep**\n` +
+      `> Maximum-yield VIP session designed for busy or overnight schedules.\n` +
       `• **Yield:** \`+20 TP\` ${tpEmoji}\n` +
-      `• **Cooldown:** \`1 per matchday\` • **Stamina Cost:** \`50\` ${staminaEmoji}\n\n` +
+      `• **Cooldown:** \`20 hours\` • **Stamina Cost:** \`50\` ${staminaEmoji}\n\n` +
       `${UI.DIVIDER}\n` +
       subtext('💡 Click a button below to begin your training session.')
     )
@@ -108,7 +108,7 @@ export async function handleTrainCommand(message: Message, args: string[]) {
   let type: 'normal' | 'vip' | 'noeffort' = 'normal';
   if (modeArg === 'vip') {
     type = 'vip';
-  } else if (modeArg === 'noeffort' || modeArg === 'lazy') {
+  } else if (modeArg === 'noeffort' || modeArg === 'lazy' || modeArg === '20h' || modeArg === '20hr') {
     type = 'noeffort';
   }
 

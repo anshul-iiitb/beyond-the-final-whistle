@@ -1,16 +1,13 @@
 import { Interaction, ButtonInteraction, StringSelectMenuInteraction, TextChannel, MessageFlags } from 'discord.js';
 import { executeTraining } from '../engines/trainingEngine.js';
 import { buildTrainingSuccessEmbed } from '../commands/trainingCommands.js';
-import { executeSponsorAdvert } from '../engines/socialEngine.js';
+import { executeSponsorAdvert, applyTweetVote } from '../engines/socialEngine.js';
 import { prisma } from '../database/prisma.js';
-import { buildProfileEmbed, buildProfileTabsRow } from '../commands/playerCommands.js';
+import { buildProfileEmbed, buildProfileTabsRow, buildProfileBannerAttachment } from '../commands/playerCommands.js';
 import { buildTacticsContainer, parseTeamTactics, serializeTeamTactics, TeamTactics } from '../commands/tacticsCommand.js';
-import { formatK, getNationFlag } from '../utils/formatHelper.js';
+import { formatK } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
-
-// Cache for tracking which users voted on which tweets to prevent double-voting
-const tweetVotersCache = new Map<string, Set<string>>();
 
 export async function onInteractionCreate(interaction: Interaction) {
   if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
@@ -171,84 +168,24 @@ export async function onInteractionCreate(interaction: Interaction) {
       const isLike = customId.startsWith('tweet_like_');
       const tweetId = isLike ? customId.replace('tweet_like_', '') : customId.replace('tweet_dislike_', '');
 
-      const tweet = await prisma.playerTweet.findUnique({
-        where: { id: tweetId },
-        include: { author: { include: { nation: true } } }
-      });
-
-      if (!tweet) {
-        return await interaction.reply({ content: '❌ Tweet not found.', ephemeral: true });
+      const voteResult = await applyTweetVote({ id: tweetId }, interaction.user.id, isLike, interaction.client);
+      if (!voteResult.success) {
+        return await interaction.reply({ content: voteResult.error || '❌ Unable to vote.', ephemeral: true });
       }
 
-      if (tweet.authorId === interaction.user.id) {
-        return await interaction.reply({ content: '❌ You cannot vote on your own tweet!', ephemeral: true });
-      }
-
-      let voters = tweetVotersCache.get(tweet.id);
-      if (!voters) {
-        voters = new Set<string>();
-        tweetVotersCache.set(tweet.id, voters);
-      }
-
-      if (voters.has(interaction.user.id)) {
-        return await interaction.reply({ content: '❌ You have already voted on this tweet!', ephemeral: true });
-      }
-
-      voters.add(interaction.user.id);
-
-      const followerDelta = isLike ? 100000n : -50000n;
-      const updatedAuthor = await prisma.player.update({
-        where: { id: tweet.authorId },
-        data: {
-          followers: {
-            increment: followerDelta
-          }
-        },
-        include: { nation: true }
-      });
-
-      const updatedTweet = await prisma.playerTweet.update({
-        where: { id: tweet.id },
-        data: {
-          likes: isLike ? { increment: 1 } : undefined,
-          dislikes: !isLike ? { increment: 1 } : undefined
-        }
-      });
-
-      // Send DMs matching WITS: bot-dm-texts.txt
-      try {
-        if (isLike) {
-          await interaction.user.send('You have successfully liked the tweet!').catch(() => {});
-          const authorUser = await interaction.client.users.fetch(tweet.authorId).catch(() => null);
-          if (authorUser) {
-            await authorUser.send('Someone liked your post! You gained another 100k followers!').catch(() => {});
-          }
-        } else {
-          await interaction.user.send('You have successfully disliked the tweet!').catch(() => {});
-          const authorUser = await interaction.client.users.fetch(tweet.authorId).catch(() => null);
-          if (authorUser) {
-            await authorUser.send('Someone disliked your post! You lost 50k followers!').catch(() => {});
-          }
-        }
-      } catch {}
-
-      // Update the embed on the tweet message
-      const flag = getNationFlag(updatedAuthor.nation);
-      const newFollowersStr = formatK(updatedAuthor.followers);
-
+      const newFollowersStr = formatK(voteResult.newFollowers ?? 0n);
       const existingEmbed = interaction.message.embeds[0];
       if (existingEmbed) {
         const newEmbed = existingEmbed.toJSON();
-        newEmbed.title = `${updatedAuthor.username} ${flag} Tweeted!`;
+        newEmbed.title = `${voteResult.authorUsername} ${voteResult.authorFlag} Tweeted!`;
         newEmbed.fields = [
-          { name: `Followers 👤 : ${newFollowersStr}`, value: `${updatedTweet.likes} 👍  ${updatedTweet.dislikes} 👎`, inline: false }
+          { name: `Followers 👤 : ${newFollowersStr}`, value: `${voteResult.likes} 👍  ${voteResult.dislikes} 👎`, inline: false }
         ];
-
         await interaction.message.edit({ embeds: [newEmbed] }).catch(() => {});
       }
 
       return await interaction.reply({
-        content: isLike ? 'You have successfully liked the tweet!' : 'You have successfully disliked the tweet!',
+        content: isLike ? 'You liked the tweet! (+5k followers to author)' : 'You disliked the tweet! (-2.5k followers to author)',
         ephemeral: true
       });
     }
@@ -272,7 +209,12 @@ export async function onInteractionCreate(interaction: Interaction) {
       const embed = buildProfileEmbed(player, targetUser, tab, interaction.guild);
       const row = buildProfileTabsRow(targetUserId, tab);
 
-      return await interaction.update({ embeds: [embed], components: [row] });
+      if (tab === 'main') {
+        const banner = await buildProfileBannerAttachment(player, targetUser);
+        return await interaction.update({ embeds: [embed], components: [row], files: [banner], attachments: [] });
+      }
+
+      return await interaction.update({ embeds: [embed], components: [row], files: [], attachments: [] });
     }
 
     // 4. Commercial Sponsor Endorsements: sponsor_heineken, sponsor_adidas, etc.

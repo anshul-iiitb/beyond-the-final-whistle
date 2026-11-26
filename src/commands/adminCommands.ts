@@ -1,7 +1,8 @@
-import { Message, ChannelType, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { Message, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { prisma } from '../database/prisma.js';
-import { CAMPUS_LOCATIONS } from '../config/constants.js';
+import { CAMPUS_LOCATIONS, ITEM_CATALOG } from '../config/constants.js';
 import { installCustomServerEmojis, getEmoji } from '../utils/emojiHelper.js';
+import { parseCoinAmount, formatK } from '../utils/formatHelper.js';
 
 const MASTER_ADMIN = '478599245276905495';
 
@@ -62,6 +63,24 @@ export async function handleSetupCommand(message: Message) {
       createdList.push(`• **${loc.name}**: <#${channel.id}>`);
     }
 
+    // Private VIP Council Lounge
+    let vipChannel = guild.channels.cache.find(c => c.parentId === category?.id && c.name.toLowerCase().includes('vip-lounge'));
+    if (!vipChannel) {
+      vipChannel = await guild.channels.create({
+        name: '『👑』vip-lounge',
+        type: ChannelType.GuildText,
+        parent: category.id,
+        topic: 'Private VIP Council — early feature previews, suggestions voting & exhibition friendlies.',
+        permissionOverwrites: [
+          {
+            id: guild.roles.everyone.id,
+            deny: [PermissionFlagsBits.ViewChannel]
+          }
+        ]
+      });
+    }
+    createdList.push(`• **VIP Council Lounge:** <#${vipChannel.id}>`);
+
     // Auto-install custom emojis
     const emojiResults = await installCustomServerEmojis(guild);
     const emojiSummary = emojiResults.created.length > 0
@@ -86,9 +105,24 @@ export async function handleVipCommand(message: Message, args: string[]) {
     return await message.reply('❌ Unauthorized.');
   }
 
+  const subAction = args[0]?.toLowerCase() === 'remove' ? 'remove' : 'add';
   const targetUser = message.mentions.users.first();
   if (!targetUser) {
-    return await message.reply('❌ Usage: `-vip add invite @user` or `-vip add boost @user`');
+    return await message.reply('❌ Usage: `-vip add [reason] @user` or `-vip remove @user`');
+  }
+
+  const vipChannel = message.guild?.channels.cache.find(c => c.name.toLowerCase().includes('vip-lounge'));
+
+  if (subAction === 'remove') {
+    await prisma.player.upsert({
+      where: { id: targetUser.id },
+      update: { vipTier: 0, vipExpiresAt: null },
+      create: { id: targetUser.id, username: targetUser.username, vipTier: 0 }
+    });
+    if (vipChannel && 'permissionOverwrites' in vipChannel) {
+      await vipChannel.permissionOverwrites.delete(targetUser.id).catch(() => {});
+    }
+    return await message.reply(`ℹ️ Removed **VIP** status from <@${targetUser.id}>.`);
   }
 
   const tier = 1;
@@ -105,11 +139,47 @@ export async function handleVipCommand(message: Message, args: string[]) {
     }
   });
 
-  const tierName = '⭐ VIP';
-  await message.reply(`✅ **${tierName} Granted** to <@${targetUser.id}> for 30 days! VIP training drills are now unlocked.`);
+  if (vipChannel && 'permissionOverwrites' in vipChannel) {
+    await vipChannel.permissionOverwrites.create(targetUser.id, {
+      ViewChannel: true,
+      SendMessages: true,
+      ReadMessageHistory: true
+    }).catch(() => {});
+  }
+
+  const tierName = '👑 VIP';
+  await message.reply(`✅ **${tierName} Granted** to <@${targetUser.id}> for 30 days! VIP training drills, 300k sponsor, +100 sauna, friendlies, & private lounge unlocked.`);
 }
 
-import { ITEM_CATALOG } from '../config/constants.js';
+export async function handleDevFundCommand(message: Message, args: string[]) {
+  if (!isAuthorized(message)) {
+    return await message.reply('❌ Unauthorized: Master Admin permissions required.');
+  }
+
+  const targetUser = message.mentions.users.first() || message.author;
+  const amountArg = args.find(a => !a.startsWith('<@')) || '';
+  const amount = parseCoinAmount(amountArg);
+
+  if (!amount) {
+    return await message.reply('❌ Usage: `-devfund <amount> [@user]` (e.g. `-devfund 5m @user`)');
+  }
+
+  const updated = await prisma.player.upsert({
+    where: { id: targetUser.id },
+    update: { coins: { increment: amount } },
+    create: {
+      id: targetUser.id,
+      username: targetUser.username,
+      coins: amount
+    }
+  });
+
+  const coinEmoji = getEmoji(message.guild, 'coin');
+  await message.reply(
+    `🏦 **Dev Fund & Event Prize Credited!**\n` +
+    `Granted **+${formatK(amount)}** ${coinEmoji} to <@${targetUser.id}> *(New Balance: \`${formatK(updated.coins)}\`)*`
+  );
+}
 
 export async function handleAddItemCommand(message: Message, args: string[]) {
   if (!isAuthorized(message)) {

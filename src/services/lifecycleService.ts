@@ -2,8 +2,11 @@ import { Client } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import { formatK } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
+import { seedDailyAuctions, settleExpiredAuctions } from '../engines/auctionEngine.js';
 
 let dailyTimer: NodeJS.Timeout | null = null;
+let auctionTimer: NodeJS.Timeout | null = null;
+let auctionTickRunning = false;
 
 /**
  * Runs the daily reset:
@@ -64,13 +67,34 @@ export async function executeDailyLifecycle(client: Client) {
   logger.info(`Daily Lifecycle Reset completed for ${players.length} players.`);
 }
 
+async function runAuctionLifecycleTick(client: Client) {
+  if (auctionTickRunning) return;
+  auctionTickRunning = true;
+  try {
+    await settleExpiredAuctions(client);
+    await seedDailyAuctions(client, 2, true);
+  } catch (err) {
+    logger.error({ err }, 'Auction lifecycle tick failed');
+  } finally {
+    auctionTickRunning = false;
+  }
+}
+
 export function startDailyLifecycleWorker(client: Client) {
   if (dailyTimer) clearInterval(dailyTimer);
-  // Check every 1 hour if it's 07:00 or run daily
+  if (auctionTimer) clearInterval(auctionTimer);
+
+  // Check every 15 minutes if it's 07:00 UTC for daily upkeep
   dailyTimer = setInterval(() => {
     const now = new Date();
     if (now.getUTCHours() === 7 && now.getUTCMinutes() < 15) {
       executeDailyLifecycle(client);
     }
-  }, 15 * 60 * 1000); // Check every 15 minutes
+  }, 15 * 60 * 1000);
+
+  // Run automated Auction House settlement & daily collectible seeding every 60s
+  void runAuctionLifecycleTick(client);
+  auctionTimer = setInterval(() => {
+    void runAuctionLifecycleTick(client);
+  }, 60 * 1000);
 }

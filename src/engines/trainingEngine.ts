@@ -12,6 +12,13 @@ export interface TrainingResult {
   totalTp?: number;
 }
 
+function formatRemainingCooldown(msRemaining: number): string {
+  const totalMinutes = Math.ceil(msRemaining / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+}
+
 /**
  * Handles training drills at the Training Center
  */
@@ -29,102 +36,68 @@ export async function executeTraining(playerId: string, type: 'normal' | 'vip' |
     return { success: false, error: '❌ You must be at the **🏋️ Training Center** (`-travel tc`) to train!' };
   }
 
-  const now = new Date();
-
-  if (type === 'noeffort') {
-    if (player.vipTier < 1) {
-      return { success: false, error: '⭐ **No Effort Training** requires VIP status! Boost the server or invite friends to unlock.' };
-    }
-    if (player.lastTrainedAt && player.lastTrainedAt.toDateString() === now.toDateString()) {
-      return { success: false, error: '⏳ You have already performed your daily **No Effort Training** session today.' };
-    }
-    if (player.stamina < 50) {
-      return { success: false, error: `⚡ Insufficient stamina (${player.stamina}/50 needed for No Effort Training).` };
-    }
-
-    const earnedTp = 20;
-    const updated = await prisma.player.update({
-      where: { id: playerId },
-      data: {
-        trainingPoints: { increment: earnedTp },
-        stamina: { decrement: 50 },
-        lastTrainedAt: now
-      },
-      include: { nation: true }
-    });
-
-    return {
-      success: true,
-      player: updated,
-      tpGained: earnedTp,
-      cooldownMinutes: 1440,
-      remainingStamina: updated.stamina,
-      totalTp: updated.trainingPoints,
-      message: `⭐ **No Effort Training Completed!**\nEarned **+${earnedTp} 🤹‍♂️**! Total: \`${updated.trainingPoints} TP\` | Stamina: \`${updated.stamina} ⚡\``
-    };
-  }
-
-  if (type === 'vip') {
-    if (player.vipTier < 1) {
-      return { success: false, error: '⭐ **VIP Training** requires VIP status! Boost the server or donate to unlock.' };
-    }
-    if (player.stamina < 5) {
-      return { success: false, error: `⚡ Insufficient stamina (${player.stamina}/5 needed). Visit the sauna (\`-travel ps\` ➔ \`-recovery\`) or buy a sports drink (\`-travel gm\` ➔ \`-buy sd\`).` };
-    }
-    if (player.lastTrainedAt) {
-      const cooldownMs = 6 * 60 * 60 * 1000;
-      const elapsed = now.getTime() - player.lastTrainedAt.getTime();
-      if (elapsed < cooldownMs) {
-        const remainingMinutes = Math.ceil((cooldownMs - elapsed) / (60 * 1000));
-        return { success: false, error: `⏳ **VIP Drill Cooldown:** Please wait **${remainingMinutes} minutes** before your next VIP drill.` };
-      }
-    }
-
-    const earnedTp = 6;
-    const updated = await prisma.player.update({
-      where: { id: playerId },
-      data: {
-        trainingPoints: { increment: earnedTp },
-        stamina: { decrement: 5 },
-        lastTrainedAt: now
-      },
-      include: { nation: true }
-    });
-
-    return {
-      success: true,
-      player: updated,
-      tpGained: earnedTp,
+  const configs = {
+    noeffort: {
+      requiresVip: true,
+      staminaCost: 50,
+      cooldownMs: 20 * 60 * 60 * 1000,
+      cooldownMinutes: 1200,
+      timestampField: 'lastNoEffortAt' as const,
+      label: 'VIP 20h Endurance Training',
+      getTp: () => 20,
+      header: '⭐ **VIP 20h Endurance Training Completed!**'
+    },
+    vip: {
+      requiresVip: true,
+      staminaCost: 5,
+      cooldownMs: 6 * 60 * 60 * 1000,
       cooldownMinutes: 360,
-      remainingStamina: updated.stamina,
-      totalTp: updated.trainingPoints,
-      message: `⭐ **VIP Tactical Masterclass Completed!**\nEarned **+${earnedTp} 🤹‍♂️**! Total: \`${updated.trainingPoints} TP\` | Stamina: \`${updated.stamina} ⚡\``
+      timestampField: 'lastVipTrainedAt' as const,
+      label: 'VIP 6h Tactical Masterclass',
+      getTp: () => 6,
+      header: '⭐ **VIP 6h Tactical Masterclass Completed!**'
+    },
+    normal: {
+      requiresVip: false,
+      staminaCost: 5,
+      cooldownMs: 30 * 60 * 1000,
+      cooldownMinutes: 30,
+      timestampField: 'lastTrainedAt' as const,
+      label: 'Pitch Drills',
+      getTp: () => (Math.random() < 0.65 ? 1 : 2),
+      header: '⚽ **Pitch Drills Completed!**'
+    }
+  };
+
+  const cfg = configs[type];
+  if (cfg.requiresVip && player.vipTier < 1) {
+    return { success: false, error: `👑 **${cfg.label}** requires **VIP** status!` };
+  }
+
+  if (player.stamina < cfg.staminaCost) {
+    return {
+      success: false,
+      error: `⚡ Insufficient stamina (${player.stamina}/${cfg.staminaCost} needed). Visit the Clubhouse (\`-travel ch\` ➔ \`-recovery\`) or buy a sports drink (\`-travel gm\` ➔ \`-buy sd\`).`
     };
   }
 
-  // Normal training (30-min cooldown, 5 stamina, 1-2 TP)
-  if (player.stamina < 5) {
-    return { success: false, error: `⚡ Insufficient stamina (${player.stamina}/5 needed). Visit the sauna (\`-travel ps\` ➔ \`-recovery\`) or drink a sports drink (\`-travel gm\` ➔ \`-buy sd\`).` };
-  }
-
-  if (player.lastTrainedAt) {
-    const cooldownMs = 30 * 60 * 1000;
-    const elapsed = now.getTime() - player.lastTrainedAt.getTime();
-    if (elapsed < cooldownMs) {
-      const remainingMinutes = Math.ceil((cooldownMs - elapsed) / (60 * 1000));
-      return { success: false, error: `⏳ **Cooling Down:** Please wait **${remainingMinutes} minutes** before training again.` };
+  const now = new Date();
+  const lastRun = player[cfg.timestampField];
+  if (lastRun) {
+    const elapsed = now.getTime() - lastRun.getTime();
+    if (elapsed < cfg.cooldownMs) {
+      const waitStr = formatRemainingCooldown(cfg.cooldownMs - elapsed);
+      return { success: false, error: `⏳ **${cfg.label} Cooldown:** Please wait **${waitStr}** before running this drill again.` };
     }
   }
 
-  // Normal drill gives 1 to 2 TP (or up to 3 depending on level)
-  const earnedTp = Math.random() < 0.65 ? 1 : 2;
-
+  const earnedTp = cfg.getTp();
   const updated = await prisma.player.update({
     where: { id: playerId },
     data: {
       trainingPoints: { increment: earnedTp },
-      stamina: { decrement: 5 },
-      lastTrainedAt: now
+      stamina: { decrement: cfg.staminaCost },
+      [cfg.timestampField]: now
     },
     include: { nation: true }
   });
@@ -133,10 +106,10 @@ export async function executeTraining(playerId: string, type: 'normal' | 'vip' |
     success: true,
     player: updated,
     tpGained: earnedTp,
-    cooldownMinutes: 30,
+    cooldownMinutes: cfg.cooldownMinutes,
     remainingStamina: updated.stamina,
     totalTp: updated.trainingPoints,
-    message: `⚽ **Pitch Drills Completed!**\nEarned **+${earnedTp} 🤹‍♂️**! Total: \`${updated.trainingPoints} TP\` | Stamina: \`${updated.stamina} ⚡\``
+    message: `${cfg.header}\nEarned **+${earnedTp} 🤹‍♂️**! Total: \`${updated.trainingPoints} TP\` | Stamina: \`${updated.stamina} ⚡\``
   };
 }
 
@@ -278,8 +251,8 @@ export async function executeSaunaRecovery(playerId: string) {
     return { success: false, message: '❌ Player not found. Run `-profile` first.' };
   }
 
-  if (player.currentLocation !== 'ps') {
-    return { success: false, message: '❌ You must be at the **🧖 Player Sauna** (`-travel ps`) to take a recovery session!' };
+  if (player.currentLocation !== 'ch') {
+    return { success: false, message: '❌ You must be at the **🏡 Player Clubhouse** (`-travel ch`) to take a sauna recovery session!' };
   }
 
   const now = new Date();

@@ -1,10 +1,15 @@
-import { EmbedBuilder, AttachmentBuilder, Guild } from 'discord.js';
+import { EmbedBuilder, AttachmentBuilder, Guild, Client } from 'discord.js';
 import path from 'path';
 import fs from 'fs';
 import { prisma } from '../database/prisma.js';
 import { SPONSORS } from '../config/constants.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
+
+const tweetVotersCache = new Map<string, Set<string>>();
+
+export const TWEET_LIKE_REWARD = 5000n;
+export const TWEET_DISLIKE_PENALTY = 2500n;
 
 export interface SponsorExecutionResult {
   success: boolean;
@@ -66,6 +71,13 @@ export async function executeSponsorAdvert(playerId: string, sponsorKey?: string
   if (!sponsor) {
     const list = SPONSORS.map(s => `\`${s.key}\``).join(', ');
     return { success: false, message: `❌ Unknown sponsor. Available: ${list}` };
+  }
+
+  if (sponsor.vipOnly && player.vipTier < 1) {
+    return {
+      success: false,
+      message: `👑 **${sponsor.name}** (` + '300k Coins at 1M Fans' + `) is an exclusive **VIP** endorsement contract! Upgrade to VIP to unlock.`
+    };
   }
 
   if (player.followers < sponsor.minFollowers) {
@@ -131,8 +143,8 @@ export async function executeCoaching(playerId: string): Promise<{ success: bool
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) return { success: false, message: '❌ Player not found.' };
 
-  if (player.currentLocation !== 'lc') {
-    return { success: false, message: '❌ You must be at the **🏟️ Local Club** (`-travel lc`) to coach youth!' };
+  if (player.currentLocation !== 'ch') {
+    return { success: false, message: '❌ You must be at the **🏡 Player Clubhouse** (`-travel ch`) to coach youth!' };
   }
 
   const now = new Date();
@@ -176,8 +188,8 @@ export async function executeMeetGreet(playerId: string): Promise<{ success: boo
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) return { success: false, message: '❌ Player not found.' };
 
-  if (player.currentLocation !== 'lc') {
-    return { success: false, message: '❌ You must be at the **🏟️ Local Club** (`-travel lc`) to meet your fans!' };
+  if (player.currentLocation !== 'ch') {
+    return { success: false, message: '❌ You must be at the **🏡 Player Clubhouse** (`-travel ch`) to meet your fans!' };
   }
 
   const now = new Date();
@@ -250,5 +262,88 @@ export async function giveMoney(senderId: string, recipientId: string, amount: b
   return {
     success: true,
     message: `💸 **Direct Transfer Successful!**\nSent **${formatK(amount)} 🪙** to <@${recipientId}>.`
+  };
+}
+
+export interface TweetVoteResult {
+  success: boolean;
+  error?: string;
+  authorUsername?: string;
+  authorFlag?: string;
+  newFollowers?: bigint;
+  likes?: number;
+  dislikes?: number;
+}
+
+/**
+ * Shared TwitFeed vote processor for both interactive buttons and emoji reactions.
+ * Uses balanced +5k / -2.5k follower adjustments and prevents duplicate votes per tweet.
+ */
+export async function applyTweetVote(
+  lookup: { id?: string; discordMessageId?: string },
+  voterId: string,
+  isLike: boolean,
+  client: Client
+): Promise<TweetVoteResult> {
+  const tweet = lookup.id
+    ? await prisma.playerTweet.findUnique({
+        where: { id: lookup.id },
+        include: { author: { include: { nation: true } } }
+      })
+    : await prisma.playerTweet.findFirst({
+        where: { discordMessageId: lookup.discordMessageId },
+        include: { author: { include: { nation: true } } }
+      });
+
+  if (!tweet) return { success: false, error: '❌ Tweet not found.' };
+  if (tweet.authorId === voterId) return { success: false, error: '❌ You cannot vote on your own tweet!' };
+
+  let voters = tweetVotersCache.get(tweet.id);
+  if (!voters) {
+    voters = new Set<string>();
+    tweetVotersCache.set(tweet.id, voters);
+  }
+  if (voters.has(voterId)) return { success: false, error: '❌ You have already voted on this tweet!' };
+  voters.add(voterId);
+
+  const nextFollowers = isLike
+    ? tweet.author.followers + TWEET_LIKE_REWARD
+    : tweet.author.followers >= TWEET_DISLIKE_PENALTY
+      ? tweet.author.followers - TWEET_DISLIKE_PENALTY
+      : 0n;
+
+  const updatedAuthor = await prisma.player.update({
+    where: { id: tweet.authorId },
+    data: { followers: nextFollowers },
+    include: { nation: true }
+  });
+
+  const updatedTweet = await prisma.playerTweet.update({
+    where: { id: tweet.id },
+    data: isLike ? { likes: { increment: 1 } } : { dislikes: { increment: 1 } }
+  });
+
+  try {
+    const voterUser = await client.users.fetch(voterId).catch(() => null);
+    if (voterUser) {
+      await voterUser.send(isLike ? 'You have successfully liked the tweet!' : 'You have successfully disliked the tweet!').catch(() => {});
+    }
+    const authorUser = await client.users.fetch(tweet.authorId).catch(() => null);
+    if (authorUser) {
+      await authorUser.send(
+        isLike
+          ? 'Someone liked your post! You gained +5k followers!'
+          : 'Someone disliked your post! You lost 2.5k followers!'
+      ).catch(() => {});
+    }
+  } catch {}
+
+  return {
+    success: true,
+    authorUsername: updatedAuthor.username,
+    authorFlag: getNationFlag(updatedAuthor.nation),
+    newFollowers: updatedAuthor.followers,
+    likes: updatedTweet.likes,
+    dislikes: updatedTweet.dislikes
   };
 }

@@ -1,6 +1,6 @@
-import { Guild, GuildMember, PermissionFlagsBits, EmbedBuilder } from 'discord.js';
+import { Guild, GuildMember, EmbedBuilder } from 'discord.js';
 import { prisma } from '../database/prisma.js';
-import { CAMPUS_LOCATIONS, BASE_TRAVEL_COOLDOWN_MINUTES, VEHICLE_CATALOG } from '../config/constants.js';
+import { CAMPUS_LOCATIONS, BASE_TRAVEL_COOLDOWN_MINUTES, resolveLocationAlias } from '../config/constants.js';
 
 export interface TravelResult {
   success: boolean;
@@ -36,7 +36,7 @@ export async function travelToLocation(
   guild: Guild,
   targetAlias: string
 ): Promise<TravelResult> {
-  const targetLoc = CAMPUS_LOCATIONS[targetAlias.toLowerCase()];
+  const { target: targetLoc, redirectedFrom } = resolveLocationAlias(targetAlias);
   if (!targetLoc) {
     const validCodes = Object.keys(CAMPUS_LOCATIONS).map(k => `\`${k}\` (${CAMPUS_LOCATIONS[k].name})`).join('\n');
     return {
@@ -94,10 +94,18 @@ export async function travelToLocation(
     }
   });
 
+  const findFacilityChannel = (locId: string, channelName: string) =>
+    guild.channels.cache.find(c => {
+      const n = c.name.toLowerCase();
+      if (n.includes(channelName)) return true;
+      if (locId === 'ch' && (n.includes('local-club') || n.includes('clubhouse'))) return true;
+      return false;
+    });
+
   // Attempt Discord Channel Permission updates (Spatial MMO mode)
   try {
-    const targetChannel = guild.channels.cache.find(c => c.name.toLowerCase().includes(targetLoc.channelName));
-    const prevChannel = guild.channels.cache.find(c => c.name.toLowerCase().includes(prevLoc.channelName));
+    const targetChannel = findFacilityChannel(targetLoc.id, targetLoc.channelName);
+    const prevChannel = findFacilityChannel(prevLoc.id, prevLoc.channelName);
 
     if (targetChannel && 'permissionOverwrites' in targetChannel) {
       await targetChannel.permissionOverwrites.create(member.id, {
@@ -114,11 +122,15 @@ export async function travelToLocation(
     // Non-fatal if bot lacks ManageChannels
   }
 
+  const redirectNote = redirectedFrom
+    ? `\n🔄 *Notice: \`-travel ${redirectedFrom}\` has been merged into **${targetLoc.emoji} ${targetLoc.name}** (\`-travel ${targetLoc.id}\`)!*\n`
+    : '';
+
   const embed = new EmbedBuilder()
     .setColor('#22c55e')
     .setTitle(`🚗 Relocated to ${targetLoc.emoji} ${targetLoc.name}`)
     .setDescription(
-      `You traveled from **${prevLoc.emoji} ${prevLoc.name}** to **${targetLoc.emoji} ${targetLoc.name}**.\n\n` +
+      `You traveled from **${prevLoc.emoji} ${prevLoc.name}** to **${targetLoc.emoji} ${targetLoc.name}**.${redirectNote}\n\n` +
       `🚘 **Ride Used:** \`${vehicleName}\`\n` +
       `⏱️ **Travel Cooldown:** \`${cooldownMinutes} minutes\`\n\n` +
       `📖 **About this facility:**\n${targetLoc.description}\n\n` +

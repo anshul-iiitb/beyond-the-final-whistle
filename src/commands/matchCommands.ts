@@ -10,40 +10,66 @@ import { THEME_COLORS, UI, makeDualProgressBar, subtext } from '../utils/themeHe
 import { logger } from '../utils/logger.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 
+export async function handleFriendlyCommand(message: Message, args: string[]) {
+  return await runSimulatedMatchCommand(message, args, true);
+}
+
 export async function handleMatchCommand(message: Message, args: string[]) {
-  if (args[0]?.toLowerCase() === 'live') {
+  const sub = args[0]?.toLowerCase();
+  if (sub === 'live') {
     return await handleLiveMatchCommand(message, args.slice(1));
   }
-  if (args[0]?.toLowerCase() === 'batch' || args[0]?.toLowerCase() === 'many') {
+  if (sub === 'batch' || sub === 'many') {
     return await handleBatchMatchCommand(message, args.slice(1));
   }
+  if (sub === 'friendly' || sub === 'exhibition' || sub === 'allstar') {
+    return await runSimulatedMatchCommand(message, args.slice(1), true);
+  }
+  return await runSimulatedMatchCommand(message, args, false);
+}
 
+async function runSimulatedMatchCommand(message: Message, args: string[], isExhibition: boolean) {
   const opponent = message.mentions.users.first();
-  const loading = await message.reply('🏟️ **Kickoff whistle blowing! Simulating 90 minutes of high-intensity tactical football...**');
+  const thinkingMsg = await sendThinkingMessage(
+    message,
+    isExhibition
+      ? 'Scheduling VIP All-Star Exhibition Match (Zero Risk)...'
+      : 'Simulating 90 minutes of tactical football...'
+  );
 
   try {
-    const result = await simulateFullMatch(message.author.id, opponent?.id);
+    const result = await simulateFullMatch(message.author.id, opponent?.id, { isExhibition });
 
     // 1. Post Match Commentary Highlights Embed
     const motmEmoji = getEmoji(message.guild, 'motm');
     const highlightLines = result.commentaryEvents.map(e => `**[${e.minute}'] ${e.header}**\n${e.text}`);
     const possBar = makeDualProgressBar(result.homePossession, result.awayPossession, 10);
 
+    const boostLine = result.motmBoost
+      ? `\n🌟 **All-Star Exhibition MOTM Boost:** **${result.motmBoost.playerName}** gained **+${result.motmBoost.delta} ${result.motmBoost.attrKey}** (\`${result.motmBoost.oldVal}\` ➔ **\`${result.motmBoost.newVal}\`**) — *Zero stat deduction guarantee!*`
+      : result.isExhibition
+        ? `\n🛡️ **Zero-Risk Guarantee:** Exhibition match completed with no negative attribute deductions.`
+        : '';
+
     const matchEmbed = new EmbedBuilder()
-      .setColor(THEME_COLORS.TURF)
-      .setTitle(`⚽ FULL TIME: ${result.homeTeamName} ${result.homeScore} – ${result.awayScore} ${result.awayTeamName}`)
+      .setColor(isExhibition ? THEME_COLORS.GOLD : THEME_COLORS.TURF)
+      .setTitle(
+        isExhibition
+          ? `👑 VIP EXHIBITION FULL TIME: ${result.homeTeamName} ${result.homeScore} – ${result.awayScore} ${result.awayTeamName}`
+          : `⚽ FULL TIME: ${result.homeTeamName} ${result.homeScore} – ${result.awayScore} ${result.awayTeamName}`
+      )
       .setDescription(
         `📊 **Match Possession:**\n` +
         `**${result.homeTeamName}** \`${result.homePossession}%\` ${possBar} \`${result.awayPossession}%\` **${result.awayTeamName}**\n\n` +
-        `${motmEmoji} **Player of the Match:** **${result.motmPlayerName}** \`[ Rating: ${result.motmRating} ]\`\n\n` +
+        `${motmEmoji} **Player of the Match:** **${result.motmPlayerName}** \`[ Rating: ${result.motmRating} ]\`${boostLine}\n\n` +
         `${UI.DIVIDER}\n` +
         `### ⚡ KEY MATCHDAY HIGHLIGHTS\n\n` +
         highlightLines.slice(0, 5).join('\n\n')
       )
-      .setFooter({ text: 'Beyond The Final Whistle • Match Engine' })
+      .setFooter({ text: isExhibition ? 'Beyond The Final Whistle • VIP All-Star Exhibition' : 'Beyond The Final Whistle • Match Engine' })
       .setTimestamp();
 
-    await loading.edit({ content: '', embeds: [matchEmbed] });
+    await updateLoadingMessage(thinkingMsg, { content: '', embeds: [matchEmbed], files: [] });
 
     // 2. Post sensational AI Newspaper Story with @News Ping and Match Infographic
     const newsEmbed = new EmbedBuilder()
@@ -78,7 +104,7 @@ export async function handleMatchCommand(message: Message, args: string[]) {
       files: [newsAttachment]
     });
   } catch (err: any) {
-    await loading.edit(`❌ Match simulation error: ${err.message}`);
+    await updateLoadingMessage(thinkingMsg, `❌ Match simulation error: ${err.message}`);
   }
 }
 

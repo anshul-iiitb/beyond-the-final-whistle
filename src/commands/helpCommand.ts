@@ -29,82 +29,65 @@ export async function handleHelpCommand(message: Message) {
     )
     .addFields(
       {
-        name: '👤 Player Profile & Career Dossier',
+        name: '👤 Player Career & Studio Customization',
         value:
-          '• `-profile [@user]` — View complete player card with interactive tabs:\n' +
-          '  `👤 Overview` • `📊 Match Telemetry` • `🎯 Biomechanics Matrix`\n' +
-          '• `-setdesc <text>` — Set your personal bio (up to 100 characters).\n' +
-          '• `-lb [category]` — View leaderboards (`goals`, `wealth`, `followers`, `ovr`).\n' +
-          '• `-give @user <amount>` — Transfer funds to a teammate.\n' +
-          `• \`-joinnation <alias>\` — Join a National Team (\`ger\`, \`por\`, \`esp\`, \`fra\`, \`eng\`, \`bra\`, etc.) and get a **100k ${coin} + 100k ${followers}** welcome bonus!`
+          '• `-profile [@user]` — Generative Studio Card + 3 tabs (`Overview`, `Match Telemetry`, `Biomechanics`), Season Rank & milestone plaques.\n' +
+          '• `-theme [alias]` — Browse/apply **20 stadium backdrop themes** for your `-profile` card.\n' +
+          '• `-setdesc <text>` • `-lb [category]` (`goals`, `wealth`, `followers`, `ovr`)\n' +
+          '• `-give @user <amount>` — Transfer coins (`500k`, `2.5m` supported).\n' +
+          `• \`-joinnation <alias>\` — Join a National Team (**100k ${coin} + 100k ${followers}** bonus!).`
       },
       {
-        name: '🏟️ Spatial Football Campus (-locations)',
+        name: '🏟️ Streamlined Football Campus (-locations)',
         value:
-          '• `-travel <alias>` — Fast-travel between facilities (20m base cooldown, reduced by cars).\n' +
-          '  `tc`: Training Center • `rf`: Research Facility • `gm`: Global Market\n' +
-          '  `ph`: Photoshoot Hall • `ps`: Player Sauna • `lc`: Local Club\n' +
-          '  `vs`: Showroom • `ih`: Intel Hub\n' +
-          '• `-showroom` — Inspect exotic vehicles catalog with side-view sprites.\n' +
-          '• `-vehiclebuy <alias>` — Purchase any of the 17 exotic rides (`mini`, `bmwm3`, `corvettec8`, `shelbymustang`, `jaguartype`, `bentley`, `mclarenf1`, plus legacy fleet). Slashes cooldowns down to 1 min ⏱️.'
+          '• `-travel <alias>` — Fast-travel between **7 campus hubs** (20m base CD, cars cut down to 1m):\n' +
+          '  `tc` Training Center • `rf` Research Facility • `ch` **Player Clubhouse** *(ex-Sauna & Local Club)*\n' +
+          '  `gm` **Global Market** *(Gear, Vehicles & Avatars)* • `ph` Photoshoot Hall\n' +
+          '  `ih` Intel Hub • `ah` **Auction House** *(Legacy aliases `ps`/`lc`/`vs` auto-redirect)*.'
       },
       {
-        name: '🏋️ Training & Biomechanics Development',
+        name: '🏋️ Training & Clubhouse Recovery (-ch)',
         value:
-          '• `-train` — Opens interactive Training Method picker with 3 buttons:\n' +
-          `  🟢 \`⚽ Normal Training\` (+1-2 ${tp} TP, 30m cooldown, 5 ${stamina} stamina)\n` +
-          `  🔵 \`👑 VIP Training\` (+6 ${tp} TP, 6h cooldown, 5 ${stamina} stamina)\n` +
-          `  🔴 \`👑 No Effort Training\` (+20 ${tp} VIP, 50 ${stamina} stamina, 1/day)\n` +
-          '  *Training attaches authentic pitch drill photography and updates stats!*\n' +
-          `• \`-sptrain <attr>\` / \`-upgrade\` — Permanently boost attribute at Research Lab (costs 50 ${stamina} & 3-15 dynamic ${tp}).\n` +
-          '• `-convert <playstyle>` — Change tactical role at Research Lab (7-day cooldown).\n' +
-          `• \`-recovery\` — Relax in Sauna to recover +30 ${stamina} (+100 for VIP, 12h cooldown).`
+          '• `-train` — Interactive pitch drills at `tc`:\n' +
+          `  🟢 \`Normal\` (+1-2 ${tp} TP, 30m, 5 ${stamina}) • 🔵 \`👑 VIP 6h\` (+6 ${tp}, 6h, 5 ${stamina}) • 🔴 \`👑 20h Endurance\` (+20 ${tp}, 20h CD, 50 ${stamina})\n` +
+          `• \`-sptrain <attr>\` / \`-convert <style>\` — Upgrade stats (3-15 ${tp}) or swap role at \`rf\`.\n` +
+          `• \`-recovery\` / \`-coaching\` / \`-meetgreet\` — Inside **🏡 Player Clubhouse (\`-travel ch\`)**: recover +30/+100 ${stamina}, earn +50k ${coin}, or +50k ${followers}!`
       },
       {
-        name: '🛍️ Market & Matchday Gear (-gm, -shop)',
+        name: '🛍️ Global Market, Vehicles & Boutiques (-gm)',
         value:
-          '• `-gm` / `-shop` / `-buy` — Open the Global Market catalog with live gear info!\n' +
-          `• \`-buy sd\` — **Sports Drink** (Recovers 50 stamina ${stamina} | 100k ${coin})\n` +
-          `• \`-buy strika\` — **Strika Boots** (+10 Attack for next match | 500k ${coin})\n` +
-          `• \`-buy passa\` — **Passa Boots** (+10 Midfield for next match | 500k ${coin})\n` +
-          `• \`-buy bully\` — **Bully Boots** (+10 Defence for next match | 500k ${coin})\n` +
-          '• `-intel` — Claim opposition scouting report at Intel Hub (+1 to +6 match bonus).'
+          `• \`-gm\` / \`-buy <item>\` — **Matchday Gear**: \`sd\` (+50 ${stamina}, 100k ${coin}) & \`strika\`/\`passa\`/\`bully\` (+10 stat boots, 500k ${coin}).\n` +
+          '• `-showroom` & `-vehiclebuy <alias>` — **17 Cars** inside `gm` (`mini`, `bmwm3`, `corvettec8`, `shelbymustang`, `jaguartype`, `bentley`, `mclarenf1`, + legacy fleet).\n' +
+          '• `-avatar` / `-avatarbuy <alias>` / `-avatarclaim <alias>` — Rotating **8-player monthly Avatars (750k) & Banners (3M)**; VIPs get 1 free monthly claim! Manage via `-equip <alias|none>`.'
       },
       {
-        name: '📸 Sponsorships & Fan Socials',
+        name: '🏛️ Auction House & Scouting (-ah, -ih)',
         value:
-          '• `-advert` — Opens interactive Brand Sponsorship Menu with 5 buttons:\n' +
-          `  ${heineken} Heineken (100k ${followers}) • ${adidas} Adidas (1M ${followers}) • ${cocacola} Coca-Cola (5M ${followers}) • ${netflix} Netflix (6M ${followers}) • ${nike} Nike (8M ${followers})\n` +
-          '  *Attaches commercial video GIF inside the result box!*\n' +
-          `• \`-coaching\` — Coach academy youth at Local Club (+50k ${coin}, 10 ${stamina}, 2h cooldown).\n` +
-          `• \`-meetgreet\` — Sign autographs at Local Club (+50k ${followers}, 10 ${stamina}, 2h cooldown).\n` +
-          `• \`-tweet <text>\` / \`-chirp\` — Post to TwitFeed with interactive \`👍\` / \`👎\` buttons (👍 +100k ${followers}, 👎 -50k ${followers} + DMs).`
+          '• `-ah` / `-auction` — View automated daily collectible trophy & relic auctions (closes daily w/ `+2m` anti-snipe under `60s`).\n' +
+          `• \`-bid <amount> [lot#]\` — Place escrowed bids inside \`ah\` (instant outbid refunds + DM alerts!).\n` +
+          '• `-intel` — Claim scouting report at **🛰️ Intel Hub (`-travel ih`)** for +1 to +6 match boost.'
       },
       {
-        name: '⚽ AI Match Simulations & Team Tactics',
+        name: '📸 Sponsorships & TwitFeed (-advert, -tweet)',
         value:
-          '• `-batchmatch [count]` / `-simulatemany` — Runs a tournament simulation of N matches (default 40) in `#live-match`, tracking full telemetry, realistic comeback dynamics, and outputs a complete CSV dataset report!\n' +
-          '• `-livematch [full]` / `-match live` — Broadcasts an authentic WITS-style live episodic match in `#live-match` with real-time incident pings, multi-part set pieces, 3-minute half-time break for tactical adjustments, full-time ratings scoreboard, possession pie chart, and AI Gazette in `#news`!\n' +
-          '• `-match [@user]` — Triggers instant 90-minute AI-simulated match with commentary & sports newspaper report.\n' +
-          '  *Mentions `@News Ping` and attaches full matchday telemetry infographic!*\n' +
-          '• `-tactics [team]` — Open interactive Components V2 tactical dashboard with live dropdowns:\n' +
-          '  `⚔️ Attack:` Mentality, Focus Passing, Passing Style, Force Counter-Attacks\n' +
-          '  `🛡️ Defence:` Pressing Style, Tackling Style, Marking Style, Play Offside Trap\n' +
-          '  *Tactics dynamically alter match possession, counter-attack speed, tackle rates, and offside traps!*\n' +
-          '• `-intstats [@user]` — View full international caps, goals, and cards.\n' +
-          '• `-clubstats [@user]` — View franchise club record.\n' +
-          '• `-roster <alias>` — Inspect team squad lineups.'
+          '• `-advert` — 6 Brand Endorsements at `ph`:\n' +
+          `  ${heineken} Heineken (100k) • ${adidas} Adidas (1M) • 👑 **VIP Signature** (+300k ${coin} @ 1M fans) • ${cocacola} Coca-Cola (5M) • ${netflix} Netflix (6M) • ${nike} Nike (8M)\n` +
+          `• \`-tweet <text>\` / \`-chirp\` — Post to TwitFeed w/ 👍/👎 votes (\`+5k\` / \`-2.5k\` ${followers} + DMs).`
       },
       {
-        name: '👑 Admin & Server Management',
+        name: '⚽ Match Engines & VIP Exhibitions',
         value:
-          '• `-setup` — Automatically build the Campus channels.\n' +
-          '• `-setupemojis` (or `-emojis`) — Auto-upload custom high-definition server emojis.\n' +
-          '• `-vip add invite/boost @user` — Grant 30 days of VIP status.\n' +
-          `• \`-additem <symbol> @user\` — Award collectible trophies & symbols (e.g. \`-additem worldcup @user\` ${worldcup}).\n` +
-          '• `-addvar <var> <val> @user` — Adjust player attributes/coins/stamina.\n' +
-          '• `-gitpull` — Hot-pull latest commit from GitHub and reload.\n' +
-          '• `-gitpullback` — Emergency restore to previous stable commit.'
+          '• `-match [@user]` / `-livematch [full]` / `-batchmatch [N]` — AI 90m matches, live episodic commentary (`#live-match`), possession charts, CSV datasets & `#news` Gazette.\n' +
+          '• `-friendly [@user]` / `-match friendly` — 👑 **VIP All-Star Exhibition** (zero stat drops + permanent `+1–2` MOTM stat gain!).\n' +
+          '• `-tactics [team]` • `-intstats` • `-clubstats` • `-roster <alias>`.'
+      },
+      {
+        name: '👑 Admin, VIP & DevOps',
+        value:
+          '• `-setup` (creates streamlined Campus + `👑 vip-lounge`) • `-setupemojis` (`-emojis`)\n' +
+          '• `-vip add/remove [reason] @user` — Manage 30d VIP pass & lounge access.\n' +
+          '• `-devfund <amount> [@user]` • `-seedauction [count]` — Mint event payouts or seed AH relics.\n' +
+          `• \`-additem <symbol> @user\` (${worldcup}) • \`-addvar <var> <val> @user\` • \`-gitpull\` • \`-gitpullback\``
       }
     )
     .setFooter({ text: 'Beyond The Final Whistle • Complete Player Guide' })

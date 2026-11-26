@@ -15,7 +15,7 @@ model Player {
   bio                   String?           @default("Rookie footballer aiming for the World Cup.")
   playstyle             String            @default("PCH") // PCH, SPD, TGT, PLM, B2B, ANC, STP, SWP, BPD
   position              String            @default("ATT") // ATT, MID, DEF
-  currentLocation       String            @default("tc") // tc, gm, ih, ph, ps, lc, rf, vs
+  currentLocation       String            @default("tc") // tc, rf, ch, gm, ph, ih, ah
   travelUntil           DateTime?
   stamina               Int               @default(100)
   maxStamina            Int               @default(100)
@@ -28,6 +28,8 @@ model Player {
   intelStat             String?
   activeBoots           String?           // strika, passa, bully
   lastTrainedAt         DateTime?
+  lastVipTrainedAt      DateTime?
+  lastNoEffortAt        DateTime?
   lastRecoveryAt        DateTime?
   lastAdvertAt          DateTime?
   lastCoachedAt         DateTime?
@@ -36,6 +38,10 @@ model Player {
   lastConvertedAt       DateTime?         // 7-day cooldown on playstyle convert
   lastTaxDeductedAt     DateTime?
   lastRelevancyDecayAt  DateTime?
+  profileTheme          String            @default("obsidian")
+  equippedAvatar        String?
+  equippedBanner        String?
+  lastVipCosmeticMonth  String?
 
   // 15 Granular Football Attributes (1 to 99)
   fin                   Int               @default(50) // Finishing
@@ -56,6 +62,9 @@ model Player {
 
   // Career Statistics
   matchesPlayed         Int               @default(0)
+  wins                  Int               @default(0)
+  draws                 Int               @default(0)
+  losses                Int               @default(0)
   goalsScored           Int               @default(0)
   assists               Int               @default(0)
   shots                 Int               @default(0)
@@ -70,6 +79,15 @@ model Player {
   tacklesWon            Int               @default(0)
   interceptions         Int               @default(0)
   clearances            Int               @default(0)
+  possessionWon         Int               @default(0)
+  possessionLost        Int               @default(0)
+  foulsCommitted        Int               @default(0)
+  foulsEarned           Int               @default(0)
+  savesMade             Int               @default(0)
+  penaltiesWon          Int               @default(0)
+  penaltiesLost         Int               @default(0)
+  penaltiesScored       Int               @default(0)
+  penaltiesSaved        Int               @default(0)
   yellowCards           Int               @default(0)
   redCards              Int               @default(0)
   cleanSheets           Int               @default(0)
@@ -80,6 +98,8 @@ model Player {
   vehicles              PlayerVehicle[]
   inventory             InventoryItem[]
   tweets                PlayerTweet[]
+  cosmetics             PlayerCosmetic[]
+  auctionBids           AuctionBid[]
 
   // Teams & Club
   clubId                String?
@@ -180,4 +200,50 @@ model InventoryItem {
   acquiredAt      DateTime  @default(now())
 
   @@index([playerId])
+}
+
+model PlayerCosmetic {
+  id          String   @id @default(cuid())
+  playerId    String
+  player      Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  cosmeticKey String
+  kind        String   // 'AVATAR' | 'BANNER'
+  name        String
+  monthKey    String
+  acquiredAt  DateTime @default(now())
+
+  @@unique([playerId, cosmeticKey])
+  @@index([playerId])
+}
+
+model AuctionListing {
+  id               String       @id @default(cuid())
+  itemKey          String
+  itemName         String
+  emoji            String
+  description      String
+  startingPrice    BigInt
+  currentBid       BigInt       @default(0)
+  highestBidderId  String?
+  discordMessageId String?
+  channelId        String?
+  status           String       @default("ACTIVE") // ACTIVE, SETTLED, CANCELLED
+  endsAt           DateTime
+  createdAt        DateTime     @default(now())
+  bids             AuctionBid[]
+
+  @@index([status, endsAt])
+}
+
+model AuctionBid {
+  id        String         @id @default(cuid())
+  auctionId String
+  auction   AuctionListing @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bidderId  String
+  bidder    Player         @relation(fields: [bidderId], references: [id], onDelete: Cascade)
+  amount    BigInt
+  createdAt DateTime       @default(now())
+
+  @@index([auctionId])
+  @@index([bidderId])
 }

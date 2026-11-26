@@ -15,27 +15,19 @@ export function buildGlobalMarketEmbed(guild?: Guild | null) {
 
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.EMERALD)
-    .setTitle('🛍️ Global Marketplace — Matchday Gear & Stamina')
+    .setTitle('🛍️ Global Market — Gear, Vehicle Showroom & Avatar Boutique')
     .setDescription(
-      `Equip matchday performance cleats and sports drinks to maximize match ratings!\n\n` +
-      `${sd} **SPORTS DRINK** \`[ alias: sd ]\`\n` +
-      `> *Instant bio-electrolyte hydration restoring player stamina.*\n` +
-      `• **Restores:** \`+50\` ${stamina} Stamina (up to 100 max)\n` +
-      `• **Price:** \`100k\` ${coin}\n\n` +
-      `${strika} **STRIKA BOOTS** \`[ alias: strika ]\`\n` +
-      `> *Precision carbon-plate cleats giving lethal attacking instinct.*\n` +
-      `• **Match Boost:** \`+10 Attack\` (Applied next match as Attacker)\n` +
-      `• **Price:** \`500k\` ${coin}\n\n` +
-      `${passa} **PASSA BOOTS** \`[ alias: passa ]\`\n` +
-      `> *High-friction textured boots engineered for pinpoint ball distribution.*\n` +
-      `• **Match Boost:** \`+10 Midfield\` (Applied next match as Midfielder)\n` +
-      `• **Price:** \`500k\` ${coin}\n\n` +
-      `${bully} **BULLY BOOTS** \`[ alias: bully ]\`\n` +
-      `> *Reinforced composite studs for dominating physical challenges & tackles.*\n` +
-      `• **Match Boost:** \`+10 Defence\` (Applied next match as Defender)\n` +
-      `• **Price:** \`500k\` ${coin}\n\n` +
+      `Your all-in-one commercial hub! Buy matchday gear, shop 17 exotic vehicles, and claim monthly player avatars here.\n\n` +
+      `### 🥤 Matchday Gear & Stamina\n` +
+      `${sd} **SPORTS DRINK** \`[ alias: sd ]\` — \`+50\` ${stamina} Stamina • **\`100k\`** ${coin}\n` +
+      `${strika} **STRIKA BOOTS** \`[ alias: strika ]\` — \`+10 ATK\` next match • **\`500k\`** ${coin}\n` +
+      `${passa} **PASSA BOOTS** \`[ alias: passa ]\` — \`+10 MID\` next match • **\`500k\`** ${coin}\n` +
+      `${bully} **BULLY BOOTS** \`[ alias: bully ]\` — \`+10 DEF\` next match • **\`500k\`** ${coin}\n\n` +
+      `### 🏎️ Dealership & Cosmetics (Located Inside Global Market)\n` +
+      `• **17-Car Dealership:** Inspect with \`-showroom\` • Purchase with \`-vehiclebuy <alias>\`\n` +
+      `• **Avatar & Banner Boutique:** Browse monthly drops with \`-avatar\` • Buy with \`-avatarbuy <alias>\`\n\n` +
       `${UI.DIVIDER}\n` +
-      subtext('💡 Quick Buy: Run `-buy <alias>` (e.g. `-buy sd` or `-buy strika`). Boots reset after matchday.')
+      subtext('💡 Quick Buy: Run `-buy <alias>` for gear, `-vehiclebuy <alias>` for cars, or `-avatar` for cosmetics.')
     )
     .setFooter({ text: 'Beyond The Final Whistle • Global Market' })
     .setTimestamp();
