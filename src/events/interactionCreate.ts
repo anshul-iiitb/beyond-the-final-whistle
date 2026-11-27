@@ -1,6 +1,6 @@
 import { Interaction, ButtonInteraction, StringSelectMenuInteraction, TextChannel, MessageFlags } from 'discord.js';
 import { executeTraining, upgradeAttribute } from '../engines/trainingEngine.js';
-import { buildTrainingSuccessEmbed } from '../commands/trainingCommands.js';
+import { buildTrainingSuccessEmbed, buildSpTrainLabPayload } from '../commands/trainingCommands.js';
 import { executeSponsorAdvert, applyTweetVote, buildUpdatedTweetEmbed } from '../engines/socialEngine.js';
 import { prisma } from '../database/prisma.js';
 import {
@@ -152,13 +152,20 @@ export async function onInteractionCreate(interaction: Interaction) {
         });
       }
 
+      await interaction.deferUpdate();
       const selectedAttr = interaction.values[0];
-      await sendThinkingMessage(interaction, `Upgrading \`${selectedAttr.toUpperCase()}\` at Research Facility...`);
       const result = await upgradeAttribute(interaction.user.id, selectedAttr);
-      return await updateLoadingMessage(interaction, {
+      const refreshed = await buildSpTrainLabPayload(interaction.user.id, interaction.user, interaction.guild);
+
+      if (!refreshed) {
+        return await interaction.editReply({ content: result.message, embeds: [], components: [], attachments: [] });
+      }
+
+      return await interaction.editReply({
         content: result.message,
-        embeds: [],
-        components: []
+        embeds: [refreshed.embed],
+        components: refreshed.components,
+        attachments: []
       });
     }
 

@@ -212,19 +212,24 @@ export function buildSpTrainSelectionMenu(
   return { embed, components: [row] };
 }
 
+export async function buildSpTrainLabPayload(playerId: string, user: User, guild?: Guild | null) {
+  const overview = await getAttributeLabOverview(playerId);
+  if (!overview) return null;
+  return buildSpTrainSelectionMenu(overview, user, guild);
+}
+
 export async function handleSpTrainCommand(message: Message, args: string[]) {
   const attrArg = args[0];
   if (!attrArg) {
     const thinkingMsg = await sendThinkingMessage(message, 'Inspecting Research Facility TP & stamina costs...');
-    const overview = await getAttributeLabOverview(message.author.id);
-    if (!overview) {
+    const menu = await buildSpTrainLabPayload(message.author.id, message.author, message.guild);
+    if (!menu) {
       return await updateLoadingMessage(thinkingMsg, {
         content: '❌ Player not found. Run `-profile` first to register.',
         embeds: [],
         components: []
       });
     }
-    const menu = buildSpTrainSelectionMenu(overview, message.author, message.guild);
     return await updateLoadingMessage(thinkingMsg, { embeds: [menu.embed], components: menu.components });
   }
 
