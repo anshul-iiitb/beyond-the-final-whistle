@@ -29,7 +29,10 @@ export function buildGlobalMarketEmbed(guild?: Guild | null) {
       `${UI.DIVIDER}\n` +
       subtext('💡 Quick Buy: Run `-buy <alias>` for gear, `-vehiclebuy <alias>` for cars, or `-avatar` for cosmetics.')
     )
-    .setFooter({ text: 'Beyond The Final Whistle • Global Market' })
+    .setFooter({
+      text: 'Beyond The Final Whistle • Global Market',
+      iconURL: guild?.client?.user?.displayAvatarURL?.() || undefined
+    })
     .setTimestamp();
 
   const cartPath = path.resolve('assets/cart.png');

@@ -172,6 +172,39 @@ export function drawCircularImage(
 }
 
 /**
+ * Draws the circular BTFW (Beyond The Final Whistle) crest emblem from assets/branding/icon.png.
+ */
+export async function drawBrandLogoSeal(
+  ctx: SKRSContext2D,
+  cx: number,
+  cy: number,
+  r: number,
+  ringColor = 'rgba(250, 204, 21, 0.72)'
+) {
+  const iconPath = path.resolve(process.cwd(), 'assets', 'branding', 'icon.png');
+  if (!fs.existsSync(iconPath)) return;
+  try {
+    const iconImg = await loadLocalImageCached(iconPath);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(iconImg, cx - r, cy - r, r * 2, r * 2);
+    ctx.restore();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 1, 0, Math.PI * 2);
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.restore();
+  } catch {
+    // Skip silently if asset cannot decode
+  }
+}
+
+/**
  * Draws the resolved Obsidian/Theme backdrop + optional subtle tint when a secondary theme borrows the structural obsidian plate.
  */
 export async function paintThemeBackdrop(
@@ -300,22 +333,23 @@ export async function renderLeaderboardCanvas(options: {
 
   const accent = options.accentHex || themeDef.accent;
 
-  // 1. Header Banner Zone (70, 50, 860x110) + high-contrast dark glass scrim
+  // 1. Header Banner Zone (70, 50, 860x110) + high-contrast dark glass scrim + BTFW crest
   const hz = spec.headerZone;
   drawGlassScrim(ctx, hz.x + 8, hz.y + 6, hz.w - 16, hz.h - 12, 8, 0.72);
+  await drawBrandLogoSeal(ctx, hz.x + 48, hz.y + hz.h / 2, 26, accent);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
   ctx.shadowColor = accent;
   ctx.shadowBlur = 14;
-  ctx.font = 'bold 34px "Segoe UI", Arial, sans-serif';
-  ctx.fillText(truncateText(ctx, cleanCanvasText(options.title).toUpperCase(), hz.w - 60), hz.x + hz.w / 2, hz.y + 44);
+  ctx.font = 'bold 32px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(options.title).toUpperCase(), hz.w - 180), hz.x + hz.w / 2 + 12, hz.y + 44);
   ctx.shadowBlur = 0;
 
   ctx.fillStyle = '#7dd3fc';
   ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
-  ctx.fillText(truncateText(ctx, cleanCanvasText(options.subtitle).toUpperCase(), hz.w - 60), hz.x + hz.w / 2, hz.y + 82);
+  ctx.fillText(truncateText(ctx, cleanCanvasText(options.subtitle).toUpperCase(), hz.w - 180), hz.x + hz.w / 2 + 12, hz.y + 82);
   ctx.restore();
 
   // 2. Replace "METRIC VALUE" label in the 3rd column pill with the active category header
@@ -526,10 +560,11 @@ export async function renderPlayerStatCanvas(data: PlayerStatCanvasData): Promis
     ctx.restore();
   }
 
-  // 3. Right Panel: Avatar Cutout + OVR Triad Matrix + Recent Form
+  // 3. Right Panel: Avatar Cutout + BTFW Crest + OVR Triad Matrix + Recent Form
   const avatarImg = await fetchRemoteImage(data.avatarUrl, 1200);
   const avCircle = spec.circles![0]; // (790, 145, r=70)
   drawCircularImage(ctx, avatarImg, avCircle.cx, avCircle.cy, 62, data.username, accent, false);
+  await drawBrandLogoSeal(ctx, 922, 76, 19, accent);
 
   // Inner Triad + OVR Gauge inside (650, 255, 280x165)
   const radarBox = spec.slots![1];
@@ -916,10 +951,11 @@ export async function renderPlayerBiomechanicsCanvas(data: PlayerBiomechanicsCan
     { key: 'wrk', code: 'WRK', name: 'Work Rate', val: a.wrk },
   ]);
 
-  // 3. Right Panel: Avatar + 6-Axis Radar Hexagon + Triad Readout
+  // 3. Right Panel: Avatar + BTFW Crest + 6-Axis Radar Hexagon + Triad Readout
   const avatarImg = await fetchRemoteImage(data.avatarUrl, 1200);
   const avCircle = spec.circles![0];
   drawCircularImage(ctx, avatarImg, avCircle.cx, avCircle.cy, 62, data.username, accent, false);
+  await drawBrandLogoSeal(ctx, 922, 76, 19, accent);
 
   const radarBox = spec.slots![1]; // (650, 255, 280x165)
   drawGlassScrim(ctx, radarBox.x + 2, radarBox.y + 2, radarBox.w - 4, radarBox.h - 4, 10, 0.80);
@@ -1038,18 +1074,23 @@ export async function renderShowroomCanvas(options: {
   // 1. Header Zone (102, 112, 820x90)
   const hz = spec.headerZone;
   drawGlassScrim(ctx, hz.x + 8, hz.y + 8, hz.w - 16, hz.h - 16, 8, 0.72);
+  await drawBrandLogoSeal(ctx, hz.x + 48, hz.y + hz.h / 2, 26, theme.accent);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
-  ctx.fillText(cleanCanvasText(options.pageTitle).toUpperCase(), hz.x + hz.w / 2, hz.y + 32);
+  ctx.font = 'bold 26px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(options.pageTitle).toUpperCase(), hz.w - 170), hz.x + hz.w / 2 + 12, hz.y + 32);
 
   ctx.fillStyle = '#fde047';
   ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
   ctx.fillText(
-    `CURRENT RIDE: ${cleanCanvasText(options.currentRide).toUpperCase()} (${options.currentCooldown}M CD)  •  WALLET: ${formatK(options.walletCoins)} COINS  •  PAGE ${options.page}/${options.totalPages}`,
-    hz.x + hz.w / 2,
+    truncateText(
+      ctx,
+      `CURRENT RIDE: ${cleanCanvasText(options.currentRide).toUpperCase()} (${options.currentCooldown}M CD)  •  WALLET: ${formatK(options.walletCoins)} COINS  •  PAGE ${options.page}/${options.totalPages}`,
+      hz.w - 170
+    ),
+    hz.x + hz.w / 2 + 12,
     hz.y + 66
   );
   ctx.restore();
@@ -1197,15 +1238,16 @@ export async function renderAuctionHouseCanvas(
   // Header Zone (102, 112, 820x90)
   const hz = spec.headerZone;
   drawGlassScrim(ctx, hz.x + 8, hz.y + 8, hz.w - 16, hz.h - 16, 8, 0.74);
+  await drawBrandLogoSeal(ctx, hz.x + 48, hz.y + hz.h / 2, 26, theme.accent);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('COLLECTOR AUCTION HOUSE VAULT', hz.x + hz.w / 2, hz.y + 32);
+  ctx.font = 'bold 26px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('COLLECTOR AUCTION HOUSE VAULT', hz.x + hz.w / 2 + 12, hz.y + 32);
   ctx.fillStyle = '#fde047';
   ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('ESCROWED DAILY RELIC AUCTIONS  •  +2M ANTI-SNIPE PROTECTION UNDER 60S', hz.x + hz.w / 2, hz.y + 66);
+  ctx.fillText('ESCROWED DAILY RELIC AUCTIONS  •  +2M ANTI-SNIPE PROTECTION UNDER 60S', hz.x + hz.w / 2 + 12, hz.y + 66);
   ctx.restore();
 
   // Render up to 2 side-by-side Collector Pedestals
@@ -1340,15 +1382,16 @@ export async function renderStandingsTableCanvas(options: {
   // Header Zone (60, 44, 1080x96)
   const hz = spec.headerZone;
   drawGlassScrim(ctx, hz.x + 8, hz.y + 6, hz.w - 16, hz.h - 12, 8, 0.74);
+  await drawBrandLogoSeal(ctx, hz.x + 54, hz.y + hz.h / 2, 28, theme.accent);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 34px "Segoe UI", Arial, sans-serif';
-  ctx.fillText(cleanCanvasText(options.title).toUpperCase(), hz.x + hz.w / 2, hz.y + 34);
+  ctx.font = 'bold 32px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(options.title).toUpperCase(), hz.w - 180), hz.x + hz.w / 2 + 12, hz.y + 34);
   ctx.fillStyle = '#fde047';
   ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
-  ctx.fillText(cleanCanvasText(options.subtitle).toUpperCase(), hz.x + hz.w / 2, hz.y + 72);
+  ctx.fillText(truncateText(ctx, cleanCanvasText(options.subtitle).toUpperCase(), hz.w - 180), hz.x + hz.w / 2 + 12, hz.y + 72);
   ctx.restore();
 
   // Column Labels (60..1140 at y:160..208)

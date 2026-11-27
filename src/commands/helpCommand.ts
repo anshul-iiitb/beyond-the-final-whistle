@@ -90,7 +90,10 @@ export async function handleHelpCommand(message: Message) {
           `• \`-additem <symbol> @user\` (${worldcup}) • \`-addvar <var> <val> @user\` • \`-gitpull\` • \`-gitpullback\``
       }
     )
-    .setFooter({ text: 'Beyond The Final Whistle • Complete Player Guide' })
+    .setFooter({
+      text: 'Beyond The Final Whistle • Complete Player Guide',
+      iconURL: message.client?.user?.displayAvatarURL?.() || undefined
+    })
     .setTimestamp();
 
   await message.reply({ embeds: [embed] });

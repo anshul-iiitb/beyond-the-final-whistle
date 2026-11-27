@@ -5,6 +5,7 @@ import { COSMETIC_CATALOG, PROFILE_THEMES } from '../config/constants.js';
 import { formatK } from './formatHelper.js';
 import {
   cleanCanvasText,
+  drawBrandLogoSeal,
   drawCircularImage,
   drawGlassScrim,
   fetchRemoteImage,
@@ -220,6 +221,7 @@ export async function generateMatchScorecardGraphic(data: ScorecardData): Promis
   drawGlassScrim(ctx, 52, 290, 696, 70, 8, 0.74);
 
   // Header inside Top Header Zone (40, 24, 720x50)
+  await drawBrandLogoSeal(ctx, 76, 49, 17, '#facc15');
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
@@ -624,7 +626,8 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
   ctx.fillText(cleanCanvasText(avBadgeText), avX, 211);
   ctx.restore();
 
-  // Right Identity Text Block (x: 192..464)
+  // Right Identity Text Block (x: 192..464) + Official BTFW Seal top-right of Identity Panel
+  await drawBrandLogoSeal(ctx, 444, 62, 21, primaryAccent);
   const idX = 194;
   ctx.save();
   ctx.textAlign = 'left';
@@ -972,12 +975,13 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
     ctx.restore();
   }
 
+  await drawBrandLogoSeal(ctx, 926, 513, 16, '#facc15');
   ctx.save();
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#cbd5e1';
   ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('BEYOND THE FINAL WHISTLE', 936, 513);
+  ctx.fillText('BEYOND THE FINAL WHISTLE', 902, 513);
   ctx.restore();
 
   return canvas.toBuffer('image/png');

@@ -118,7 +118,7 @@ export async function buildPlayerStatCardAttachment(
     if (Array.isArray(parsed) && parsed.length > 0) {
       recentForm = parsed.map((n: number) => n.toFixed(1));
     }
-  } catch {}
+  } catch { }
 
   const passPct = player.passesAttempted > 0
     ? `${Math.round((player.passesCompleted / player.passesAttempted) * 100)}%`
@@ -254,7 +254,7 @@ export function buildProfileEmbed(
     if (Array.isArray(parsed) && parsed.length > 0) {
       recentForm = parsed.map((n: number) => n.toFixed(1));
     }
-  } catch {}
+  } catch { }
 
   // Collectables display (actual car & relic sprites cleanly side-by-side)
   const itemSymbols = (player.inventory || []).map((i: any) => i.emoji);
@@ -269,6 +269,7 @@ export function buildProfileEmbed(
   const motmEmoji = getEmoji(guild, 'motm');
 
   const thumbUrl = targetUser.displayAvatarURL?.() || null;
+  const botIcon = guild?.client?.user?.displayAvatarURL?.() || undefined;
 
   if (tab === 'main') {
     const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
@@ -308,7 +309,7 @@ export function buildProfileEmbed(
         subtext(`🎨 ${themeObj.name} • 🏆 ${seasonRank} Tier • Switch theme with -theme`)
       )
       .setImage('attachment://profile_banner.png')
-      .setFooter({ text: `Used by ${player.username} • Beyond The Final Whistle • Tab 1/3` })
+      .setFooter({ text: `Used by ${player.username} • Beyond The Final Whistle • Tab 1/3`, iconURL: botIcon })
       .setTimestamp();
   }
 
@@ -344,7 +345,7 @@ export function buildProfileEmbed(
         `**Penalties Scored / Saved :** ${player.penaltiesScored || 0} / ${player.penaltiesSaved || 0}`
       )
       .setImage('attachment://player_stat_card.png')
-      .setFooter({ text: `Used by ${player.username} • Match Telemetry • Tab 2/3` })
+      .setFooter({ text: `Used by ${player.username} • Match Telemetry • Tab 2/3`, iconURL: botIcon })
       .setTimestamp();
   }
 
@@ -388,7 +389,7 @@ export function buildProfileEmbed(
       subtext('🔬 Upgrade stats at Research Facility: `-travel rf` ➔ `-sptrain <attr>`')
     )
     .setImage('attachment://biomechanics_card.png')
-    .setFooter({ text: `Used by ${player.username} • Biomechanics Matrix • Tab 3/3` })
+    .setFooter({ text: `Used by ${player.username} • Biomechanics Matrix • Tab 3/3`, iconURL: botIcon })
     .setTimestamp();
 }
 
@@ -658,6 +659,7 @@ export async function buildLeaderboardPayload(
   });
   const file = new AttachmentBuilder(cardBuf, { name: 'leaderboard.png' });
 
+  const botIcon = client?.user?.displayAvatarURL?.() || guild?.client?.user?.displayAvatarURL?.() || undefined;
   const embed = new EmbedBuilder()
     .setColor(embedColor)
     .setTitle(`🏆 ${title}`)
@@ -666,7 +668,7 @@ export async function buildLeaderboardPayload(
       subtext('💡 Switch leaderboards live using the buttons below or `-lb goals` / `-lb wealth` / `-lb followers`.')
     )
     .setImage('attachment://leaderboard.png')
-    .setFooter({ text: 'Beyond The Final Whistle • Official Global Standings' })
+    .setFooter({ text: 'Beyond The Final Whistle • Official Global Standings', iconURL: botIcon })
     .setTimestamp();
 
   return {
@@ -736,14 +738,14 @@ export async function handleJoinNationCommand(message: Message, args: string[]) 
   // Auto-assign Discord nation role & rookie role if present in the guild
   try {
     if (message.guild && message.member) {
-      const nationRole = message.guild.roles.cache.find(r => 
+      const nationRole = message.guild.roles.cache.find(r =>
         r.name.toLowerCase().includes(nation.name.toLowerCase())
       );
       if (nationRole && !message.member.roles.cache.has(nationRole.id)) {
         await message.member.roles.add(nationRole);
       }
 
-      const rookieRole = message.guild.roles.cache.find(r => 
+      const rookieRole = message.guild.roles.cache.find(r =>
         r.name.toLowerCase().includes('rookie')
       );
       if (rookieRole && !message.member.roles.cache.has(rookieRole.id)) {

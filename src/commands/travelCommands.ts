@@ -129,6 +129,7 @@ export async function buildShowroomPayload(userId: string, page = 1, guild?: Gui
     })
     .join(' • ');
 
+  const botIcon = guild?.client?.user?.displayAvatarURL?.() || undefined;
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.SCARLET)
     .setTitle(`🏎️ Global Market Dealership — ${pageTitles[safePage - 1]}`)
@@ -138,7 +139,7 @@ export async function buildShowroomPayload(userId: string, page = 1, guild?: Gui
       subtext('💡 Must be at Global Market (`-travel gm`). Purchase with `-vehiclebuy <alias>`.')
     )
     .setImage('attachment://showroom_catalog.png')
-    .setFooter({ text: `Page ${safePage}/3 • Current Ride: ${vehicleName} • Beyond The Final Whistle` })
+    .setFooter({ text: `Page ${safePage}/3 • Current Ride: ${vehicleName} • Beyond The Final Whistle`, iconURL: botIcon })
     .setTimestamp();
 
   return {
