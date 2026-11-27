@@ -6,16 +6,13 @@ import {
   PLAYSTYLES,
   ITEM_CATALOG,
   VEHICLE_CATALOG,
-  COSMETIC_CATALOG,
-  PROFILE_THEMES,
-  resolveVehicleSprite
+  COSMETIC_CATALOG
 } from '../config/constants.js';
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { syncMemberLocationVisibility } from '../engines/campusEngine.js';
 import { syncMemberGameRoles, syncMemberNationRole } from '../utils/roleSyncHelper.js';
 import { giveMoney } from '../engines/socialEngine.js';
-import { generatePlayerProfileCard, ProfileCollectableVisual } from '../utils/chartHelper.js';
-import { renderLeaderboardCanvas, renderPlayerStatCanvas, renderPlayerBiomechanicsCanvas, resolveCosmeticAssetPath, LeaderboardEntryData } from '../utils/themeRenderers.js';
+import { renderEquippedBannerPoster, renderLeaderboardCanvas, renderPlayerStatCanvas, renderPlayerBiomechanicsCanvas, resolveCosmeticAssetPath, LeaderboardEntryData } from '../utils/themeRenderers.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { formatK, parseCoinAmount, getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
@@ -41,65 +38,24 @@ export function getUnlockedMilestones(player: any): string[] {
   return badges;
 }
 
-export async function buildProfileBannerAttachment(player: any, targetUser: User): Promise<AttachmentBuilder> {
+export async function buildProfileBannerAttachment(player: any, _targetUser?: User): Promise<AttachmentBuilder | null> {
+  const customBannerPath = resolveCosmeticAssetPath('BANNER', player.equippedBanner);
+  if (!customBannerPath) return null;
+
   const derived = calculateDerivedRatings(player);
   const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
   const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
-  const milestones = getUnlockedMilestones(player);
-  const style = PLAYSTYLES[player.playstyle] || PLAYSTYLES.PCH;
+  const bannerDef = COSMETIC_CATALOG.find(c => c.key === player.equippedBanner);
 
-  const collectables: ProfileCollectableVisual[] = [];
-
-  for (const v of player.vehicles || []) {
-    const vDef = VEHICLE_CATALOG.find(cat => cat.key === v.vehicleKey);
-    const { spriteMode, spritePrefix } = resolveVehicleSprite(v.vehicleKey, vDef?.emoji || '');
-    collectables.push({
-      label: v.name,
-      spriteMode: vDef || spriteMode === 'full' ? spriteMode : 'single',
-      spriteKey: vDef || spriteMode === 'full' ? spritePrefix : 'car'
-    });
-  }
-
-  for (const item of player.inventory || []) {
-    const k = String(item.itemKey || '').toLowerCase();
-    const spriteKey = k.includes('worldcup')
-      ? 'worldcup'
-      : k.includes('boot')
-        ? 'goldenboot'
-        : k.includes('silver')
-          ? 'silvermedal'
-          : 'goldmedal';
-    collectables.push({ label: item.name, spriteMode: 'single', spriteKey });
-  }
-
-  const buffer = await generatePlayerProfileCard({
-    username: player.username || targetUser.username,
-    avatarUrl: targetUser.displayAvatarURL({ extension: 'png', size: 256 }),
-    clubName: player.club?.name || 'Free Agent',
-    nationName: player.nation?.name || 'Free Agent',
+  const buffer = await renderEquippedBannerPoster({
+    bannerPath: customBannerPath,
+    username: player.username || _targetUser?.username || 'Player',
+    bannerName: bannerDef?.name || String(player.equippedBanner).toUpperCase(),
+    bannerSubtitle: bannerDef?.subtitle || 'COLLECTOR BANNER',
     ovr,
-    atk: derived.atk,
-    mid: derived.mid,
-    def: derived.def,
     seasonRank,
-    vipTier: player.vipTier || 0,
-    themeKey: player.profileTheme,
-    equippedAvatar: player.equippedAvatar,
-    equippedBanner: player.equippedBanner,
-    milestones,
-    playstyleName: style.name,
-    position: style.position,
-    coins: player.coins ?? 0n,
-    followers: player.followers ?? 0n,
-    trainingPoints: player.trainingPoints || 0,
-    matchesPlayed: player.matchesPlayed || 0,
-    goalsScored: player.goalsScored || 0,
-    assists: player.assists || 0,
-    yellowCards: player.yellowCards || 0,
-    redCards: player.redCards || 0,
-    cleanSheets: player.cleanSheets || 0,
-    motmCount: player.motmCount || 0,
-    collectables
+    accentHex: bannerDef?.accentHex || '#f59e0b',
+    vipTier: player.vipTier || 0
   });
 
   return new AttachmentBuilder(buffer, { name: 'profile_banner.png' });
@@ -240,7 +196,8 @@ export function buildProfileEmbed(
   targetUser: User,
   tab: 'main' | 'stats' | 'attr' = 'main',
   guild?: Guild | null,
-  thumbnailOverrideUrl?: string | null
+  thumbnailOverrideUrl?: string | null,
+  hasBannerImage = false
 ): EmbedBuilder {
   const derived = calculateDerivedRatings(player);
   const loc = CAMPUS_LOCATIONS[player.currentLocation] || CAMPUS_LOCATIONS.tc;
@@ -281,11 +238,10 @@ export function buildProfileEmbed(
     const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
     const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
     const color = isVip ? THEME_COLORS.GOLD : THEME_COLORS.PRIMARY;
-    const themeObj = PROFILE_THEMES.find(t => t.key === player.profileTheme) || PROFILE_THEMES[0];
     const bootsLabel = player.activeBoots ? `${player.activeBoots.toUpperCase()} (+10)` : 'Standard';
     const intelLabel = player.intelBonus > 0 ? `+${player.intelBonus} ${player.intelStat || 'Boost'}` : 'None';
 
-    return new EmbedBuilder()
+    const embed = new EmbedBuilder()
       .setColor(color)
       .setTitle(`⚽ ${player.username} ${flag}'s Profile! ${vipBadge}`.trim())
       .setThumbnail(thumbUrl)
@@ -312,11 +268,16 @@ export function buildProfileEmbed(
         `**Coins :** ${formatK(player.coins)} ${coinEmoji}\n\n` +
         `### 🎁 Collectables\n` +
         `${collectablesDisplay}\n` +
-        subtext(`🎨 ${themeObj.name} • 🏆 ${seasonRank} Tier • Switch theme with -theme`)
+        subtext(`🏆 ${seasonRank} Tier • Manage gear via -inv & -equip`)
       )
-      .setImage('attachment://profile_banner.png')
       .setFooter({ text: `Used by ${player.username} • Beyond The Final Whistle • Tab 1/3`, iconURL: botIcon })
       .setTimestamp();
+
+    if (hasBannerImage) {
+      embed.setImage('attachment://profile_banner.png');
+    }
+
+    return embed;
   }
 
   if (tab === 'stats') {
@@ -419,15 +380,20 @@ export async function buildProfileViewPayload(
     thumbOverride = `attachment://${fileName}`;
   }
 
-  const mainCard = tab === 'main'
-    ? await buildProfileBannerAttachment(player, targetUser)
-    : tab === 'stats'
-      ? await buildPlayerStatCardAttachment(player, targetUser, 'career')
-      : await buildPlayerBiomechanicsAttachment(player, targetUser);
+  let hasBannerImage = false;
+  if (tab === 'main') {
+    const bannerCard = await buildProfileBannerAttachment(player, targetUser);
+    if (bannerCard) {
+      files.push(bannerCard);
+      hasBannerImage = true;
+    }
+  } else if (tab === 'stats') {
+    files.push(await buildPlayerStatCardAttachment(player, targetUser, 'career'));
+  } else {
+    files.push(await buildPlayerBiomechanicsAttachment(player, targetUser));
+  }
 
-  files.push(mainCard);
-
-  const embed = buildProfileEmbed(player, targetUser, tab, guild, thumbOverride);
+  const embed = buildProfileEmbed(player, targetUser, tab, guild, thumbOverride, hasBannerImage);
   const row = buildProfileTabsRow(targetUser.id, tab);
 
   return { embed, files, components: [row] };

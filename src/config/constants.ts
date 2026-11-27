@@ -349,28 +349,14 @@ export interface CosmeticDef {
 }
 
 /**
- * Curated rotating boutique items: 8 footballers active each month (4 Avatars + 4 Full Banners)
+ * Curated collector cosmetics stocked from verified custom artwork assets.
  */
 export const COSMETIC_CATALOG: CosmeticDef[] = [
-  // Rotation A (Odd / Even alternating monthly drops - 8 footballers)
-  { key: 'rodri', name: 'Rodri Edition', kind: 'AVATAR', cost: 750000n, rotationSlot: 0, emoji: '🩵', accentHex: '#38bdf8', secondaryHex: '#0284c7', jerseyNumber: '16', subtitle: 'METRONOME' },
-  { key: 'bellingham', name: 'Bellingham Edition', kind: 'AVATAR', cost: 750000n, rotationSlot: 0, emoji: '🤍', accentHex: '#f8fafc', secondaryHex: '#94a3b8', jerseyNumber: '5', subtitle: 'GALACTICO' },
-  { key: 'saka', name: 'Saka Edition', kind: 'AVATAR', cost: 750000n, rotationSlot: 0, emoji: '🔴', accentHex: '#ef4444', secondaryHex: '#991b1b', jerseyNumber: '7', subtitle: 'STARBOY' },
-  { key: 'pedri', name: 'Pedri Edition', kind: 'AVATAR', cost: 750000n, rotationSlot: 0, emoji: '🔵', accentHex: '#3b82f6', secondaryHex: '#b91c1c', jerseyNumber: '8', subtitle: 'MAESTRO' },
-  { key: 'zidane', name: 'Zidane Legend Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#f59e0b', secondaryHex: '#1e3a8a', jerseyNumber: '10', subtitle: 'ZIZOU • ICON' },
-  { key: 'maldini', name: 'Maldini Iron Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#dc2626', secondaryHex: '#111827', jerseyNumber: '3', subtitle: 'IL CAPITANO' },
-  { key: 'cr7', name: 'Cristiano Siuuu Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#eab308', secondaryHex: '#0f172a', jerseyNumber: '7', subtitle: 'MR. CHAMPIONS' },
-  { key: 'messi', name: 'Messi Magic Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#60a5fa', secondaryHex: '#1e293b', jerseyNumber: '10', subtitle: 'LA PULGA • 10' },
-
-  // Rotation B (Alternating month drop - 8 footballers)
-  { key: 'vinicius', name: 'Vinicius Jr Edition', kind: 'AVATAR', cost: 750000n, rotationSlot: 1, emoji: '⚡', accentHex: '#facc15', secondaryHex: '#166534', jerseyNumber: '7', subtitle: 'BAILA VINI' },
-  { key: 'musiala', name: 'Musiala Edition', kind: 'AVATAR', cost: 750000n, rotationSlot: 1, emoji: '🪄', accentHex: '#f43f5e', secondaryHex: '#881337', jerseyNumber: '42', subtitle: 'BAMBI' },
-  { key: 'saliba', name: 'Saliba Edition', kind: 'AVATAR', cost: 750000n, rotationSlot: 1, emoji: '🛡️', accentHex: '#fb7185', secondaryHex: '#4c0519', jerseyNumber: '2', subtitle: 'ROLLS ROYCE' },
-  { key: 'valverde', name: 'Valverde Edition', kind: 'AVATAR', cost: 750000n, rotationSlot: 1, emoji: '🦅', accentHex: '#38bdf8', secondaryHex: '#1e293b', jerseyNumber: '8', subtitle: 'EL HALCON' },
-  { key: 'r9', name: 'R9 Fenomeno Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 1, emoji: '🖼️', accentHex: '#22c55e', secondaryHex: '#eab308', jerseyNumber: '9', subtitle: 'O FENOMENO' },
-  { key: 'henry', name: 'Henry Invincible Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 1, emoji: '🖼️', accentHex: '#ef4444', secondaryHex: '#ca8a04', jerseyNumber: '14', subtitle: 'KING HENRY' },
-  { key: 'ronaldinho', name: 'Ronaldinho Joga Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 1, emoji: '🖼️', accentHex: '#a855f7', secondaryHex: '#eab308', jerseyNumber: '10', subtitle: 'JOGA BONITO' },
-  { key: 'iniesta', name: 'Iniesta Architect Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 1, emoji: '🖼️', accentHex: '#ef4444', secondaryHex: '#1d4ed8', jerseyNumber: '8', subtitle: 'DON ANDRES' }
+  { key: 'messi', name: 'Messi Legend Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#60a5fa', secondaryHex: '#1e293b', jerseyNumber: '10', subtitle: 'A LEGEND FOREVER' },
+  { key: 'zidane', name: 'Zidane Legend Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#f59e0b', secondaryHex: '#1e3a8a', jerseyNumber: '10', subtitle: 'ELEGANCE IN MOTION' },
+  { key: 'rijkaard', name: 'Rijkaard Maestro Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#f97316', secondaryHex: '#0f172a', jerseyNumber: '8', subtitle: 'THE DEFENSIVE MAESTRO' },
+  { key: 'r9', name: 'Ronaldo Nazario Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#eab308', secondaryHex: '#166534', jerseyNumber: '9', subtitle: 'THE PHENOMENON' },
+  { key: 'neuer', name: 'Manuel Neuer Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#facc15', secondaryHex: '#111827', jerseyNumber: '1', subtitle: 'A WALL BETWEEN THE POSTS' }
 ];
 
 export function getCurrentMonthKey(date = new Date()): string {
@@ -381,7 +367,8 @@ export function getCurrentMonthKey(date = new Date()): string {
 
 export function getActiveMonthlyCosmetics(date = new Date()): CosmeticDef[] {
   const slot = date.getUTCMonth() % 2;
-  return COSMETIC_CATALOG.filter(c => c.rotationSlot === slot);
+  const matches = COSMETIC_CATALOG.filter(c => c.rotationSlot === slot);
+  return matches.length > 0 ? matches : COSMETIC_CATALOG;
 }
 
 export interface ProfileThemeDef {

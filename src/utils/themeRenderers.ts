@@ -143,56 +143,31 @@ export async function renderEquippedBannerPoster(options: {
   accentHex: string;
   vipTier: number;
 }): Promise<Buffer> {
+  const img = await loadLocalImageCached(options.bannerPath);
   const width = 1000;
-  const height = 562;
+  const aspectRatio = img.width > 0 ? img.height / img.width : 0.38;
+  const height = Math.max(220, Math.min(580, Math.round(width * aspectRatio)));
+
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
   ctx.fillStyle = '#060a14';
   ctx.fillRect(0, 0, width, height);
 
-  const img = await loadLocalImageCached(options.bannerPath);
-  // Cover-crop onto 1000x562 cleanly preserving aspect ratio
-  const scale = Math.max(width / img.width, height / img.height);
-  const dw = img.width * scale;
-  const dh = img.height * scale;
-  const dx = (width - dw) / 2;
-  const dy = (height - dh) / 2;
-  ctx.drawImage(img, dx, dy, dw, dh);
-
-  // Subtle bottom gradient vignette so corner pills are razor-sharp without obscuring legend artwork
-  const vig = ctx.createLinearGradient(0, height - 105, 0, height);
-  vig.addColorStop(0, 'rgba(5, 9, 18, 0)');
-  vig.addColorStop(1, 'rgba(5, 9, 18, 0.86)');
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, height - 105, width, 105);
-
-  // Outer sleek metallic frame
+  // Clip cleanly to rounded frame preserving the entire full-bleed banner artwork without cropping
   ctx.save();
-  drawRoundedRect(ctx, 4, 4, width - 8, height - 8, 12);
+  drawRoundedRect(ctx, 3, 3, width - 6, height - 6, 12);
+  ctx.clip();
+  ctx.drawImage(img, 0, 0, width, height);
+  ctx.restore();
+
+  // Outer sleek metallic frame matching VIP gold / banner accent
+  ctx.save();
+  drawRoundedRect(ctx, 3, 3, width - 6, height - 6, 12);
   ctx.strokeStyle = options.vipTier >= 1 ? '#facc15' : options.accentHex;
   ctx.lineWidth = 3;
   ctx.stroke();
   ctx.restore();
-
-  // Compact bottom-left Legend + Player identity pill
-  const label = `@${cleanCanvasText(options.username)}  •  OVR ${options.ovr}  •  ${cleanCanvasText(options.bannerName).toUpperCase()}`;
-  ctx.save();
-  ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
-  const pillW = Math.min(540, ctx.measureText(label).width + 28);
-  drawRoundedRect(ctx, 18, height - 48, pillW, 30, 8);
-  ctx.fillStyle = 'rgba(5, 9, 18, 0.84)';
-  ctx.fill();
-  ctx.strokeStyle = options.accentHex;
-  ctx.lineWidth = 1.2;
-  ctx.stroke();
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillText(truncateText(ctx, label, pillW - 22), 32, height - 33);
-  ctx.restore();
-
-  await drawBrandLogoSeal(ctx, width - 34, height - 33, 18, options.accentHex);
 
   return canvas.toBuffer('image/png');
 }

@@ -48,21 +48,26 @@ export async function handleAvatarCommand(message: Message) {
       return `\`${owned.cosmeticKey}\` (${def?.name || owned.name})`;
     });
 
+  const avatarBlock = avatars.length > 0
+    ? `### 👤 Custom Profile Avatars (750k Coins)\n${avatars.map(formatLine).join('\n')}\n\n`
+    : '';
+  const bannerBlock = banners.length > 0
+    ? `### 🖼️ Full Collector Banners (3,000k High-Roller Sink)\n${banners.map(formatLine).join('\n')}`
+    : '*No banners currently stocked in this rotation.*';
+
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.PURPLE)
-    .setTitle(`🎨 Monthly Avatar & Banner Boutique — ${monthKey} Drop`)
+    .setTitle(`🎨 Cosmetic Boutique — ${monthKey}`)
     .setDescription(
-      `Spend surplus wealth inside **🛍️ Global Market (\`-travel gm\`)** on rotating monthly footballer editions!\n` +
+      `Spend surplus wealth inside **🛍️ Global Market (\`-travel gm\`)** on custom Profile Cosmetics!\n` +
       `👑 **VIP Monthly Pass:** ${vipPassStatus}\n\n` +
-      `### 👤 Profile Badge Avatars (750k Coins)\n` +
-      avatars.map(formatLine).join('\n') +
-      `\n\n### 🖼️ Full Profile Banners (3,000k High-Roller Sink)\n` +
-      banners.map(formatLine).join('\n') +
+      avatarBlock +
+      bannerBlock +
       (ownedExtras.length > 0 ? `\n\n🎒 **Vaulted Locker Items:** ${ownedExtras.join(', ')}` : '') +
       `\n\n${UI.DIVIDER}\n` +
       subtext('💡 At Global Market (`-travel gm`): `-avatarbuy <alias>` • VIPs: `-avatarclaim <alias>` • Anywhere: `-equip <alias>`')
     )
-    .setFooter({ text: 'Beyond The Final Whistle • 8 Footballers Rotated Monthly' })
+    .setFooter({ text: `Beyond The Final Whistle • ${activeCatalog.length} Active Collector Cosmetics` })
     .setTimestamp();
 
   await message.reply({ embeds: [embed] });
@@ -71,7 +76,7 @@ export async function handleAvatarCommand(message: Message) {
 export async function handleAvatarBuyCommand(message: Message, args: string[]) {
   const alias = args.join(' ').trim();
   if (!alias) {
-    return await message.reply('❌ Usage: `-avatarbuy <alias>` (e.g. `-avatarbuy zidane` or `-avatarbuy rodri`). Browse with `-avatar`.');
+    return await message.reply('❌ Usage: `-avatarbuy <alias>` (e.g. `-avatarbuy zidane` or `-avatarbuy messi`). Browse with `-avatar`.');
   }
   const result = await acquireMonthlyCosmetic(message.author.id, alias, 'buy');
   await message.reply(result.message);
