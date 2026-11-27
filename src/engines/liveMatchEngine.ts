@@ -69,6 +69,9 @@ export interface LiveMatchOptions {
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
+/** Random 20–30 second delay between live match commentary messages */
+const randomTick = () => sleep(Math.floor(Math.random() * 10_000) + 20_000);
+
 /**
  * Calculates dynamic player ratings based on real match contributions
  */
@@ -104,7 +107,7 @@ export async function runLiveEpisodicMatch(
   awayTeam: MatchTeam,
   options: LiveMatchOptions = {}
 ) {
-  const tickDelay = options.tickDelayMs ?? 3200;
+  const tickDelay = options.tickDelayMs ?? 0; // 0 = use random 20–30s live mode
   const halfTimePause = options.halfTimePauseMs ?? 8000;
   const newsChannelId = options.newsChannelId ?? '1574439119227064402'; // #๑•📰│btfw-news
 
@@ -234,7 +237,7 @@ export async function runLiveEpisodicMatch(
     secondaryPlayer: homeTeam.players.atk,
     narrative: kickoffNarrative
   });
-  await sleep(tickDelay);
+  await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
 
   // Track dynamic comeback momentum & lead psychology
   let recentComebackTeamAlias: string | null = null;
@@ -680,7 +683,7 @@ export async function runLiveEpisodicMatch(
           secondaryPlayer: defPlayer,
           narrative: commentary
         });
-        await sleep(tickDelay);
+        await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
         // Breaks into direct 1v1 scoring chance!
         await resolveGoalAttempt(striker, midAtt);
         return;
@@ -1094,7 +1097,7 @@ export async function runLiveEpisodicMatch(
         secondaryPlayer: midAtt,
         narrative: commentary
       });
-      await sleep(tickDelay);
+      await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
 
       // 65% chance breaks cleanly through on goal to shoot with counter-attack bonus!
       if (Math.random() < 0.65) {
@@ -1145,7 +1148,7 @@ export async function runLiveEpisodicMatch(
           secondaryPlayer: midAtt,
           narrative: commentary
         });
-        await sleep(tickDelay);
+        await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
 
         if (isLongScreamer) {
           // 25-yard thunderbolt screamer attempt!
@@ -1197,7 +1200,7 @@ export async function runLiveEpisodicMatch(
           secondaryPlayer: striker,
           narrative: commentary
         });
-        await sleep(tickDelay);
+        await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
 
         // 60% chance to unleash 1v1 strike
         if (Math.random() < 0.60) {
@@ -1242,7 +1245,7 @@ export async function runLiveEpisodicMatch(
           extraMentions: [defPlayer],
           narrative: commentary
         });
-        await sleep(tickDelay);
+        await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
 
         // 60% chance attacker connects with cross (header/volley attempt)
         if (Math.random() < 0.60) {
@@ -1310,7 +1313,7 @@ export async function runLiveEpisodicMatch(
           secondaryPlayer: defPlayer,
           narrative: commentary
         });
-        await sleep(tickDelay);
+        await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
 
         if (Math.random() < 0.55 && midAtt.redCards === 0) {
           await resolveGoalAttempt(midAtt, striker);
@@ -1388,7 +1391,7 @@ export async function runLiveEpisodicMatch(
   // ==========================================
   for (const minute of half1Minutes) {
     await simulateTacticalPhase(minute);
-    await sleep(tickDelay);
+    await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
   }
 
   // ==========================================
@@ -1433,7 +1436,7 @@ export async function runLiveEpisodicMatch(
   // ==========================================
   for (const minute of half2Minutes) {
     await simulateTacticalPhase(minute);
-    await sleep(tickDelay);
+    await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
   }
 
   // Stoppage Time Drama (90+3') if match is on a knife edge (within 1 goal)
@@ -1443,7 +1446,7 @@ export async function runLiveEpisodicMatch(
     });
     await sleep(2000);
     await simulateTacticalPhase(93);
-    await sleep(tickDelay);
+    await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
   }
 
   matchChronology.push(`🏁 90+5' Fulltime`);

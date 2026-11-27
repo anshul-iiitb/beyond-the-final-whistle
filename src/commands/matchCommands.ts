@@ -323,12 +323,14 @@ export async function handleLiveMatchCommand(message: Message, args: string[]) {
   }
 
   const isFullBroadcast = args.includes('full') || args.includes('broadcast');
-  const tickDelay = isFullBroadcast ? 15000 : 3500;
-  const halfTimePause = isFullBroadcast ? 180000 : 8000;
+  // tickDelayMs omitted → engine uses random 20–30s per commentary message
+  // halfTimePause: 3min for full broadcast, 30s normal (feels like a real half-time break)
+  const halfTimePause = isFullBroadcast ? 180000 : 30000;
 
   await message.reply(
     `🏟️ **Live Match Broadcast initialized!**\n` +
-    `⚡ Setting up tactical clash in ${liveChannel.toString()} — grab your seats!`
+    `⚡ Setting up tactical clash in ${liveChannel.toString()} — grab your seats!\n` +
+    subtext('📡 Commentary drops every 20–30 seconds in real-time. Stay tuned!')
   );
 
   const team1 = getBalancedMorocco();
@@ -336,7 +338,6 @@ export async function handleLiveMatchCommand(message: Message, args: string[]) {
 
   try {
     await runLiveEpisodicMatch(message.client, liveChannel, team1, team2, {
-      tickDelayMs: tickDelay,
       halfTimePauseMs: halfTimePause,
       newsChannelId: '1574439119227064402'
     });
