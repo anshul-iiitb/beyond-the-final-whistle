@@ -526,3 +526,147 @@ export async function handleBatchMatchCommand(message: Message, args: string[]) 
     }
   );
 }
+
+// ==========================================
+// -testmatch <ovr1> <ovr2> <boots1:on|off> <boots2:on|off>
+// e.g. -testmatch 76 54 off on
+// Team 1: stats ≈ ovr1 (±2), boots1 applies +10 to key pos stat
+// Team 2: stats ≈ ovr2 (±2), boots2 applies +10 to key pos stat
+// ==========================================
+
+/**
+ * Builds a synthetic MatchTeam with stats distributed around a given overall rating.
+ * Boots add +10 to the position-specific key stat (ATK→fin, MID→pas, DEF→tck).
+ */
+function buildTestTeam(
+  teamNum: 1 | 2,
+  baseOvr: number,
+  bootsOn: boolean
+): MatchTeam {
+  const r = (base: number) => Math.max(30, Math.min(99, base + Math.floor(Math.random() * 5) - 2));
+
+  const isT1 = teamNum === 1;
+  const teamName = isT1 ? 'Alpha Squad' : 'Beta Squad';
+  const alias = isT1 ? 'alpha' : 'beta';
+  const flag = isT1 ? '🔴' : '🔵';
+  const bootTag = bootsOn ? ' 👟' : '';
+
+  // ATK: fin is key stat
+  const atkFin = Math.min(99, r(baseOvr) + (bootsOn ? 10 : 0));
+  // MID: pas is key stat
+  const midPas = Math.min(99, r(baseOvr) + (bootsOn ? 10 : 0));
+  // DEF: tck is key stat
+  const defTck = Math.min(99, r(baseOvr) + (bootsOn ? 10 : 0));
+
+  return {
+    name: `${teamName}${bootTag}`,
+    alias,
+    flag,
+    penaltyTakerName: isT1 ? 'Alpha ATK' : 'Beta ATK',
+    freeKickTakerName: isT1 ? 'Alpha MID' : 'Beta MID',
+    cornerTakerName: isT1 ? 'Alpha DEF' : 'Beta DEF',
+    tactics: {
+      teamMentality: 'Normal',
+      focusPassing: 'Through The Middle',
+      passingStyle: 'Short',
+      forceCounter: 'Off',
+      pressingStyle: 'Low',
+      tacklingStyle: 'Normal',
+      markingStyle: 'Zonal',
+      offsideTrap: 'Off'
+    },
+    color: isT1 ? [239, 68, 68] : [59, 130, 246],
+    score: 0,
+    possession: 50,
+    players: {
+      atk: {
+        id: `${alias}-atk`,
+        name: isT1 ? 'Alpha Striker' : 'Beta Striker',
+        position: 'ATK',
+        playstyle: 'PCH',
+        flag,
+        fin: atkFin,
+        pas: r(baseOvr), tck: r(baseOvr), dri: r(baseOvr), int: r(baseOvr),
+        pac: r(baseOvr), cmp: r(baseOvr), vis: r(baseOvr), phy: r(baseOvr),
+        wrk: r(baseOvr), hea: r(baseOvr), pow: r(baseOvr),
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0,
+        passesCompleted: 20, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      },
+      mid: {
+        id: `${alias}-mid`,
+        name: isT1 ? 'Alpha Midfielder' : 'Beta Midfielder',
+        position: 'MID',
+        playstyle: 'ANC',
+        flag,
+        fin: r(baseOvr),
+        pas: midPas,
+        tck: r(baseOvr), dri: r(baseOvr), int: r(baseOvr),
+        pac: r(baseOvr), cmp: r(baseOvr), vis: r(baseOvr), phy: r(baseOvr),
+        wrk: r(baseOvr), hea: r(baseOvr), pow: r(baseOvr),
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0,
+        passesCompleted: 30, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      },
+      def: {
+        id: `${alias}-def`,
+        name: isT1 ? 'Alpha Defender' : 'Beta Defender',
+        position: 'DEF',
+        playstyle: 'BPD',
+        flag,
+        fin: r(baseOvr), pas: r(baseOvr),
+        tck: defTck,
+        dri: r(baseOvr), int: r(baseOvr),
+        pac: r(baseOvr), cmp: r(baseOvr), vis: r(baseOvr), phy: r(baseOvr),
+        wrk: r(baseOvr), hea: r(baseOvr), pow: r(baseOvr),
+        goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0,
+        passesCompleted: 38, dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+      }
+    }
+  };
+}
+
+export async function handleTestMatchCommand(message: Message, args: string[]) {
+  const guild = message.guild;
+  if (!guild) return;
+
+  // Parse args: -testmatch <ovr1> <ovr2> <boots1> <boots2>
+  const ovr1Raw = parseInt(args[0], 10);
+  const ovr2Raw = parseInt(args[1], 10);
+  const boots1 = (args[2] || 'off').toLowerCase() === 'on';
+  const boots2 = (args[3] || 'off').toLowerCase() === 'on';
+
+  if (isNaN(ovr1Raw) || isNaN(ovr2Raw) || ovr1Raw < 30 || ovr1Raw > 99 || ovr2Raw < 30 || ovr2Raw > 99) {
+    return await message.reply(
+      '❌ **Usage:** `-testmatch <ovr1> <ovr2> <boots1:on|off> <boots2:on|off>`\n' +
+      'Example: `-testmatch 76 54 off on`\n' +
+      subtext('OVR range: 30–99 • Boots add +10 to position key stat (ATK→FIN, MID→PAS, DEF→TCK)')
+    );
+  }
+
+  // Locate #live-match channel or fall back to current
+  let liveChannel = (guild.channels.cache.get('1574439115783409845') ||
+    guild.channels.cache.find(c => c.name.includes('live-match'))) as TextChannel;
+  if (!liveChannel?.isTextBased()) liveChannel = message.channel as TextChannel;
+
+  const team1 = buildTestTeam(1, ovr1Raw, boots1);
+  const team2 = buildTestTeam(2, ovr2Raw, boots2);
+
+  const bootsSummary = (on: boolean, ovr: number) =>
+    on ? `boots ON (key stat ~${Math.min(99, ovr + 10)})` : 'no boots';
+
+  await message.reply(
+    `🧪 **Test Match Initialized!**\n` +
+    `🔴 **${team1.name}** — OVR ~${ovr1Raw} · ${bootsSummary(boots1, ovr1Raw)}\n` +
+    `🔵 **${team2.name}** — OVR ~${ovr2Raw} · ${bootsSummary(boots2, ovr2Raw)}\n` +
+    `📡 Broadcasting live in ${liveChannel.toString()} — commentary every 20–30s!\n` +
+    subtext('Stats randomized ±2 around OVR for each player')
+  );
+
+  try {
+    await runLiveEpisodicMatch(message.client, liveChannel, team1, team2, {
+      newsChannelId: '1574439119227064402'
+    });
+  } catch (err: any) {
+    logger.error({ err }, 'Error during test match');
+    await (message.channel as any).send(`❌ Test match error: ${err.message}`);
+  }
+}

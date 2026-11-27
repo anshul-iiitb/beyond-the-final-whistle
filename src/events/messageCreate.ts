@@ -14,7 +14,7 @@ import {
   handleAuctionEndCommand,
   handleAuctionCancelCommand
 } from '../commands/auctionCommands.js';
-import { handleMatchCommand, handleFriendlyCommand, handleLiveMatchCommand, handleBatchMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand } from '../commands/matchCommands.js';
+import { handleMatchCommand, handleFriendlyCommand, handleLiveMatchCommand, handleBatchMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand, handleTestMatchCommand } from '../commands/matchCommands.js';
 import { handleTacticsCommand } from '../commands/tacticsCommand.js';
 import {
   handleSetupCommand,
@@ -183,6 +183,10 @@ export async function onMessageCreate(message: Message) {
       case 'batchsim':
       case 'simulatemany':
         await handleBatchMatchCommand(message, args);
+        break;
+      case 'testmatch':
+      case 'simtest':
+        await handleTestMatchCommand(message, args);
         break;
       case 'intstats':
         await handleIntStatsCommand(message, args);
