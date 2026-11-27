@@ -4,11 +4,7 @@ import { buildTrainingSuccessEmbed } from '../commands/trainingCommands.js';
 import { executeSponsorAdvert, applyTweetVote, buildUpdatedTweetEmbed } from '../engines/socialEngine.js';
 import { prisma } from '../database/prisma.js';
 import {
-  buildProfileEmbed,
-  buildProfileTabsRow,
-  buildProfileBannerAttachment,
-  buildPlayerStatCardAttachment,
-  buildPlayerBiomechanicsAttachment,
+  buildProfileViewPayload,
   buildLeaderboardPayload,
   normalizeLeaderboardCategory
 } from '../commands/playerCommands.js';
@@ -221,21 +217,13 @@ export async function onInteractionCreate(interaction: Interaction) {
       const targetUser =
         interaction.client.users.cache.get(targetUserId) ||
         (await interaction.client.users.fetch(targetUserId).catch(() => interaction.user));
-      const embed = buildProfileEmbed(player, targetUser, tab, interaction.guild);
-      const row = buildProfileTabsRow(targetUserId, tab);
-
-      if (tab === 'main') {
-        const banner = await buildProfileBannerAttachment(player, targetUser);
-        return await interaction.editReply({ embeds: [embed], components: [row], files: [banner], attachments: [] });
-      }
-
-      if (tab === 'stats') {
-        const statCard = await buildPlayerStatCardAttachment(player, targetUser, 'career');
-        return await interaction.editReply({ embeds: [embed], components: [row], files: [statCard], attachments: [] });
-      }
-
-      const bioCard = await buildPlayerBiomechanicsAttachment(player, targetUser);
-      return await interaction.editReply({ embeds: [embed], components: [row], files: [bioCard], attachments: [] });
+      const payload = await buildProfileViewPayload(player, targetUser, tab, interaction.guild);
+      return await interaction.editReply({
+        embeds: [payload.embed],
+        components: payload.components,
+        files: payload.files,
+        attachments: []
+      });
     }
 
     // 3b. Leaderboard Category Switcher: lb_ovr, lb_goals, lb_wealth, lb_followers

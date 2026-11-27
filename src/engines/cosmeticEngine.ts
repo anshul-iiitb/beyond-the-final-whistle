@@ -117,12 +117,15 @@ export async function acquireMonthlyCosmetic(
 }
 
 /**
- * Equips an owned Avatar or Banner (or clears with "none").
+ * Equips an owned Avatar or Banner (or clears all / selective "avatar none" / "banner none").
  */
 export async function equipOwnedCosmetic(playerId: string, alias: string): Promise<CosmeticActionResult> {
   const clean = alias.trim().toLowerCase();
   if (!clean) {
-    return { success: false, message: '❌ Usage: `-equip <alias>` or `-equip none`.' };
+    return {
+      success: false,
+      message: '❌ Usage: `-equip <alias>`, `-equip avatar none`, `-equip banner none`, or `-equip none`.'
+    };
   }
 
   if (clean === 'none' || clean === 'clear' || clean === 'reset') {
@@ -130,8 +133,20 @@ export async function equipOwnedCosmetic(playerId: string, alias: string): Promi
       where: { id: playerId },
       data: { equippedAvatar: null, equippedBanner: null }
     });
-    return { success: true, message: '✅ Unequipped custom avatar and banner from your `-profile`.' };
+    return { success: true, message: '✅ Unequipped both custom avatar and banner from your `-profile`.' };
   }
+
+  if (clean === 'avatar none' || clean === 'avatar clear' || clean === 'unequip avatar') {
+    await prisma.player.update({ where: { id: playerId }, data: { equippedAvatar: null } });
+    return { success: true, message: '✅ Unequipped custom avatar — restored your Discord profile picture.' };
+  }
+
+  if (clean === 'banner none' || clean === 'banner clear' || clean === 'unequip banner') {
+    await prisma.player.update({ where: { id: playerId }, data: { equippedBanner: null } });
+    return { success: true, message: '✅ Unequipped custom banner — restored your Stadium Hero Card.' };
+  }
+
+  const normalizedQuery = clean.replace(/^(avatar|banner)\s+/, '');
 
   const player = await prisma.player.findUnique({
     where: { id: playerId },
@@ -139,9 +154,9 @@ export async function equipOwnedCosmetic(playerId: string, alias: string): Promi
   });
   if (!player) return { success: false, message: '❌ Player not found. Run `-profile` first.' };
 
-  const target = findCosmeticMatch(COSMETIC_CATALOG, clean);
+  const target = findCosmeticMatch(COSMETIC_CATALOG, normalizedQuery);
   if (!target) {
-    return { success: false, message: `❌ Unknown cosmetic \`${alias}\`. Check your locker with \`-avatar\`.` };
+    return { success: false, message: `❌ Unknown cosmetic \`${alias}\`. Check your locker with \`-inv\` or shop via \`-avatar\`.` };
   }
 
   if (!player.cosmetics.some(c => c.cosmeticKey === target.key)) {

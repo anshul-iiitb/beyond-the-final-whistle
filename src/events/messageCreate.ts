@@ -4,7 +4,7 @@ import { handleTravelCommand, handleLocationsCommand, handleShowroomCommand, han
 import { handleTrainCommand, handleSpTrainCommand, handleRecoveryCommand, handleConvertCommand } from '../commands/trainingCommands.js';
 import { handleAdvertCommand, handleCoachingCommand, handleMeetGreetCommand, handleChirpCommand } from '../commands/socialCommands.js';
 import { handleBuyCommand, handleIntelCommand } from '../commands/marketCommands.js';
-import { handleAvatarCommand, handleAvatarBuyCommand, handleAvatarClaimCommand, handleEquipCommand, handleThemeCommand } from '../commands/cosmeticCommands.js';
+import { handleAvatarCommand, handleAvatarBuyCommand, handleAvatarClaimCommand, handleEquipCommand, handleThemeCommand, handleInventoryCommand } from '../commands/cosmeticCommands.js';
 import { handleAuctionHouseCommand, handleBidCommand, handleSeedAuctionCommand } from '../commands/auctionCommands.js';
 import { handleMatchCommand, handleFriendlyCommand, handleLiveMatchCommand, handleBatchMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand } from '../commands/matchCommands.js';
 import { handleTacticsCommand } from '../commands/tacticsCommand.js';
@@ -128,6 +128,12 @@ export async function onMessageCreate(message: Message) {
         break;
       case 'equip':
         await handleEquipCommand(message, args);
+        break;
+      case 'inv':
+      case 'inventory':
+      case 'locker':
+      case 'bag':
+        await handleInventoryCommand(message, args);
         break;
       case 'theme':
       case 'themes':

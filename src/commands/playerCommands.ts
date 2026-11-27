@@ -1,4 +1,5 @@
 import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, User, Guild, AttachmentBuilder, Client } from 'discord.js';
+import path from 'path';
 import { prisma } from '../database/prisma.js';
 import {
   CAMPUS_LOCATIONS,
@@ -14,7 +15,7 @@ import { syncMemberLocationVisibility } from '../engines/campusEngine.js';
 import { syncMemberGameRoles, syncMemberNationRole } from '../utils/roleSyncHelper.js';
 import { giveMoney } from '../engines/socialEngine.js';
 import { generatePlayerProfileCard, ProfileCollectableVisual } from '../utils/chartHelper.js';
-import { renderLeaderboardCanvas, renderPlayerStatCanvas, renderPlayerBiomechanicsCanvas, LeaderboardEntryData } from '../utils/themeRenderers.js';
+import { renderLeaderboardCanvas, renderPlayerStatCanvas, renderPlayerBiomechanicsCanvas, resolveCosmeticAssetPath, LeaderboardEntryData } from '../utils/themeRenderers.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { formatK, parseCoinAmount, getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
@@ -139,6 +140,7 @@ export async function buildPlayerStatCardAttachment(
     seasonRank,
     vipTier: player.vipTier || 0,
     avatarUrl: targetUser.displayAvatarURL({ extension: 'png', size: 256 }),
+    equippedAvatar: player.equippedAvatar,
     ovr,
     atk: derived.atk,
     mid: derived.mid,
@@ -178,6 +180,7 @@ export async function buildPlayerBiomechanicsAttachment(player: any, targetUser:
     seasonRank,
     vipTier: player.vipTier || 0,
     avatarUrl: targetUser.displayAvatarURL({ extension: 'png', size: 256 }),
+    equippedAvatar: player.equippedAvatar,
     playstyleCode: style.code,
     playstyleName: style.name,
     position: style.position,
@@ -236,7 +239,8 @@ export function buildProfileEmbed(
   player: any,
   targetUser: User,
   tab: 'main' | 'stats' | 'attr' = 'main',
-  guild?: Guild | null
+  guild?: Guild | null,
+  thumbnailOverrideUrl?: string | null
 ): EmbedBuilder {
   const derived = calculateDerivedRatings(player);
   const loc = CAMPUS_LOCATIONS[player.currentLocation] || CAMPUS_LOCATIONS.tc;
@@ -270,7 +274,7 @@ export function buildProfileEmbed(
     : '*None yet — browse `-showroom` & `-ah`*';
   const motmEmoji = getEmoji(guild, 'motm');
 
-  const thumbUrl = targetUser.displayAvatarURL?.() || null;
+  const thumbUrl = thumbnailOverrideUrl || targetUser.displayAvatarURL?.() || null;
   const botIcon = guild?.client?.user?.displayAvatarURL?.() || undefined;
 
   if (tab === 'main') {
@@ -396,6 +400,40 @@ export function buildProfileEmbed(
 }
 
 /**
+ * Builds the complete -profile message payload (embed, buttons, main/stat/bio card, and equipped custom avatar thumbnail).
+ */
+export async function buildProfileViewPayload(
+  player: any,
+  targetUser: User,
+  tab: 'main' | 'stats' | 'attr' = 'main',
+  guild?: Guild | null
+) {
+  const files: AttachmentBuilder[] = [];
+  let thumbOverride: string | null = null;
+
+  const customAvatarPath = resolveCosmeticAssetPath('AVATAR', player.equippedAvatar);
+  if (customAvatarPath) {
+    const ext = path.extname(customAvatarPath) || '.png';
+    const fileName = `custom_avatar${ext}`;
+    files.push(new AttachmentBuilder(customAvatarPath, { name: fileName }));
+    thumbOverride = `attachment://${fileName}`;
+  }
+
+  const mainCard = tab === 'main'
+    ? await buildProfileBannerAttachment(player, targetUser)
+    : tab === 'stats'
+      ? await buildPlayerStatCardAttachment(player, targetUser, 'career')
+      : await buildPlayerBiomechanicsAttachment(player, targetUser);
+
+  files.push(mainCard);
+
+  const embed = buildProfileEmbed(player, targetUser, tab, guild, thumbOverride);
+  const row = buildProfileTabsRow(targetUser.id, tab);
+
+  return { embed, files, components: [row] };
+}
+
+/**
  * Handles -profile [@user]
  */
 export async function handleProfileCommand(message: Message, args: string[]) {
@@ -440,14 +478,12 @@ export async function handleProfileCommand(message: Message, args: string[]) {
       await syncMemberLocationVisibility(message.guild, message.author.id, player.currentLocation || 'tc');
     }
 
-    const embed = buildProfileEmbed(player, targetUser, 'main', message.guild);
-    const row = buildProfileTabsRow(targetUser.id, 'main');
-    const bannerAttachment = await buildProfileBannerAttachment(player, targetUser);
+    const payload = await buildProfileViewPayload(player, targetUser, 'main', message.guild);
 
     await updateLoadingMessage(thinkingMsg, {
-      embeds: [embed],
-      files: [bannerAttachment],
-      components: [row]
+      embeds: [payload.embed],
+      files: payload.files,
+      components: payload.components
     });
   } catch (err) {
     await updateLoadingMessage(thinkingMsg, {

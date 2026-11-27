@@ -431,6 +431,67 @@ export const MATCH_SCORECARD_GRID_SPEC: GridModelSpec = {
   },
 };
 
+export const BANNER_POSTER_SPEC: GridModelSpec = {
+  id: 'cosmetic_banner_poster',
+  name: 'Legend Profile Banner Poster (-equip <banner> on -profile)',
+  templateFile: 'banner_blueprint_template.png',
+  canvasWidth: 1000,
+  canvasHeight: 562,
+  safeMargin: 24,
+  headerZone: {
+    x: 24,
+    y: 18,
+    w: 952,
+    h: 56,
+    label: 'TOP SAFE ZONE (Small corner badge margin; keep legend heads clear above y:40)',
+    accent: 'gold',
+  },
+  containerZone: {
+    x: 24,
+    y: 40,
+    w: 952,
+    h: 454,
+    label: 'MAIN FULL-ART LEGEND POSTER ARENA (16:9 Action Composition / Signature)',
+    accent: 'cyan',
+  },
+  footerZone: {
+    x: 20,
+    y: 500,
+    w: 960,
+    h: 46,
+    label: 'BOTTOM CORNER OVERLAY RESERVE (Player Pill Left + BTFW Crest Right)',
+    accent: 'purple',
+  },
+};
+
+export const AVATAR_COSMETIC_SPEC: GridModelSpec = {
+  id: 'cosmetic_avatar',
+  name: 'Player Profile Avatar Portrait (-equip <avatar> Top-Right Corner)',
+  templateFile: 'avatar_blueprint_template.png',
+  canvasWidth: 512,
+  canvasHeight: 512,
+  safeMargin: 46,
+  headerZone: {
+    x: 46,
+    y: 46,
+    w: 420,
+    h: 420,
+    label: 'CIRCULAR SAFE PORTRAIT FRAME (centered 256,256 r=210 for Hero/Stats + 1:1 embed thumb)',
+    accent: 'gold',
+  },
+  containerZone: {
+    x: 64,
+    y: 64,
+    w: 384,
+    h: 384,
+    label: 'HEAD, FACE & TROPHY BUST SAFE AREA',
+    accent: 'cyan',
+  },
+  circles: [
+    { cx: 256, cy: 256, r: 210, label: 'CIRCULAR CROP SAFE RING', accent: 'gold' },
+  ],
+};
+
 export const ALL_BTFW_THEME_GRID_SPECS: Record<string, GridModelSpec> = {
   dual_box_universal: DUAL_BOX_UNIVERSAL_SPEC,
   profile_banner: PROFILE_BANNER_GRID_SPEC,
@@ -440,4 +501,6 @@ export const ALL_BTFW_THEME_GRID_SPECS: Record<string, GridModelSpec> = {
   auction_house: AUCTION_HOUSE_GRID_SPEC,
   points_table: STANDINGS_TABLE_GRID_SPEC,
   match_scorecard: MATCH_SCORECARD_GRID_SPEC,
+  cosmetic_avatar: AVATAR_COSMETIC_SPEC,
+  cosmetic_banner_poster: BANNER_POSTER_SPEC,
 };

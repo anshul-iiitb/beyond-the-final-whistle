@@ -8,9 +8,11 @@ import {
   drawBrandLogoSeal,
   drawCircularImage,
   drawGlassScrim,
-  fetchRemoteImage,
   loadLocalImageCached,
   paintThemeBackdrop,
+  renderEquippedBannerPoster,
+  resolveAvatarImage,
+  resolveCosmeticAssetPath,
   resolveThemeAssetPath,
   truncateText,
 } from './themeRenderers.js';
@@ -490,17 +492,32 @@ async function drawHiresCollectable(
  * Obsidian dark-glass panels, stained-glass ATK/MID/DEF overall cards, Wealth & Team, Career Stats, and Collectables.
  */
 export async function generatePlayerProfileCard(data: ProfileCardData): Promise<Buffer> {
-  const width = 980;
-  const height = 560;
-  const canvas = createCanvas(width, height);
-  const ctx = canvas.getContext('2d');
-
   const avatarCosmetic = data.equippedAvatar
     ? COSMETIC_CATALOG.find(c => c.key === data.equippedAvatar)
     : undefined;
   const bannerCosmetic = data.equippedBanner
     ? COSMETIC_CATALOG.find(c => c.key === data.equippedBanner)
     : undefined;
+
+  // When a full Legend Collector Banner artwork file is present for the equipped banner, render it as the main bottom poster
+  const customBannerPath = resolveCosmeticAssetPath('BANNER', data.equippedBanner);
+  if (customBannerPath && bannerCosmetic) {
+    return await renderEquippedBannerPoster({
+      bannerPath: customBannerPath,
+      username: data.username,
+      bannerName: bannerCosmetic.name,
+      bannerSubtitle: bannerCosmetic.subtitle,
+      ovr: data.ovr,
+      seasonRank: data.seasonRank,
+      accentHex: bannerCosmetic.accentHex,
+      vipTier: data.vipTier,
+    });
+  }
+
+  const width = 980;
+  const height = 560;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
 
   const theme = PROFILE_THEMES.find(t => t.key === data.themeKey) || PROFILE_THEMES[0];
   const primaryAccent = bannerCosmetic?.accentHex || avatarCosmetic?.accentHex || (data.vipTier >= 1 ? '#f59e0b' : theme.accent);
@@ -585,7 +602,7 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
   const avX = 114;
   const avY = 128;
   const avRadius = 56;
-  const avatarImg = await fetchRemoteImage(data.avatarUrl, 1200);
+  const avatarImg = await resolveAvatarImage(data.avatarUrl, data.equippedAvatar);
   drawCircularImage(
     ctx,
     avatarImg,

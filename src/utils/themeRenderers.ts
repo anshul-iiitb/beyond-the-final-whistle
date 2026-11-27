@@ -102,6 +102,101 @@ export function drawRoundedRect(
  * Resolves a custom generated theme image for a given slot (`profile_banner`, `leaderboard`, `showroom`, etc.).
  * Prefers the user's explicit theme folder (`assets/themes/<themeKey>/<slot>.png|jpg|webp`) and falls back to `obsidian`.
  */
+export function resolveCosmeticAssetPath(
+  kind: 'AVATAR' | 'BANNER',
+  cosmeticKey?: string | null
+): string | null {
+  if (!cosmeticKey) return null;
+  const subDir = kind === 'AVATAR' ? 'avatars' : 'banners';
+  const cleanKey = cosmeticKey.toLowerCase().trim();
+  const exts = ['png', 'jpg', 'jpeg', 'webp'];
+  for (const ext of exts) {
+    const p = path.resolve(process.cwd(), 'assets', 'cosmetics', subDir, `${cleanKey}.${ext}`);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+/**
+ * Resolves a player's display avatar image, preferring their equipped custom Footballer Avatar artwork if present.
+ */
+export async function resolveAvatarImage(avatarUrl?: string | null, equippedAvatar?: string | null) {
+  const customPath = resolveCosmeticAssetPath('AVATAR', equippedAvatar);
+  if (customPath) {
+    try {
+      return await loadLocalImageCached(customPath);
+    } catch {}
+  }
+  return await fetchRemoteImage(avatarUrl, 1200);
+}
+
+/**
+ * Composites a Legend Collector Banner Poster (`assets/cosmetics/banners/<key>`) with crisp BTFW frame & bottom corner badge.
+ */
+export async function renderEquippedBannerPoster(options: {
+  bannerPath: string;
+  username: string;
+  bannerName: string;
+  bannerSubtitle: string;
+  ovr: number;
+  seasonRank: string;
+  accentHex: string;
+  vipTier: number;
+}): Promise<Buffer> {
+  const width = 1000;
+  const height = 562;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#060a14';
+  ctx.fillRect(0, 0, width, height);
+
+  const img = await loadLocalImageCached(options.bannerPath);
+  // Cover-crop onto 1000x562 cleanly preserving aspect ratio
+  const scale = Math.max(width / img.width, height / img.height);
+  const dw = img.width * scale;
+  const dh = img.height * scale;
+  const dx = (width - dw) / 2;
+  const dy = (height - dh) / 2;
+  ctx.drawImage(img, dx, dy, dw, dh);
+
+  // Subtle bottom gradient vignette so corner pills are razor-sharp without obscuring legend artwork
+  const vig = ctx.createLinearGradient(0, height - 105, 0, height);
+  vig.addColorStop(0, 'rgba(5, 9, 18, 0)');
+  vig.addColorStop(1, 'rgba(5, 9, 18, 0.86)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, height - 105, width, 105);
+
+  // Outer sleek metallic frame
+  ctx.save();
+  drawRoundedRect(ctx, 4, 4, width - 8, height - 8, 12);
+  ctx.strokeStyle = options.vipTier >= 1 ? '#facc15' : options.accentHex;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.restore();
+
+  // Compact bottom-left Legend + Player identity pill
+  const label = `@${cleanCanvasText(options.username)}  •  OVR ${options.ovr}  •  ${cleanCanvasText(options.bannerName).toUpperCase()}`;
+  ctx.save();
+  ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+  const pillW = Math.min(540, ctx.measureText(label).width + 28);
+  drawRoundedRect(ctx, 18, height - 48, pillW, 30, 8);
+  ctx.fillStyle = 'rgba(5, 9, 18, 0.84)';
+  ctx.fill();
+  ctx.strokeStyle = options.accentHex;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillText(truncateText(ctx, label, pillW - 22), 32, height - 33);
+  ctx.restore();
+
+  await drawBrandLogoSeal(ctx, width - 34, height - 33, 18, options.accentHex);
+
+  return canvas.toBuffer('image/png');
+}
+
 export function resolveThemeAssetPath(
   slot:
     | 'dual_box'
@@ -504,6 +599,7 @@ export interface PlayerStatCanvasData {
   seasonRank: string;
   vipTier: number;
   avatarUrl?: string | null;
+  equippedAvatar?: string | null;
   ovr: number;
   atk: number;
   mid: number;
@@ -584,7 +680,7 @@ export async function renderPlayerStatCanvas(data: PlayerStatCanvasData): Promis
   }
 
   // 3. Right Panel: Avatar Cutout + BTFW Crest + OVR Triad Matrix + Recent Form
-  const avatarImg = await fetchRemoteImage(data.avatarUrl, 1200);
+  const avatarImg = await resolveAvatarImage(data.avatarUrl, data.equippedAvatar);
   const avCircle = spec.circles![0]; // (790, 145, r=70)
   drawCircularImage(ctx, avatarImg, avCircle.cx, avCircle.cy, 62, data.username, accent, false);
   await drawBrandLogoSeal(ctx, 922, 76, 19, accent);
@@ -662,6 +758,7 @@ export interface PlayerBiomechanicsCanvasData {
   seasonRank: string;
   vipTier: number;
   avatarUrl?: string | null;
+  equippedAvatar?: string | null;
   playstyleCode: string;
   playstyleName: string;
   position: string;
@@ -975,7 +1072,7 @@ export async function renderPlayerBiomechanicsCanvas(data: PlayerBiomechanicsCan
   ]);
 
   // 3. Right Panel: Avatar + BTFW Crest + 6-Axis Radar Hexagon + Triad Readout
-  const avatarImg = await fetchRemoteImage(data.avatarUrl, 1200);
+  const avatarImg = await resolveAvatarImage(data.avatarUrl, data.equippedAvatar);
   const avCircle = spec.circles![0];
   drawCircularImage(ctx, avatarImg, avCircle.cx, avCircle.cy, 62, data.username, accent, false);
   await drawBrandLogoSeal(ctx, 922, 76, 19, accent);
