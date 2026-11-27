@@ -166,6 +166,27 @@ export const VEHICLE_CATALOG: VehicleDef[] = [
   { key: 'bugatti', name: 'Bugatti Chiron', cost: 20500000n, cooldownMinutes: 1, emoji: '<:bcfront:1574441070484394104><:bcback:1574441065535246396>' }
 ];
 
+const FULL_SPRITE_VEHICLE_KEYS = new Set([
+  'mini',
+  'bmwm3',
+  'corvettec8',
+  'shelbymustang',
+  'jaguartype',
+  'bentley',
+  'mclarenf1'
+]);
+
+/**
+ * Resolves whether a vehicle renders from a unified `<key>full.png` hi-res sprite or a `<prefix>front/back.png` pair.
+ */
+export function resolveVehicleSprite(vehicleKey: string, emoji = ''): { spriteMode: 'full' | 'split'; spritePrefix: string } {
+  if (FULL_SPRITE_VEHICLE_KEYS.has(vehicleKey)) {
+    return { spriteMode: 'full', spritePrefix: vehicleKey };
+  }
+  const splitMatch = emoji.match(/<:(\w+)front:/);
+  return { spriteMode: 'split', spritePrefix: splitMatch ? splitMatch[1] : vehicleKey };
+}
+
 export interface PlaystyleDef {
   code: string;
   name: string;

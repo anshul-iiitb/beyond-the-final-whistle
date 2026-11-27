@@ -1,11 +1,16 @@
 import { createCanvas, SKRSContext2D } from '@napi-rs/canvas';
+import fs from 'fs';
+import path from 'path';
 import { COSMETIC_CATALOG, PROFILE_THEMES } from '../config/constants.js';
+import { formatK } from './formatHelper.js';
 import {
   cleanCanvasText,
   drawCircularImage,
   drawGlassScrim,
   fetchRemoteImage,
+  loadLocalImageCached,
   paintThemeBackdrop,
+  resolveThemeAssetPath,
   truncateText,
 } from './themeRenderers.js';
 
@@ -365,6 +370,12 @@ export async function generateMatchScorecardGraphic(data: ScorecardData): Promis
   return canvas.toBuffer('image/png');
 }
 
+export interface ProfileCollectableVisual {
+  label: string;
+  spriteMode: 'full' | 'split' | 'single';
+  spriteKey: string;
+}
+
 export interface ProfileCardData {
   username: string;
   avatarUrl?: string;
@@ -380,15 +391,105 @@ export interface ProfileCardData {
   equippedAvatar?: string | null;
   equippedBanner?: string | null;
   milestones: string[];
+  playstyleName?: string;
+  position?: string;
+  coins?: bigint;
+  followers?: bigint;
+  trainingPoints?: number;
+  matchesPlayed?: number;
+  goalsScored?: number;
+  assists?: number;
+  yellowCards?: number;
+  redCards?: number;
+  cleanSheets?: number;
+  motmCount?: number;
+  collectables?: ProfileCollectableVisual[];
+}
+
+function drawObsidianPanel(
+  ctx: SKRSContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  accentColor: string,
+  radius = 14
+) {
+  ctx.save();
+  roundRect(ctx, x, y, w, h, radius);
+  ctx.fillStyle = 'rgba(7, 11, 22, 0.78)';
+  ctx.fill();
+
+  // Subtle top frosted glass highlight
+  const sheen = ctx.createLinearGradient(x, y, x, y + h * 0.42);
+  sheen.addColorStop(0, 'rgba(255, 255, 255, 0.065)');
+  sheen.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+  ctx.fillStyle = sheen;
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.30)';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+
+  // Thin top accent glow strip
+  const accentGrad = ctx.createLinearGradient(x + 16, y, x + w - 16, y);
+  accentGrad.addColorStop(0, 'rgba(255,255,255,0)');
+  accentGrad.addColorStop(0.5, accentColor);
+  accentGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = accentGrad;
+  ctx.fillRect(x + 24, y, w - 48, 2);
+  ctx.restore();
+}
+
+async function drawHiresCollectable(
+  ctx: SKRSContext2D,
+  item: ProfileCollectableVisual,
+  x: number,
+  y: number,
+  w: number,
+  h: number
+): Promise<boolean> {
+  const hiresDir = path.resolve(process.cwd(), 'assets', 'emojis_hires');
+  try {
+    if (item.spriteMode === 'full') {
+      const p = path.join(hiresDir, `${item.spriteKey}full.png`);
+      if (fs.existsSync(p)) {
+        const img = await loadLocalImageCached(p);
+        ctx.drawImage(img, x, y, w, h);
+        return true;
+      }
+    } else if (item.spriteMode === 'split') {
+      const fp = path.join(hiresDir, `${item.spriteKey}front.png`);
+      const bp = path.join(hiresDir, `${item.spriteKey}back.png`);
+      if (fs.existsSync(fp) && fs.existsSync(bp)) {
+        const [fImg, bImg] = await Promise.all([loadLocalImageCached(fp), loadLocalImageCached(bp)]);
+        const hw = Math.floor(w / 2);
+        ctx.drawImage(fImg, x, y + 2, hw, h - 4);
+        ctx.drawImage(bImg, x + hw - 2, y + 2, hw, h - 4);
+        return true;
+      }
+    } else {
+      const sp = path.join(hiresDir, `${item.spriteKey}.png`);
+      if (fs.existsSync(sp)) {
+        const img = await loadLocalImageCached(sp);
+        const padX = Math.max(0, Math.round((w - h) / 2));
+        ctx.drawImage(img, x + padX, y + 2, h - 4, h - 4);
+        return true;
+      }
+    }
+  } catch {
+    return false;
+  }
+  return false;
 }
 
 /**
- * Generates an 800x240 generative Player Career Card PNG combining studio theme backdrop,
- * equipped monthly footballer Avatar/Banner badges, Season Rank, OVR triad, and milestones.
+ * Generates the charismatic 980x560 flagship Player Profile Hero Card combining volumetric stadium lighting,
+ * Obsidian dark-glass panels, stained-glass ATK/MID/DEF overall cards, Wealth & Team, Career Stats, and Collectables.
  */
 export async function generatePlayerProfileCard(data: ProfileCardData): Promise<Buffer> {
-  const width = 800;
-  const height = 240;
+  const width = 980;
+  const height = 560;
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
@@ -399,39 +500,89 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
     ? COSMETIC_CATALOG.find(c => c.key === data.equippedBanner)
     : undefined;
 
-  const theme = await paintThemeBackdrop(ctx, width, height, 'profile_banner', data.themeKey);
-  const primaryAccent = bannerCosmetic?.accentHex || avatarCosmetic?.accentHex || theme.accent;
+  const theme = PROFILE_THEMES.find(t => t.key === data.themeKey) || PROFILE_THEMES[0];
+  const primaryAccent = bannerCosmetic?.accentHex || avatarCosmetic?.accentHex || (data.vipTier >= 1 ? '#f59e0b' : theme.accent);
 
-  // Dark frosted scrims inside all text zones so bright spotlights never wash out typography
-  drawGlassScrim(ctx, 174, 34, 386, 90, 8, 0.74);
-  drawGlassScrim(ctx, 174, 138, 386, 68, 8, 0.74);
-  drawGlassScrim(ctx, 598, 34, 170, 172, 10, 0.78);
-  drawGlassScrim(ctx, 42, 173, 88, 20, 5, 0.82);
-  drawGlassScrim(ctx, 20, 217, 540, 18, 4, 0.82);
+  // 1. Atmospheric Stadium Backdrop + Volumetric Floodlights + Pitch Horizon Glow
+  const baseGrad = ctx.createLinearGradient(0, 0, 0, height);
+  baseGrad.addColorStop(0, theme.bgStart || '#060a14');
+  baseGrad.addColorStop(0.62, theme.bgEnd || '#0b1528');
+  baseGrad.addColorStop(1, '#071b16');
+  ctx.fillStyle = baseGrad;
+  ctx.fillRect(0, 0, width, height);
 
-  // Optional Diagonal Legend Sash & Jersey Watermark when 3M Legend Banner equipped
+  // Blend obsidian stadium lights softly in background
+  const { filePath: bgPath } = resolveThemeAssetPath('match_scorecard', data.themeKey);
+  if (bgPath) {
+    try {
+      const bgImg = await loadLocalImageCached(bgPath);
+      ctx.save();
+      ctx.globalAlpha = 0.24;
+      ctx.drawImage(bgImg, 0, 0, width, height);
+      ctx.restore();
+    } catch {}
+  }
+
+  // Dual Floodlight Volumetric Beams from upper arena
+  ctx.save();
+  const leftBeam = ctx.createRadialGradient(220, 40, 10, 220, 180, 380);
+  leftBeam.addColorStop(0, 'rgba(56, 189, 248, 0.24)');
+  leftBeam.addColorStop(0.55, theme.glow || 'rgba(14, 165, 233, 0.08)');
+  leftBeam.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = leftBeam;
+  ctx.fillRect(0, 0, width, height);
+
+  const rightBeam = ctx.createRadialGradient(770, 40, 10, 770, 180, 380);
+  rightBeam.addColorStop(0, 'rgba(250, 204, 21, 0.16)');
+  rightBeam.addColorStop(0.55, 'rgba(16, 185, 129, 0.08)');
+  rightBeam.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = rightBeam;
+  ctx.fillRect(0, 0, width, height);
+
+  // Turf glow along stadium pitch floor
+  const turfGlow = ctx.createLinearGradient(0, 370, 0, height);
+  turfGlow.addColorStop(0, 'rgba(16, 185, 129, 0)');
+  turfGlow.addColorStop(1, 'rgba(16, 185, 129, 0.16)');
+  ctx.fillStyle = turfGlow;
+  ctx.fillRect(0, 370, width, height - 370);
+  ctx.restore();
+
+  // Outer Metallic Frame
+  ctx.save();
+  roundRect(ctx, 10, 10, width - 20, height - 20, 16);
+  ctx.strokeStyle = data.vipTier >= 1 ? 'rgba(250, 204, 21, 0.45)' : 'rgba(148, 163, 184, 0.35)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  // ==========================================
+  // QUADRANT 1: IDENTITY & AVATAR (26, 24, 454x246)
+  // ==========================================
+  drawObsidianPanel(ctx, 26, 24, 454, 246, primaryAccent, 14);
+
   if (bannerCosmetic) {
     ctx.save();
-    ctx.fillStyle = `${bannerCosmetic.accentHex}24`;
+    roundRect(ctx, 26, 24, 454, 246, 14);
+    ctx.clip();
+    ctx.fillStyle = `${bannerCosmetic.accentHex}22`;
     ctx.beginPath();
-    ctx.moveTo(410, 28);
-    ctx.lineTo(568, 28);
-    ctx.lineTo(500, 212);
-    ctx.lineTo(342, 212);
+    ctx.moveTo(320, 24);
+    ctx.lineTo(480, 24);
+    ctx.lineTo(410, 270);
+    ctx.lineTo(250, 270);
     ctx.closePath();
     ctx.fill();
 
-    ctx.font = 'bold 96px "Segoe UI", Arial, sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.font = 'bold 104px "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
     ctx.textAlign = 'right';
-    ctx.fillText(`#${bannerCosmetic.jerseyNumber}`, 558, 196);
+    ctx.fillText(`#${bannerCosmetic.jerseyNumber}`, 464, 252);
     ctx.restore();
   }
 
-  // 1. Left Circular Avatar inside Obsidian Marble Frame (cx: 86, cy: 108, r: 48)
-  const avX = 86;
-  const avY = 108;
-  const avRadius = 48;
+  const avX = 114;
+  const avY = 128;
+  const avRadius = 56;
   const avatarImg = await fetchRemoteImage(data.avatarUrl, 1200);
   drawCircularImage(
     ctx,
@@ -440,153 +591,394 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
     avY,
     avRadius,
     data.username,
-    data.vipTier >= 1 ? '#f59e0b' : primaryAccent,
-    false // metallic marble bezel provided by background plate
+    primaryAccent,
+    true
   );
 
-  // Cosmetic or VIP Ring highlight + Edition Jersey Tag inside (42, 173, 88, 20)
-  if (avatarCosmetic || data.vipTier >= 1) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(avX, avY, avRadius + 3, 0, Math.PI * 2);
-    ctx.strokeStyle = avatarCosmetic ? avatarCosmetic.accentHex : '#f59e0b';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  const jerseyText = avatarCosmetic
-    ? `#${avatarCosmetic.jerseyNumber} ${avatarCosmetic.subtitle.slice(0, 9)}`
-    : data.vipTier >= 1
-      ? 'VIP PASS'
-      : 'PRO CARD';
+  // Outer metallic halo around avatar
   ctx.save();
-  ctx.fillStyle = avatarCosmetic ? avatarCosmetic.accentHex : data.vipTier >= 1 ? '#fbbf24' : '#f1f5f9';
-  ctx.font = 'bold 9.5px "Segoe UI", Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(cleanCanvasText(jerseyText), 86, 183);
+  ctx.beginPath();
+  ctx.arc(avX, avY, avRadius + 6, 0, Math.PI * 2);
+  ctx.strokeStyle = avatarCosmetic ? avatarCosmetic.accentHex : 'rgba(148, 163, 184, 0.35)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
   ctx.restore();
 
-  // 2. Center Top Identity Glass Box (168, 28, 400x102)
-  const textX = 182;
+  // Badge tag below avatar
+  const avBadgeText = avatarCosmetic
+    ? `#${avatarCosmetic.jerseyNumber} ${avatarCosmetic.subtitle.slice(0, 10).toUpperCase()}`
+    : data.vipTier >= 1
+      ? 'VIP PASS'
+      : `${data.seasonRank.toUpperCase()} TIER`;
+  ctx.save();
+  roundRect(ctx, avX - 54, 200, 108, 22, 11);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+  ctx.fill();
+  ctx.strokeStyle = primaryAccent;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = data.vipTier >= 1 ? '#fde047' : '#f8fafc';
+  ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(cleanCanvasText(avBadgeText), avX, 211);
+  ctx.restore();
+
+  // Right Identity Text Block (x: 192..464)
+  const idX = 194;
+  ctx.save();
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
 
-  const rankLabel = data.vipTier >= 1 ? `VIP STAR  •  ${data.seasonRank.toUpperCase()}` : `${data.seasonRank.toUpperCase()} TIER`;
-  ctx.font = 'bold 10.5px "Segoe UI", Arial, sans-serif';
-  const pillW = Math.min(360, Math.max(124, ctx.measureText(rankLabel).width + 20));
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-  ctx.strokeStyle = data.vipTier >= 1 ? '#f59e0b' : primaryAccent;
-  ctx.lineWidth = 1.3;
-  ctx.beginPath();
-  ctx.roundRect(textX, 40, pillW, 21, 10.5);
+  const roleText = `${cleanCanvasText(data.playstyleName || 'Poacher').toUpperCase()}  •  ${data.position || 'ATT'}`;
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  const roleW = Math.min(258, ctx.measureText(roleText).width + 22);
+  roundRect(ctx, idX, 54, roleW, 22, 6);
+  ctx.fillStyle = 'rgba(6, 182, 212, 0.16)';
   ctx.fill();
+  ctx.strokeStyle = 'rgba(34, 211, 238, 0.55)';
+  ctx.lineWidth = 1;
   ctx.stroke();
+  ctx.fillStyle = '#67e8f9';
+  ctx.fillText(roleText, idX + 11, 69);
 
-  ctx.fillStyle = data.vipTier >= 1 ? '#fbbf24' : '#f8fafc';
-  ctx.fillText(cleanCanvasText(rankLabel), textX + 10, 54);
-
-  // Username
+  // @Username Hero Display
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
   const cleanName = cleanCanvasText(data.username) || 'Player';
-  ctx.fillText(truncateText(ctx, cleanName, 368), textX, 90);
+  ctx.fillText(truncateText(ctx, `@${cleanName}`, 268), idX, 118);
 
   // Club & Nation
   ctx.fillStyle = '#e2e8f0';
-  ctx.font = '13.5px "Segoe UI", Arial, sans-serif';
-  const clubNation = `${cleanCanvasText(data.clubName)}  •  ${cleanCanvasText(data.nationName)}`;
-  ctx.fillText(truncateText(ctx, clubNation, 368), textX, 114);
+  ctx.font = 'bold 13.5px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, `${cleanCanvasText(data.nationName)}  •  ${cleanCanvasText(data.clubName)}`, 268), idX, 146);
 
-  // 3. Center Bottom Banner & Milestones Glass Box (168, 134, 400x78)
-  if (bannerCosmetic) {
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-    ctx.strokeStyle = bannerCosmetic.accentHex;
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.roundRect(textX, 144, 368, 22, 5);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = bannerCosmetic.accentHex;
-    ctx.font = 'bold 10.5px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(
-      truncateText(ctx, `BANNER: ${bannerCosmetic.name.toUpperCase()} (${bannerCosmetic.subtitle})`, 350),
-      textX + 8,
-      159
-    );
-  } else {
-    ctx.fillStyle = '#7dd3fc';
-    ctx.font = 'bold 11.5px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(`THEME: ${theme.name.toUpperCase()}`, textX, 158);
-  }
-
-  let badgeX = textX;
-  const shownMilestones = data.milestones.slice(0, 3);
-  for (const label of shownMilestones) {
-    const cleanM = cleanCanvasText(label);
-    ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
-    const mw = ctx.measureText(cleanM).width + 16;
-    if (badgeX + mw > 556) break;
-
-    ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.roundRect(badgeX, 176, mw, 22, 5);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillText(cleanM, badgeX + 8, 191);
-    badgeX += mw + 7;
-  }
-
-  if (shownMilestones.length === 0) {
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = 'italic 11px "Segoe UI", Arial, sans-serif';
-    ctx.fillText('Build milestones on the pitch (Goals, Poss Won, MVPs, Caps)...', textX, 191);
-  }
-
-  // 4. Right OVR & ATK/MID/DEF Telemetry Panel (590..776, center X=683)
-  const panelCenterX = 683;
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#e2e8f0';
-  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('OVERALL RATING', panelCenterX, 54);
-
+  // Active Theme / Banner Tag
   ctx.fillStyle = primaryAccent;
-  ctx.font = 'bold 52px "Segoe UI", Arial, sans-serif';
-  ctx.fillText(String(data.ovr), panelCenterX, 108);
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  const studioLabel = bannerCosmetic
+    ? `BANNER: ${bannerCosmetic.name.toUpperCase()}`
+    : `STUDIO: ${theme.name.toUpperCase()}`;
+  ctx.fillText(truncateText(ctx, cleanCanvasText(studioLabel), 268), idX, 178);
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(`RANK: ${cleanCanvasText(data.seasonRank).toUpperCase()}`, idX, 202);
+  ctx.restore();
+
+  // ==========================================
+  // QUADRANT 2: OVERALL & ATK / MID / DEF CARDS (496, 24, 458x246)
+  // ==========================================
+  drawObsidianPanel(ctx, 496, 24, 458, 246, '#facc15', 14);
+
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('OVERALL', 518, 52);
+
+  // Glowing OVR Shield Badge
+  roundRect(ctx, 842, 38, 92, 28, 8);
+  ctx.fillStyle = 'rgba(250, 204, 21, 0.16)';
+  ctx.fill();
+  ctx.strokeStyle = '#facc15';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fde047';
+  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(`OVR ${data.ovr}`, 888, 53);
+  ctx.restore();
+
+  const triadBoxes = [
+    {
+      label: 'ATK',
+      val: data.atk,
+      x: 516,
+      topColor: 'rgba(185, 28, 28, 0.56)',
+      botColor: 'rgba(69, 10, 10, 0.80)',
+      border: 'rgba(248, 113, 113, 0.60)',
+      labelColor: '#fecaca',
+      barColor: '#ef4444',
+    },
+    {
+      label: 'MID',
+      val: data.mid,
+      x: 660,
+      topColor: 'rgba(29, 78, 216, 0.56)',
+      botColor: 'rgba(23, 37, 84, 0.80)',
+      border: 'rgba(96, 165, 250, 0.60)',
+      labelColor: '#bfdbfe',
+      barColor: '#3b82f6',
+    },
+    {
+      label: 'DEF',
+      val: data.def,
+      x: 804,
+      topColor: 'rgba(4, 120, 87, 0.56)',
+      botColor: 'rgba(6, 46, 36, 0.80)',
+      border: 'rgba(52, 211, 153, 0.60)',
+      labelColor: '#a7f3d0',
+      barColor: '#10b981',
+    },
+  ];
+
+  for (const box of triadBoxes) {
+    const bw = 130;
+    const bh = 166;
+    const by = 82;
+    ctx.save();
+    roundRect(ctx, box.x, by, bw, bh, 12);
+    const cg = ctx.createLinearGradient(box.x, by, box.x, by + bh);
+    cg.addColorStop(0, box.topColor);
+    cg.addColorStop(1, box.botColor);
+    ctx.fillStyle = cg;
+    ctx.fill();
+    ctx.strokeStyle = box.border;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Glossy top diagonal highlight
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
+    ctx.beginPath();
+    roundRect(ctx, box.x + 2, by + 2, bw - 4, 46, 10);
+    ctx.fill();
+
+    // Big Numeric Value
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 54px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(String(box.val), box.x + bw / 2, by + 68);
+
+    // Label below number
+    ctx.fillStyle = box.labelColor;
+    ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(box.label, box.x + bw / 2, by + 116);
+
+    // Sleek Progress Fill Bar at Card Bottom
+    const trackW = 90;
+    const trackX = box.x + (bw - trackW) / 2;
+    const trackY = by + 138;
+    roundRect(ctx, trackX, trackY, trackW, 6, 3);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
+    ctx.fill();
+    const fillW = Math.max(8, Math.round((Math.min(99, Math.max(0, box.val)) / 99) * trackW));
+    roundRect(ctx, trackX, trackY, fillW, 6, 3);
+    ctx.fillStyle = box.barColor;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ==========================================
+  // QUADRANT 3: WEALTH & TEAM (26, 286, 454x186)
+  // ==========================================
+  drawObsidianPanel(ctx, 26, 286, 454, 186, '#10b981', 14);
+
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fde047';
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('WEALTH & TEAM', 48, 310);
+
+  // Subtle horizontal separator
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(610, 126);
-  ctx.lineTo(756, 126);
+  ctx.moveTo(48, 326);
+  ctx.lineTo(458, 326);
+  ctx.stroke();
+  ctx.restore();
+
+  const coinImgPath = path.resolve(process.cwd(), 'assets', 'emojis_hires', 'coin.png');
+  const follImgPath = path.resolve(process.cwd(), 'assets', 'emojis_hires', 'followers.png');
+  const [coinImg, follImg] = await Promise.all([
+    fs.existsSync(coinImgPath) ? loadLocalImageCached(coinImgPath).catch(() => null) : null,
+    fs.existsSync(follImgPath) ? loadLocalImageCached(follImgPath).catch(() => null) : null,
+  ]);
+
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  // Coins Cell (x: 48, y: 344)
+  if (coinImg) ctx.drawImage(coinImg, 48, 344, 22, 22);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('COINS', coinImg ? 76 : 48, 355);
+  ctx.fillStyle = '#fde047';
+  ctx.font = 'bold 24px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(formatK(data.coins ?? 0n), 48, 386);
+
+  // Followers Cell (x: 266, y: 344)
+  if (follImg) ctx.drawImage(follImg, 266, 344, 22, 22);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('FOLLOWERS', follImg ? 294 : 266, 355);
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 24px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(formatK(data.followers ?? 0n), 266, 386);
+
+  // Nation Cell (x: 48, y: 416)
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('NATIONAL TEAM', 48, 422);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(data.nationName) || 'Free Agent', 195), 48, 448);
+
+  // Club Cell (x: 266, y: 416)
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('CLUB FRANCHISE', 266, 422);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(data.clubName) || 'Free Agent', 195), 266, 448);
+  ctx.restore();
+
+  // ==========================================
+  // QUADRANT 4: CAREER STATS (496, 286, 458x186)
+  // ==========================================
+  drawObsidianPanel(ctx, 496, 286, 458, 186, '#38bdf8', 14);
+
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('CAREER STATS', 518, 310);
+
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(518, 326);
+  ctx.lineTo(932, 326);
   ctx.stroke();
 
-  const triad = [
-    { label: 'ATK', val: data.atk, x: 632 },
-    { label: 'MID', val: data.mid, x: 683 },
-    { label: 'DEF', val: data.def, x: 734 }
+  const careerLeft = [
+    { label: 'Appearances', val: String(data.matchesPlayed ?? 0), color: '#ffffff' },
+    { label: 'Goals', val: String(data.goalsScored ?? 0), color: '#fde047' },
+    { label: 'Assists', val: String(data.assists ?? 0), color: '#38bdf8' },
+    { label: 'Yellow Cards', val: String(data.yellowCards ?? 0), color: '#facc15' },
   ];
-  for (const t of triad) {
-    ctx.fillStyle = '#cbd5e1';
-    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(t.label, t.x, 152);
+  const careerRight = [
+    { label: 'Red Cards', val: String(data.redCards ?? 0), color: '#f87171' },
+    { label: 'Clean Sheets', val: String(data.cleanSheets ?? 0), color: '#34d399' },
+    { label: 'MOTM Awards', val: String(data.motmCount ?? 0), color: '#fbbf24' },
+    { label: 'Training Pts', val: `${data.trainingPoints ?? 0} TP`, color: '#67e8f9' },
+  ];
 
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 22px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(String(t.val), t.x, 182);
+  for (let i = 0; i < 4; i++) {
+    const ry = 348 + i * 32;
+    // Left Col (518..708)
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(careerLeft[i].label, 520, ry);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = careerLeft[i].color;
+    ctx.font = 'bold 18px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(careerLeft[i].val, 706, ry);
+
+    // Right Col (740..930)
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(careerRight[i].label, 742, ry);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = careerRight[i].color;
+    ctx.font = 'bold 18px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(careerRight[i].val, 928, ry);
   }
 
-  // 5. Bottom Studio Watermark Strip (18, 226)
+  // Subtle vertical divider between Left and Right Career Cols
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
+  ctx.beginPath();
+  ctx.moveTo(724, 336);
+  ctx.lineTo(724, 458);
+  ctx.stroke();
+  ctx.restore();
+
+  // ==========================================
+  // BOTTOM BAR: COLLECTABLES & MILESTONES SHOWCASE (26, 486, 928x54)
+  // ==========================================
+  drawObsidianPanel(ctx, 26, 486, 928, 54, '#f59e0b', 10);
+
+  ctx.save();
   ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fde047';
+  ctx.font = 'bold 11.5px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('COLLECTABLES', 44, 513);
+  ctx.restore();
+
+  const collectables = data.collectables || [];
+  let cursorX = 160;
+  if (collectables.length > 0) {
+    const shownItems = collectables.slice(0, 8);
+    for (const item of shownItems) {
+      const slotW = item.spriteMode === 'single' ? 42 : 76;
+      const slotH = 38;
+      const sy = 494;
+      ctx.save();
+      roundRect(ctx, cursorX, sy, slotW, slotH, 7);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+
+      await drawHiresCollectable(ctx, item, cursorX + 4, sy + 2, slotW - 8, slotH - 4);
+      cursorX += slotW + 8;
+    }
+    if (collectables.length > 8) {
+      ctx.save();
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fde047';
+      ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(`+${collectables.length - 8} more`, cursorX + 4, 513);
+      ctx.restore();
+    }
+  } else if (data.milestones.length > 0) {
+    let bx = cursorX;
+    for (const m of data.milestones.slice(0, 4)) {
+      const cm = cleanCanvasText(m);
+      ctx.save();
+      ctx.font = 'bold 10.5px "Segoe UI", Arial, sans-serif';
+      const mw = ctx.measureText(cm).width + 18;
+      roundRect(ctx, bx, 500, mw, 26, 6);
+      ctx.fillStyle = 'rgba(250, 204, 21, 0.14)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.45)';
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fde047';
+      ctx.fillText(cm, bx + mw / 2, 513);
+      ctx.restore();
+      bx += mw + 8;
+    }
+  } else {
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+    ctx.fillText('No rides or relics collected yet  •  Visit -showroom & -ah to build your showcase', cursorX, 513);
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
   ctx.fillStyle = '#cbd5e1';
-  ctx.font = 'bold 9.5px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('BEYOND THE FINAL WHISTLE  •  PLAYER STUDIO', 26, 226);
+  ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('BEYOND THE FINAL WHISTLE', 936, 513);
+  ctx.restore();
 
   return canvas.toBuffer('image/png');
 }

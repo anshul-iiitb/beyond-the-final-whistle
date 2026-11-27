@@ -6,11 +6,12 @@ import {
   ITEM_CATALOG,
   VEHICLE_CATALOG,
   COSMETIC_CATALOG,
-  PROFILE_THEMES
+  PROFILE_THEMES,
+  resolveVehicleSprite
 } from '../config/constants.js';
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { giveMoney } from '../engines/socialEngine.js';
-import { generatePlayerProfileCard } from '../utils/chartHelper.js';
+import { generatePlayerProfileCard, ProfileCollectableVisual } from '../utils/chartHelper.js';
 import { renderLeaderboardCanvas, renderPlayerStatCanvas, renderPlayerBiomechanicsCanvas, LeaderboardEntryData } from '../utils/themeRenderers.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { formatK, parseCoinAmount, getNationFlag } from '../utils/formatHelper.js';
@@ -42,6 +43,31 @@ export async function buildProfileBannerAttachment(player: any, targetUser: User
   const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
   const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
   const milestones = getUnlockedMilestones(player);
+  const style = PLAYSTYLES[player.playstyle] || PLAYSTYLES.PCH;
+
+  const collectables: ProfileCollectableVisual[] = [];
+
+  for (const v of player.vehicles || []) {
+    const vDef = VEHICLE_CATALOG.find(cat => cat.key === v.vehicleKey);
+    const { spriteMode, spritePrefix } = resolveVehicleSprite(v.vehicleKey, vDef?.emoji || '');
+    collectables.push({
+      label: v.name,
+      spriteMode: vDef || spriteMode === 'full' ? spriteMode : 'single',
+      spriteKey: vDef || spriteMode === 'full' ? spritePrefix : 'car'
+    });
+  }
+
+  for (const item of player.inventory || []) {
+    const k = String(item.itemKey || '').toLowerCase();
+    const spriteKey = k.includes('worldcup')
+      ? 'worldcup'
+      : k.includes('boot')
+        ? 'goldenboot'
+        : k.includes('silver')
+          ? 'silvermedal'
+          : 'goldmedal';
+    collectables.push({ label: item.name, spriteMode: 'single', spriteKey });
+  }
 
   const buffer = await generatePlayerProfileCard({
     username: player.username || targetUser.username,
@@ -57,7 +83,20 @@ export async function buildProfileBannerAttachment(player: any, targetUser: User
     themeKey: player.profileTheme,
     equippedAvatar: player.equippedAvatar,
     equippedBanner: player.equippedBanner,
-    milestones
+    milestones,
+    playstyleName: style.name,
+    position: style.position,
+    coins: player.coins ?? 0n,
+    followers: player.followers ?? 0n,
+    trainingPoints: player.trainingPoints || 0,
+    matchesPlayed: player.matchesPlayed || 0,
+    goalsScored: player.goalsScored || 0,
+    assists: player.assists || 0,
+    yellowCards: player.yellowCards || 0,
+    redCards: player.redCards || 0,
+    cleanSheets: player.cleanSheets || 0,
+    motmCount: player.motmCount || 0,
+    collectables
   });
 
   return new AttachmentBuilder(buffer, { name: 'profile_banner.png' });
@@ -217,71 +256,63 @@ export function buildProfileEmbed(
     }
   } catch {}
 
-  // Collectables symbols
-  const itemSymbols = (player.inventory || []).map((i: any) => `${i.emoji} \`${i.name}\``);
+  // Collectables display (actual car & relic sprites cleanly side-by-side)
+  const itemSymbols = (player.inventory || []).map((i: any) => i.emoji);
   const vehicleSymbols = (player.vehicles || []).map((v: any) => {
     const vDef = VEHICLE_CATALOG.find(cat => cat.key === v.vehicleKey);
-    return `${vDef?.emoji || carEmoji} \`${v.name}\``;
+    return vDef?.emoji || carEmoji;
   });
-  const allCollectables = [...itemSymbols, ...vehicleSymbols];
-  const collectablesText = allCollectables.length > 0 ? allCollectables.join(' • ') : '*(empty - visit `-showroom` & `-gm`)*';
+  const allCollectables = [...vehicleSymbols, ...itemSymbols];
+  const collectablesDisplay = allCollectables.length > 0
+    ? allCollectables.join(' ')
+    : '*None yet — browse `-showroom` & `-ah`*';
+  const motmEmoji = getEmoji(guild, 'motm');
+
+  const thumbUrl = targetUser.displayAvatarURL?.() || null;
 
   if (tab === 'main') {
     const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
     const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
-    const staminaBar = makeProgressBar(player.stamina, 100, 8);
     const color = isVip ? THEME_COLORS.GOLD : THEME_COLORS.PRIMARY;
     const themeObj = PROFILE_THEMES.find(t => t.key === player.profileTheme) || PROFILE_THEMES[0];
-    const eqAvatar = COSMETIC_CATALOG.find(c => c.key === player.equippedAvatar);
-    const eqBanner = COSMETIC_CATALOG.find(c => c.key === player.equippedBanner);
+    const bootsLabel = player.activeBoots ? `${player.activeBoots.toUpperCase()} (+10)` : 'Standard';
+    const intelLabel = player.intelBonus > 0 ? `+${player.intelBonus} ${player.intelStat || 'Boost'}` : 'None';
 
     return new EmbedBuilder()
       .setColor(color)
-      .setTitle(`⚽ ${player.username} ${flag} Career Dossier ${vipBadge}`)
+      .setTitle(`⚽ ${player.username} ${flag}'s Profile! ${vipBadge}`.trim())
+      .setThumbnail(thumbUrl)
       .setDescription(
-        `> *"${player.bio || 'Rising football prodigy aiming for the World Cup trophy.'}"*\n\n` +
-        `### ⚡ VITALS & STUDIO SETUP\n` +
-        `${staminaEmoji} **Stamina:** ${staminaBar} \`${player.stamina}/100\`\n` +
-        `${tpEmoji} **TP:** \`${player.trainingPoints}\` • 🏆 **Rank:** \`${seasonRank}\` • 📍 ${loc.emoji} \`-travel ${loc.alias}\`\n` +
-        `🎨 **Theme:** \`${themeObj.name}\` • **Avatar:** \`${eqAvatar ? eqAvatar.name : 'Default'}\` • **Banner:** \`${eqBanner ? eqBanner.name : 'None'}\`\n\n` +
-        `### 💰 FINANCES & LOADOUT\n` +
-        `${coinEmoji} **Coins:** \`${formatK(player.coins)}\` • ${followersEmoji} **Fans:** \`${formatK(player.followers)}\`\n` +
-        `👟 **Boots:** \`${player.activeBoots ? player.activeBoots.toUpperCase() + ' (+10)' : 'Standard'}\` • 🛰️ **Intel:** \`${player.intelBonus > 0 ? '+' + player.intelBonus + ' ' + (player.intelStat || 'Boost') : 'None (-intel)'}\``
-      )
-      .addFields(
-        {
-          name: '📊 Tactical Ratings Matrix',
-          value: `🎯 \`ATK ${derived.atk}\`  •  🪄 \`MID ${derived.mid}\`  •  🛡️ \`DEF ${derived.def}\`  •  ⭐ \`OVR ${ovr}\``,
-          inline: false
-        },
-        {
-          name: `🎭 Tactical Role: ${style.emoji} ${style.name} (${style.position})`,
-          value: `*${style.description}*\n**Key Biometrics:** ${style.keyStats.map(s => `\`${s.toUpperCase()}\``).join(' • ')}`,
-          inline: false
-        },
-        {
-          name: '🛡️ Affiliations',
-          value: `• **Nation:** ${flag} **${player.nation?.name || 'Free Agent'}** (\`-joinnation\`)\n• **Club:** **${player.club?.name || 'Free Agent'}**`,
-          inline: true
-        },
-        {
-          name: '📈 Recent Form (5 Matches)',
-          value: recentForm.map(r => `\`${r}\``).join(' · '),
-          inline: true
-        },
-        {
-          name: '🎁 Fleet & Trophy Cabinet',
-          value: collectablesText,
-          inline: false
-        }
+        `*${player.bio || 'Rising football prodigy aiming for the World Cup trophy.'}*\n\n` +
+        `### 🛡️ Team Stats\n` +
+        `**National Team :** ${flag} ${player.nation?.name || 'Free Agent'} (\`-joinnation\`)\n` +
+        `**Club Team :** ${player.club?.name || 'Free Agent'}\n` +
+        `**Location :** ${loc.emoji} ${loc.name} (\`-travel ${loc.alias}\`)\n\n` +
+        `### 📊 Individual Stats\n` +
+        `**Total Appearances :** ${player.matchesPlayed || 0} 🎯\n` +
+        `**Goals Scored :** ${player.goalsScored || 0} ⚽  •  **Assists :** ${player.assists || 0} 👟\n` +
+        `**Yellow Cards :** ${player.yellowCards || 0} 🟨  •  **Red Cards :** ${player.redCards || 0} 🟥\n` +
+        `**Clean Sheets :** ${player.cleanSheets || 0} 🧤  •  **MOTM Awards :** ${player.motmCount || 0} ${motmEmoji}\n\n` +
+        `### 📈 Recent Form\n` +
+        `**Last 5 Match Ratings :** ${recentForm.join(' | ')} ⭐\n\n` +
+        `### ⚡ Player Attributes\n` +
+        `**Playstyle :** ${style.emoji} ${style.name} (${style.code}) • ${style.position}\n` +
+        `**Ratings :** ATK **${derived.atk}** | MID **${derived.mid}** | DEF **${derived.def}** | OVR **${ovr}**\n` +
+        `**Stamina :** ${staminaEmoji} ${player.stamina}/100  •  **Training Points :** ${tpEmoji} ${player.trainingPoints}\n` +
+        `**Loadout :** 👟 ${bootsLabel}  •  🛰️ ${intelLabel}\n\n` +
+        `### 💰 Followers and Wealth\n` +
+        `**Followers :** ${formatK(player.followers)} ${followersEmoji}\n` +
+        `**Coins :** ${formatK(player.coins)} ${coinEmoji}\n\n` +
+        `### 🎁 Collectables\n` +
+        `${collectablesDisplay}\n` +
+        subtext(`🎨 ${themeObj.name} • 🏆 ${seasonRank} Tier • Switch theme with -theme`)
       )
       .setImage('attachment://profile_banner.png')
-      .setFooter({ text: 'Beyond The Final Whistle • Career Dossier • Tab 1/3 (-theme to customize)' })
+      .setFooter({ text: `Used by ${player.username} • Beyond The Final Whistle • Tab 1/3` })
       .setTimestamp();
   }
 
   if (tab === 'stats') {
-    const motmEmoji = getEmoji(guild, 'motm');
     const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
     const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
     const milestones = getUnlockedMilestones(player);
@@ -289,72 +320,75 @@ export function buildProfileEmbed(
     const wins = player.wins || 0;
     const draws = player.draws || 0;
     const losses = player.losses || 0;
+    const passPct = player.passesAttempted > 0
+      ? Math.round((player.passesCompleted / player.passesAttempted) * 100)
+      : 0;
 
     return new EmbedBuilder()
       .setColor(THEME_COLORS.TURF)
-      .setTitle(`📊 ${player.username} ${flag} Career Match Telemetry`)
+      .setTitle(`📊 Detailed Statistics — ${player.username} ${flag}`)
+      .setThumbnail(thumbUrl)
       .setDescription(
-        `Comprehensive on-pitch performance records for **${player.username}** across all competitions.\n` +
-        `🏅 **Season Rank:** \`${seasonRank}\` • 🎖️ **Record (W-D-L):** \`${wins}-${draws}-${losses}\` • 🔥 **Total G/A:** \`${gaTotal}\`\n` +
-        (milestones.length > 0 ? `🏆 **Milestone Plaques:** ${milestones.map(m => `\`${m}\``).join(' ')}\n` : '') +
-        `${UI.DIVIDER}`
+        `🏅 **Season Rank:** ${seasonRank}  •  🎖️ **Record (W-D-L):** ${wins}-${draws}-${losses}  •  🔥 **Total G/A:** ${gaTotal}\n` +
+        (milestones.length > 0 ? `🏆 **Milestones:** ${milestones.join(' • ')}\n` : '') +
+        `\n**⚔️ Attacking & Passing**\n` +
+        `**Shots :** ${player.shots || 0} (${player.shotsOnTarget || 0} on target)\n` +
+        `**Passes Completed :** ${player.passesCompleted || 0} / ${player.passesAttempted || 0} (${passPct}%)\n` +
+        `**Key Passes :** ${player.keyPasses || 0}  •  **Second Assists :** ${player.secondAssists || 0}\n` +
+        `**Dribbles Won :** ${player.dribblesCompleted || 0} / ${player.dribblesAttempted || 0}\n\n` +
+        `**🛡️ Defending & Discipline**\n` +
+        `**Tackles Won :** ${player.tacklesWon || 0} / ${player.tacklesAttempted || 0}  •  **Interceptions :** ${player.interceptions || 0}\n` +
+        `**Clearances :** ${player.clearances || 0}  •  **Possession W/L :** ${player.possessionWon || 0} / ${player.possessionLost || 0}\n` +
+        `**Fouls Comm / Earned :** ${player.foulsCommitted || 0} / ${player.foulsEarned || 0}\n` +
+        `**Saves / Clean Sheets :** ${player.savesMade || 0} / ${player.cleanSheets || 0}\n` +
+        `**Penalties Scored / Saved :** ${player.penaltiesScored || 0} / ${player.penaltiesSaved || 0}`
       )
-      .addFields(
-        {
-          name: '🎯 Attacking & Playmaking',
-          value:
-            `• **Matches (W-D-L):** \`${player.matchesPlayed}\` (\`${wins}-${draws}-${losses}\`)\n` +
-            `• **Goals / Assists (G/A):** \`${player.goalsScored}G\` / \`${player.assists}A\` (\`${gaTotal}\`) ⚽\n` +
-            `• **Shots (On Target):** \`${player.shots}\` (\`${player.shotsOnTarget}\` OT)\n` +
-            `• **Passes (Comp):** \`${player.passesAttempted}\` (\`${player.passesCompleted}\`) 🪄\n` +
-            `• **Key Chances:** \`${player.keyPasses}\` • **2nd Assists:** \`${player.secondAssists}\`\n` +
-            `• **Dribbles (Won):** \`${player.dribblesAttempted}\` (\`${player.dribblesCompleted}\` won)`,
-          inline: true
-        },
-        {
-          name: '🛡️ Defending & Control',
-          value:
-            `• **Tackles (Won):** \`${player.tacklesAttempted}\` (\`${player.tacklesWon}\`) 🛑\n` +
-            `• **Interceptions:** \`${player.interceptions}\` 🧠 • **Clearances:** \`${player.clearances}\` 🧹\n` +
-            `• **Possession Won / Lost:** \`${player.possessionWon || 0}\` / \`${player.possessionLost || 0}\`\n` +
-            `• **Fouls Comm / Earned:** \`${player.foulsCommitted || 0}\` / \`${player.foulsEarned || 0}\`\n` +
-            `• **Saves / Clean Sheets:** \`${player.savesMade || 0}\` / \`${player.cleanSheets}\` 🧤\n` +
-            `• **Cards (🟨/🟥) & MOTM:** \`${player.yellowCards}/${player.redCards}\` • \`${player.motmCount}\` ${motmEmoji}`,
-          inline: true
-        },
-        {
-          name: '🥅 Spot-Kick & Discipline Ledger',
-          value:
-            `• **Penalties Won:** \`${player.penaltiesWon || 0}\` • **Penalties Conceded:** \`${player.penaltiesLost || 0}\`\n` +
-            `• **Penalties Scored:** \`${player.penaltiesScored || 0}\` ⚽ • **Penalties Saved:** \`${player.penaltiesSaved || 0}\` 🧤`,
-          inline: false
-        }
-      )
-      .setThumbnail(targetUser.displayAvatarURL())
       .setImage('attachment://player_stat_card.png')
-      .setFooter({ text: 'Beyond The Final Whistle • Match Telemetry • Tab 2/3' })
+      .setFooter({ text: `Used by ${player.username} • Match Telemetry • Tab 2/3` })
       .setTimestamp();
   }
 
-  // Attributes tab
+  // Attributes tab (WITS-inspired crisp bars + Neon Hexagon Radar card)
   const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
   const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
-  const keySet = new Set(style.keyStats.map(s => s.toLowerCase()));
-  const fmtAttr = (code: string, key: string, val: number) =>
-    keySet.has(key) ? `⭐ \`${code} ${val}\`` : `\`${code} ${val}\``;
+  const fmtBarRow = (code: string, name: string, val: number) => {
+    const bar = makeProgressBar(val, 99, 10, '█', '░');
+    return `\`${code.padEnd(3)} ${name.padEnd(13)} ${String(val).padStart(2)} [${bar}]\``;
+  };
 
   return new EmbedBuilder()
     .setColor(THEME_COLORS.CYAN)
-    .setTitle(`🎯 ${player.username} ${flag} Biomechanical Matrix (15)`)
+    .setTitle(`📊 ${player.username} ${flag}'s Player Attributes`)
+    .setThumbnail(thumbUrl)
     .setDescription(
-      `${style.emoji} **${style.name} (${style.code})** • **${style.position}** • ${tpEmoji} **${player.trainingPoints} TP Available** • 🏆 \`${seasonRank}\`\n` +
-      `⭐ **Key Biometrics:** ${style.keyStats.map(s => `\`${s.toUpperCase()}\``).join(' • ')}\n` +
-      `⚔️ **Attack & Tech:** ${fmtAttr('FIN', 'fin', player.fin)} · ${fmtAttr('POW', 'pow', player.pow)} · ${fmtAttr('HEA', 'hea', player.hea)} · ${fmtAttr('PAS', 'pas', player.pas)} · ${fmtAttr('VIS', 'vis', player.vis)} · ${fmtAttr('CRO', 'cro', player.cro)} · ${fmtAttr('DRI', 'dri', player.dri)}\n` +
-      `🛡️ **Def & Physical:** ${fmtAttr('TCK', 'tck', player.tck)} · ${fmtAttr('INT', 'int', player.int)} · ${fmtAttr('MRK', 'mrk', player.mrk)} · ${fmtAttr('PAC', 'pac', player.pac)} · ${fmtAttr('PHY', 'phy', player.phy)} · ${fmtAttr('CMP', 'cmp', player.cmp)} · ${fmtAttr('AGI', 'agi', player.agi)} · ${fmtAttr('WRK', 'wrk', player.wrk)}\n` +
-      subtext('🔬 Spend TP at Research Facility: `-travel rf` ➔ `-sptrain <attr>` to permanently level up stats.')
+      `**Playstyle :** ${style.emoji} ${style.name} (${style.code})\n` +
+      `*${style.description}*\n` +
+      `• **Key Stats :** ${style.keyStats.map(s => s.toUpperCase()).join(', ')}\n` +
+      `• **Derived Ratings :** ATK ${derived.atk} | MID ${derived.mid} | DEF ${derived.def} | OVR ${ovr} (${seasonRank})\n` +
+      `• **TP Available :** ${tpEmoji} ${player.trainingPoints} TP\n\n` +
+      `🔴 **Attacking**\n` +
+      `${fmtBarRow('FIN', 'Finishing', player.fin)}\n` +
+      `${fmtBarRow('POW', 'Shot Power', player.pow)}\n` +
+      `${fmtBarRow('HEA', 'Heading', player.hea)}\n\n` +
+      `🔵 **Technical**\n` +
+      `${fmtBarRow('PAS', 'Passing', player.pas)}\n` +
+      `${fmtBarRow('VIS', 'Vision', player.vis)}\n` +
+      `${fmtBarRow('CRO', 'Crossing', player.cro)}\n` +
+      `${fmtBarRow('DRI', 'Dribbling', player.dri)}\n\n` +
+      `🟢 **Defending**\n` +
+      `${fmtBarRow('TCK', 'Tackling', player.tck)}\n` +
+      `${fmtBarRow('INT', 'Interceptions', player.int)}\n` +
+      `${fmtBarRow('MRK', 'Marking', player.mrk)}\n\n` +
+      `🟡 **Physical & Mental**\n` +
+      `${fmtBarRow('PAC', 'Pace', player.pac)}\n` +
+      `${fmtBarRow('PHY', 'Physicality', player.phy)}\n` +
+      `${fmtBarRow('CMP', 'Composure', player.cmp)}\n` +
+      `${fmtBarRow('AGI', 'Agility', player.agi)}\n` +
+      `${fmtBarRow('WRK', 'Work Rate', player.wrk)}\n` +
+      subtext('🔬 Upgrade stats at Research Facility: `-travel rf` ➔ `-sptrain <attr>`')
     )
     .setImage('attachment://biomechanics_card.png')
-    .setFooter({ text: 'Beyond The Final Whistle • Biomechanics Matrix • Tab 3/3' })
+    .setFooter({ text: `Used by ${player.username} • Biomechanics Matrix • Tab 3/3` })
     .setTimestamp();
 }
 

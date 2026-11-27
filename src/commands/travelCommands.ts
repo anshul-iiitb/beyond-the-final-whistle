@@ -1,6 +1,6 @@
 import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, Guild } from 'discord.js';
 import { prisma } from '../database/prisma.js';
-import { CAMPUS_LOCATIONS, VEHICLE_CATALOG } from '../config/constants.js';
+import { CAMPUS_LOCATIONS, VEHICLE_CATALOG, resolveVehicleSprite } from '../config/constants.js';
 import { travelToLocation, getPlayerTravelCooldown } from '../engines/campusEngine.js';
 import { buyVehicle } from '../engines/marketEngine.js';
 import { renderShowroomCanvas, ShowroomCardItem } from '../utils/themeRenderers.js';
@@ -85,7 +85,6 @@ export async function buildShowroomPayload(userId: string, page = 1, guild?: Gui
   });
 
   const ownedKeys = new Set((player?.vehicles || []).map(v => v.vehicleKey));
-  const fullSpriteKeys = new Set(['mini', 'bmwm3', 'corvettec8', 'shelbymustang', 'jaguartype', 'bentley', 'mclarenf1']);
   const pageTitles = [
     'Tier 1: Entry Roadsters & Sports Coupes',
     'Tier 2: Track Weapons & American Muscle',
@@ -97,16 +96,15 @@ export async function buildShowroomPayload(userId: string, page = 1, guild?: Gui
   const coinEmoji = getEmoji(guild, 'coin');
 
   const canvasItems: ShowroomCardItem[] = pageVehicles.map(v => {
-    const splitMatch = v.emoji.match(/<:(\w+)front:/);
-    const isFull = fullSpriteKeys.has(v.key);
+    const { spriteMode, spritePrefix } = resolveVehicleSprite(v.key, v.emoji);
     return {
       key: v.key,
       name: v.name,
       cooldownMinutes: v.cooldownMinutes,
       price: v.cost,
       owned: ownedKeys.has(v.key),
-      spriteMode: isFull ? 'full' : 'split',
-      spritePrefix: isFull ? v.key : (splitMatch ? splitMatch[1] : v.key)
+      spriteMode,
+      spritePrefix
     };
   });
 
