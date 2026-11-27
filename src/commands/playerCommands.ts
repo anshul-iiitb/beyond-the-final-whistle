@@ -11,7 +11,7 @@ import {
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { giveMoney } from '../engines/socialEngine.js';
 import { generatePlayerProfileCard } from '../utils/chartHelper.js';
-import { renderLeaderboardCanvas, renderPlayerStatCanvas, LeaderboardEntryData } from '../utils/themeRenderers.js';
+import { renderLeaderboardCanvas, renderPlayerStatCanvas, renderPlayerBiomechanicsCanvas, LeaderboardEntryData } from '../utils/themeRenderers.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { formatK, parseCoinAmount, getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
@@ -123,6 +123,52 @@ export async function buildPlayerStatCardAttachment(
   });
 
   return new AttachmentBuilder(buf, { name: 'player_stat_card.png' });
+}
+
+export async function buildPlayerBiomechanicsAttachment(player: any, targetUser: User): Promise<AttachmentBuilder> {
+  const derived = calculateDerivedRatings(player);
+  const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
+  const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
+  const style = PLAYSTYLES[player.playstyle] || PLAYSTYLES.PCH;
+
+  const buf = await renderPlayerBiomechanicsCanvas({
+    username: player.username || targetUser.username,
+    clubAndNation: `${player.club?.name || 'Free Agent'}  •  ${player.nation?.name || 'Free Agent'}`,
+    seasonRank,
+    vipTier: player.vipTier || 0,
+    avatarUrl: targetUser.displayAvatarURL({ extension: 'png', size: 256 }),
+    playstyleCode: style.code,
+    playstyleName: style.name,
+    position: style.position,
+    keyStats: style.keyStats,
+    trainingPoints: player.trainingPoints || 0,
+    ovr,
+    atk: derived.atk,
+    mid: derived.mid,
+    def: derived.def,
+    bootsSummary: player.activeBoots ? `${player.activeBoots.toUpperCase()} (+10)` : 'STANDARD',
+    intelSummary: player.intelBonus > 0 ? `+${player.intelBonus} ${(player.intelStat || 'BOOST').toUpperCase()}` : 'NONE',
+    themeKey: player.profileTheme,
+    attributes: {
+      fin: player.fin,
+      pow: player.pow,
+      hea: player.hea,
+      pas: player.pas,
+      vis: player.vis,
+      cro: player.cro,
+      dri: player.dri,
+      tck: player.tck,
+      int: player.int,
+      mrk: player.mrk,
+      pac: player.pac,
+      phy: player.phy,
+      cmp: player.cmp,
+      agi: player.agi,
+      wrk: player.wrk,
+    },
+  });
+
+  return new AttachmentBuilder(buf, { name: 'biomechanics_card.png' });
 }
 
 export function buildProfileTabsRow(targetUserId: string, currentTab: 'main' | 'stats' | 'attr') {
@@ -291,52 +337,23 @@ export function buildProfileEmbed(
   }
 
   // Attributes tab
+  const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
+  const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
+  const keySet = new Set(style.keyStats.map(s => s.toLowerCase()));
+  const fmtAttr = (code: string, key: string, val: number) =>
+    keySet.has(key) ? `⭐ \`${code} ${val}\`` : `\`${code} ${val}\``;
+
   return new EmbedBuilder()
     .setColor(THEME_COLORS.CYAN)
-    .setTitle(`🎯 ${player.username} ${flag} Biomechanical Attributes (15)`)
+    .setTitle(`🎯 ${player.username} ${flag} Biomechanical Matrix (15)`)
     .setDescription(
-      `Role: ${style.emoji} **${style.name} (${style.code})** • Position: **${style.position}**\n` +
-      subtext('Spend TP at the Research Facility: `-travel rf` ➔ `-sptrain <attr>` to permanently level up stats.') + '\n' +
-      `${UI.DIVIDER}`
+      `${style.emoji} **${style.name} (${style.code})** • **${style.position}** • ${tpEmoji} **${player.trainingPoints} TP Available** • 🏆 \`${seasonRank}\`\n` +
+      `⭐ **Key Biometrics:** ${style.keyStats.map(s => `\`${s.toUpperCase()}\``).join(' • ')}\n` +
+      `⚔️ **Attack & Tech:** ${fmtAttr('FIN', 'fin', player.fin)} · ${fmtAttr('POW', 'pow', player.pow)} · ${fmtAttr('HEA', 'hea', player.hea)} · ${fmtAttr('PAS', 'pas', player.pas)} · ${fmtAttr('VIS', 'vis', player.vis)} · ${fmtAttr('CRO', 'cro', player.cro)} · ${fmtAttr('DRI', 'dri', player.dri)}\n` +
+      `🛡️ **Def & Physical:** ${fmtAttr('TCK', 'tck', player.tck)} · ${fmtAttr('INT', 'int', player.int)} · ${fmtAttr('MRK', 'mrk', player.mrk)} · ${fmtAttr('PAC', 'pac', player.pac)} · ${fmtAttr('PHY', 'phy', player.phy)} · ${fmtAttr('CMP', 'cmp', player.cmp)} · ${fmtAttr('AGI', 'agi', player.agi)} · ${fmtAttr('WRK', 'wrk', player.wrk)}\n` +
+      subtext('🔬 Spend TP at Research Facility: `-travel rf` ➔ `-sptrain <attr>` to permanently level up stats.')
     )
-    .addFields(
-      {
-        name: '🎯 Attacking Attributes',
-        value:
-          `• Finishing (FIN): \`${player.fin}\` ${makeProgressBar(player.fin, 99, 5)}\n` +
-          `• Shot Power (POW): \`${player.pow}\` ${makeProgressBar(player.pow, 99, 5)}\n` +
-          `• Heading (HEA): \`${player.hea}\` ${makeProgressBar(player.hea, 99, 5)}`,
-        inline: true
-      },
-      {
-        name: '🪄 Technical Attributes',
-        value:
-          `• Passing (PAS): \`${player.pas}\` ${makeProgressBar(player.pas, 99, 5)}\n` +
-          `• Vision (VIS): \`${player.vis}\` ${makeProgressBar(player.vis, 99, 5)}\n` +
-          `• Crossing (CRO): \`${player.cro}\` ${makeProgressBar(player.cro, 99, 5)}\n` +
-          `• Dribbling (DRI): \`${player.dri}\` ${makeProgressBar(player.dri, 99, 5)}`,
-        inline: true
-      },
-      {
-        name: '🛡️ Defending Attributes',
-        value:
-          `• Tackling (TCK): \`${player.tck}\` ${makeProgressBar(player.tck, 99, 5)}\n` +
-          `• Interceptions (INT): \`${player.int}\` ${makeProgressBar(player.int, 99, 5)}\n` +
-          `• Marking (MRK): \`${player.mrk}\` ${makeProgressBar(player.mrk, 99, 5)}`,
-        inline: true
-      },
-      {
-        name: '⚡ Physical & Mental Attributes',
-        value:
-          `• Pace (PAC): \`${player.pac}\` ${makeProgressBar(player.pac, 99, 6)}\n` +
-          `• Physicality (PHY): \`${player.phy}\` ${makeProgressBar(player.phy, 99, 6)}\n` +
-          `• Composure (CMP): \`${player.cmp}\` ${makeProgressBar(player.cmp, 99, 6)}\n` +
-          `• Agility (AGI): \`${player.agi}\` ${makeProgressBar(player.agi, 99, 6)}\n` +
-          `• Work Rate (WRK): \`${player.wrk}\` ${makeProgressBar(player.wrk, 99, 6)}`,
-        inline: false
-      }
-    )
-    .setThumbnail(targetUser.displayAvatarURL())
+    .setImage('attachment://biomechanics_card.png')
     .setFooter({ text: 'Beyond The Final Whistle • Biomechanics Matrix • Tab 3/3' })
     .setTimestamp();
 }

@@ -50,21 +50,27 @@ export async function handleTravelCommand(message: Message, args: string[]) {
   }
 }
 
+const SHOWROOM_PAGE_RANGES: Array<[number, number]> = [
+  [0, 5],   // Page 1: 5 Entry & Sports (1-5)
+  [5, 11],  // Page 2: 6 Track & Muscle (6-11)
+  [11, 16]  // Page 3: 5 Luxury & Hypercars (12-16)
+];
+
 export function buildShowroomPageRow(activePage: number) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId('showroom_page_1')
-      .setLabel('Entry & Sports (1–6)')
+      .setLabel('Entry & Sports (1–5)')
       .setEmoji('🚗')
       .setStyle(activePage === 1 ? ButtonStyle.Primary : ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId('showroom_page_2')
-      .setLabel('Track & Muscle (7–12)')
+      .setLabel('Track & Muscle (6–11)')
       .setEmoji('🏎️')
       .setStyle(activePage === 2 ? ButtonStyle.Primary : ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId('showroom_page_3')
-      .setLabel('Luxury & Hypercars (13–17)')
+      .setLabel('Luxury & Hypercars (12–16)')
       .setEmoji('🚀')
       .setStyle(activePage === 3 ? ButtonStyle.Primary : ButtonStyle.Secondary)
   );
@@ -86,29 +92,21 @@ export async function buildShowroomPayload(userId: string, page = 1, guild?: Gui
     'Tier 3: Ultra-Luxury & Pinnacle Hypercars'
   ];
 
-  const startIdx = (safePage - 1) * 6;
-  const pageVehicles = VEHICLE_CATALOG.slice(startIdx, startIdx + 6);
+  const [startIdx, endIdx] = SHOWROOM_PAGE_RANGES[safePage - 1] || SHOWROOM_PAGE_RANGES[0];
+  const pageVehicles = VEHICLE_CATALOG.slice(startIdx, endIdx);
   const coinEmoji = getEmoji(guild, 'coin');
 
   const canvasItems: ShowroomCardItem[] = pageVehicles.map(v => {
     const splitMatch = v.emoji.match(/<:(\w+)front:/);
-    let spriteMode: ShowroomCardItem['spriteMode'] = 'split';
-    let spritePrefix = splitMatch ? splitMatch[1] : v.key;
-    if (v.key === 'basic') {
-      spriteMode = 'basic';
-      spritePrefix = 'car';
-    } else if (fullSpriteKeys.has(v.key)) {
-      spriteMode = 'full';
-      spritePrefix = v.key;
-    }
+    const isFull = fullSpriteKeys.has(v.key);
     return {
       key: v.key,
       name: v.name,
       cooldownMinutes: v.cooldownMinutes,
       price: v.cost,
       owned: ownedKeys.has(v.key),
-      spriteMode,
-      spritePrefix
+      spriteMode: isFull ? 'full' : 'split',
+      spritePrefix: isFull ? v.key : (splitMatch ? splitMatch[1] : v.key)
     };
   });
 

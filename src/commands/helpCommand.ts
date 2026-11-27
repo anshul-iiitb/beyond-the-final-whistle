@@ -31,7 +31,7 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '👤 Player Career & Studio Customization',
         value:
-          '• `-profile [@user]` — Generative Studio Card + 3 tabs (`Overview`, `Match Telemetry`, `Biomechanics`), Season Rank & milestone plaques.\n' +
+          '• `-profile [@user]` — Generative Studio Card + 3 tabs (`Overview`, `Match Telemetry`, `Biomechanics` Radar Matrix), Season Rank & milestone plaques.\n' +
           '• `-theme [alias]` — Browse/apply **20 stadium backdrop themes** for your `-profile` card.\n' +
           '• `-setdesc <text>` • `-lb [category]` — Interactive visual leaderboard (`goals`, `wealth`, `followers`, `ovr`).\n' +
           '• `-give @user <amount>` — Transfer coins (`500k`, `2.5m` supported).\n' +
@@ -57,7 +57,7 @@ export async function handleHelpCommand(message: Message) {
         name: '🛍️ Global Market, Vehicles & Boutiques (-gm)',
         value:
           `• \`-gm\` / \`-buy <item>\` — **Matchday Gear**: \`sd\` (+50 ${stamina}, 100k ${coin}) & \`strika\`/\`passa\`/\`bully\` (+10 stat boots, 500k ${coin}).\n` +
-          '• `-showroom [1-3]` & `-vehiclebuy <alias>` — **17 Cars** paginated across 3 visual tiers inside `gm` (`mini`, `bmwm3`, `corvettec8`, `shelbymustang`, `jaguartype`, `bentley`, `mclarenf1`, + legacy fleet).\n' +
+          '• `-showroom [1-3]` & `-vehiclebuy <alias>` — **16 Cars** paginated across 3 tiers (5/6/5) inside `gm` (`mini`, `bmwm3`, `corvettec8`, `shelbymustang`, `jaguartype`, `bentley`, `mclarenf1`, + full fleet).\n' +
           '• `-avatar` / `-avatarbuy <alias>` / `-avatarclaim <alias>` — Rotating **8-player monthly Avatars (750k) & Banners (3M)**; VIPs get 1 free monthly claim! Manage via `-equip <alias|none>`.'
       },
       {

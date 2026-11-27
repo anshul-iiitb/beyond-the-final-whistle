@@ -595,6 +595,380 @@ export async function renderPlayerStatCanvas(data: PlayerStatCanvasData): Promis
 }
 
 // =========================================================================
+// 2b. PLAYER BIOMECHANICS (15-ATTR) MATRIX & HEX RADAR RENDERER [1000x550]
+// =========================================================================
+
+export interface PlayerBiomechanicsCanvasData {
+  username: string;
+  clubAndNation: string;
+  seasonRank: string;
+  vipTier: number;
+  avatarUrl?: string | null;
+  playstyleCode: string;
+  playstyleName: string;
+  position: string;
+  keyStats: string[];
+  trainingPoints: number;
+  ovr: number;
+  atk: number;
+  mid: number;
+  def: number;
+  intelSummary: string;
+  bootsSummary: string;
+  attributes: {
+    fin: number;
+    pow: number;
+    hea: number;
+    pas: number;
+    vis: number;
+    cro: number;
+    dri: number;
+    tck: number;
+    int: number;
+    mrk: number;
+    pac: number;
+    phy: number;
+    cmp: number;
+    agi: number;
+    wrk: number;
+  };
+  themeKey?: string | null;
+}
+
+function getBiomechBarColor(val: number, isKey: boolean): string {
+  if (val >= 85) return '#f59e0b';
+  if (val >= 75) return '#10b981';
+  if (isKey) return '#38bdf8';
+  return '#06b6d4';
+}
+
+function drawStatRadarHexagon(
+  ctx: SKRSContext2D,
+  cx: number,
+  cy: number,
+  maxR: number,
+  axes: Array<{ label: string; value: number }>,
+  strokeColor: string,
+  fillRgba: string
+) {
+  const n = axes.length;
+  const angleAt = (idx: number) => -Math.PI / 2 + (idx * Math.PI * 2) / n;
+
+  // Web rings (33%, 66%, 100%)
+  ctx.save();
+  for (const ratio of [0.33, 0.66, 1.0]) {
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const a = angleAt(i);
+      const px = cx + Math.cos(a) * maxR * ratio;
+      const py = cy + Math.sin(a) * maxR * ratio;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = ratio === 1 ? 'rgba(148, 163, 184, 0.36)' : 'rgba(148, 163, 184, 0.18)';
+    ctx.lineWidth = ratio === 1 ? 1.2 : 1;
+    ctx.stroke();
+  }
+
+  // Axis spokes
+  for (let i = 0; i < n; i++) {
+    const a = angleAt(i);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(a) * maxR, cy + Math.sin(a) * maxR);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Filled attribute polygon
+  ctx.beginPath();
+  const points: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i < n; i++) {
+    const norm = Math.max(0.18, Math.min(1, axes[i].value / 99));
+    const a = angleAt(i);
+    const px = cx + Math.cos(a) * maxR * norm;
+    const py = cy + Math.sin(a) * maxR * norm;
+    points.push({ x: px, y: py });
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = fillRgba;
+  ctx.fill();
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+
+  // Glowing vertex markers
+  for (const pt of points) {
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, 3.2, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  // Vertex labels outside hexagon perimeter
+  for (let i = 0; i < n; i++) {
+    const a = angleAt(i);
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    const labelDist = maxR + (Math.abs(sin) > 0.85 ? 16 : 15);
+    const lx = cx + cos * labelDist;
+    const ly = cy + sin * labelDist;
+
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = Math.abs(cos) < 0.2 ? 'center' : cos > 0 ? 'left' : 'right';
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+    const text = `${axes[i].label} `;
+    const valStr = String(axes[i].value);
+    if (ctx.textAlign === 'center') {
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillText(`${axes[i].label} ${valStr}`, lx, ly);
+    } else if (ctx.textAlign === 'left') {
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(text, lx, ly);
+      const tw = ctx.measureText(text).width;
+      ctx.fillStyle = strokeColor;
+      ctx.fillText(valStr, lx + tw, ly);
+    } else {
+      ctx.fillStyle = strokeColor;
+      ctx.fillText(valStr, lx, ly);
+      const vw = ctx.measureText(valStr).width;
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(text, lx - vw, ly);
+    }
+  }
+  ctx.restore();
+}
+
+export async function renderPlayerBiomechanicsCanvas(data: PlayerBiomechanicsCanvasData): Promise<Buffer> {
+  const spec = PLAYER_STAT_CARD_SPEC;
+  const width = spec.canvasWidth;   // 1000
+  const height = spec.canvasHeight; // 550
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  const theme = await paintThemeBackdrop(ctx, width, height, 'player_stat_card', data.themeKey);
+  const accent = data.vipTier >= 1 ? '#f59e0b' : theme.accent;
+  const keySet = new Set(data.keyStats.map(k => k.toLowerCase()));
+
+  // 1. Header Zone (45, 45, 560x110)
+  const hz = spec.headerZone;
+  drawGlassScrim(ctx, hz.x + 8, hz.y + 8, hz.w - 16, hz.h - 16, 8, 0.76);
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  const eyebrow = `BIOMECHANICS MATRIX (15)  •  ${cleanCanvasText(data.playstyleName).toUpperCase()} (${data.position})`;
+  ctx.fillStyle = accent;
+  ctx.font = 'bold 11.5px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(eyebrow, hz.x + 22, hz.y + 33);
+
+  // TP Available Pill top-right of header
+  const tpPillX = hz.x + hz.w - 140;
+  const tpPillY = hz.y + 18;
+  drawRoundedRect(ctx, tpPillX, tpPillY, 118, 24, 6);
+  ctx.fillStyle = 'rgba(6, 182, 212, 0.18)';
+  ctx.fill();
+  ctx.strokeStyle = '#22d3ee';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#67e8f9';
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(`${data.trainingPoints} TP READY`, tpPillX + 59, tpPillY + 12.5);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 29px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(data.username), hz.w - 172), hz.x + 22, hz.y + 71);
+
+  const keyDisplay = data.keyStats.map(s => s.toUpperCase()).join(' · ');
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, `KEY FOCUS: ${keyDisplay}  •  ${cleanCanvasText(data.clubAndNation)}`, hz.w - 44), hz.x + 22, hz.y + 96);
+  ctx.restore();
+
+  // 2. 15-Attribute Biomechanical Bars inside Container Arena (45, 170, 560x320)
+  const a = data.attributes;
+  const drawAttrGroup = (
+    gx: number,
+    gy: number,
+    gw: number,
+    title: string,
+    titleAccent: string,
+    items: Array<{ key: string; code: string; name: string; val: number }>
+  ) => {
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = titleAccent;
+    ctx.font = 'bold 10.5px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(title, gx + 4, gy + 8);
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(gx + ctx.measureText(title).width + 12, gy + 8);
+    ctx.lineTo(gx + gw, gy + 8);
+    ctx.stroke();
+
+    const rowPitch = 29;
+    const pillH = 25;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const isKey = keySet.has(item.key);
+      const by = gy + 22 + i * rowPitch;
+
+      drawRoundedRect(ctx, gx, by, gw, pillH, 6);
+      ctx.fillStyle = isKey ? 'rgba(15, 23, 42, 0.90)' : 'rgba(7, 11, 22, 0.84)';
+      ctx.fill();
+      ctx.strokeStyle = isKey ? 'rgba(250, 204, 21, 0.65)' : 'rgba(148, 163, 184, 0.24)';
+      ctx.lineWidth = isKey ? 1.3 : 1;
+      ctx.stroke();
+
+      if (isKey) {
+        drawRoundedRect(ctx, gx + 2, by + 4, 3, pillH - 8, 1.5);
+        ctx.fillStyle = '#facc15';
+        ctx.fill();
+      }
+
+      ctx.textAlign = 'left';
+      ctx.fillStyle = isKey ? '#fde047' : titleAccent;
+      ctx.font = 'bold 10.5px Consolas, monospace';
+      ctx.fillText(item.code, gx + 10, by + pillH / 2 + 0.5);
+
+      ctx.fillStyle = '#e2e8f0';
+      ctx.font = 'bold 11.5px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(item.name, gx + 40, by + pillH / 2 + 0.5);
+
+      // Neon progress track
+      const barX = gx + 128;
+      const barW = 86;
+      const barY = by + 9;
+      drawRoundedRect(ctx, barX, barY, barW, 7, 3.5);
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.22)';
+      ctx.fill();
+
+      const fillW = Math.max(5, Math.round((Math.min(99, Math.max(0, item.val)) / 99) * barW));
+      drawRoundedRect(ctx, barX, barY, fillW, 7, 3.5);
+      ctx.fillStyle = getBiomechBarColor(item.val, isKey);
+      ctx.fill();
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = isKey ? '#fde047' : '#ffffff';
+      ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(String(item.val), gx + gw - 9, by + pillH / 2 + 0.5);
+    }
+    ctx.restore();
+  };
+
+  const col1X = spec.containerZone.x + 16; // 61
+  const col2X = spec.containerZone.x + 288; // 333
+  const colW = 256;
+
+  drawAttrGroup(col1X, 182, colW, 'ATTACKING (3)', '#f87171', [
+    { key: 'fin', code: 'FIN', name: 'Finishing', val: a.fin },
+    { key: 'pow', code: 'POW', name: 'Shot Power', val: a.pow },
+    { key: 'hea', code: 'HEA', name: 'Heading', val: a.hea },
+  ]);
+
+  drawAttrGroup(col1X, 300, colW, 'TECHNICAL (4)', '#38bdf8', [
+    { key: 'pas', code: 'PAS', name: 'Passing', val: a.pas },
+    { key: 'vis', code: 'VIS', name: 'Vision', val: a.vis },
+    { key: 'cro', code: 'CRO', name: 'Crossing', val: a.cro },
+    { key: 'dri', code: 'DRI', name: 'Dribbling', val: a.dri },
+  ]);
+
+  // Role affinity legend aligning bottom of Col 1 with Col 2's 5th row
+  ctx.save();
+  drawRoundedRect(ctx, col1X, 439, colW, 25, 6);
+  ctx.fillStyle = 'rgba(250, 204, 21, 0.10)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(250, 204, 21, 0.35)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fde047';
+  ctx.font = 'bold 10.5px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(`GOLD BORDER = KEY ${cleanCanvasText(data.playstyleCode)} BIOMETRICS`, col1X + colW / 2, 452);
+  ctx.restore();
+
+  drawAttrGroup(col2X, 182, colW, 'DEFENDING (3)', '#60a5fa', [
+    { key: 'tck', code: 'TCK', name: 'Tackling', val: a.tck },
+    { key: 'int', code: 'INT', name: 'Intercept.', val: a.int },
+    { key: 'mrk', code: 'MRK', name: 'Marking', val: a.mrk },
+  ]);
+
+  drawAttrGroup(col2X, 300, colW, 'PHYSICAL & MENTAL (5)', '#facc15', [
+    { key: 'pac', code: 'PAC', name: 'Pace', val: a.pac },
+    { key: 'phy', code: 'PHY', name: 'Physicality', val: a.phy },
+    { key: 'cmp', code: 'CMP', name: 'Composure', val: a.cmp },
+    { key: 'agi', code: 'AGI', name: 'Agility', val: a.agi },
+    { key: 'wrk', code: 'WRK', name: 'Work Rate', val: a.wrk },
+  ]);
+
+  // 3. Right Panel: Avatar + 6-Axis Radar Hexagon + Triad Readout
+  const avatarImg = await fetchRemoteImage(data.avatarUrl, 1200);
+  const avCircle = spec.circles![0];
+  drawCircularImage(ctx, avatarImg, avCircle.cx, avCircle.cy, 62, data.username, accent, false);
+
+  const radarBox = spec.slots![1]; // (650, 255, 280x165)
+  drawGlassScrim(ctx, radarBox.x + 2, radarBox.y + 2, radarBox.w - 4, radarBox.h - 4, 10, 0.80);
+
+  const radarStroke = data.vipTier >= 1 ? '#facc15' : '#22d3ee';
+  const radarFill = data.vipTier >= 1 ? 'rgba(250, 204, 21, 0.24)' : 'rgba(6, 182, 212, 0.28)';
+  const radarAxes = [
+    { label: 'PAC', value: a.pac },
+    { label: 'SHO', value: Math.round((a.fin + a.pow + a.hea) / 3) },
+    { label: 'PAS', value: Math.round((a.pas + a.vis + a.cro) / 3) },
+    { label: 'DRI', value: Math.round((a.dri + a.agi + a.cmp) / 3) },
+    { label: 'DEF', value: Math.round((a.tck + a.int + a.mrk) / 3) },
+    { label: 'PHY', value: Math.round((a.phy + a.wrk) / 2) },
+  ];
+  drawStatRadarHexagon(ctx, radarBox.x + radarBox.w / 2, radarBox.y + 85, 43, radarAxes, radarStroke, radarFill);
+
+  const formBox = spec.slots![2]; // (650, 430, 280x46)
+  drawGlassScrim(ctx, formBox.x + 2, formBox.y + 2, formBox.w - 4, formBox.h - 4, 8, 0.78);
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(`ATK ${data.atk}   •   MID ${data.mid}   •   DEF ${data.def}   •   OVR ${data.ovr}`, formBox.x + formBox.w / 2, formBox.y + formBox.h / 2);
+  ctx.restore();
+
+  // 4. Footer Bar (45, 500, 910x28)
+  const fz = spec.footerZone!;
+  drawGlassScrim(ctx, fz.x + 6, fz.y + 2, fz.w - 12, fz.h - 4, 6, 0.80);
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(
+    truncateText(
+      ctx,
+      cleanCanvasText(`UPGRADE LAB: -travel rf -> -sptrain <attr>  •  BOOTS: ${data.bootsSummary}  •  INTEL: ${data.intelSummary}`),
+      fz.w - 30
+    ),
+    fz.x + fz.w / 2,
+    fz.y + fz.h / 2 + 1
+  );
+  ctx.restore();
+
+  return canvas.toBuffer('image/png');
+}
+
+// =========================================================================
 // 3. SHOWROOM VEHICLE DEALERSHIP RENDERER (-showroom) [1024x764]
 // =========================================================================
 
@@ -604,8 +978,8 @@ export interface ShowroomCardItem {
   cooldownMinutes: number;
   price: bigint;
   owned: boolean;
-  spriteMode: 'full' | 'split' | 'basic';
-  spritePrefix: string; // e.g. 'mini', 'hc', 'car'
+  spriteMode: 'full' | 'split';
+  spritePrefix: string; // e.g. 'mini', 'hc'
 }
 
 async function drawVehicleSprite(ctx: SKRSContext2D, item: ShowroomCardItem, x: number, y: number, w: number, h: number) {
@@ -616,13 +990,6 @@ async function drawVehicleSprite(ctx: SKRSContext2D, item: ShowroomCardItem, x: 
       if (fs.existsSync(fullPath)) {
         const img = await loadLocalImageCached(fullPath);
         ctx.drawImage(img, x, y, w, h);
-        return;
-      }
-    } else if (item.spriteMode === 'basic') {
-      const carPath = path.join(hiresDir, 'car.png');
-      if (fs.existsSync(carPath)) {
-        const img = await loadLocalImageCached(carPath);
-        ctx.drawImage(img, x + w * 0.12, y + h * 0.08, w * 0.76, h * 0.84);
         return;
       }
     } else {
@@ -739,6 +1106,35 @@ export async function renderShowroomCanvas(options: {
       ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
       ctx.fillText('OWNED', slot.x + slot.w - 50, slot.y + 89);
     }
+    ctx.restore();
+  }
+
+  if (cards.length < 6 && spec.slots![5]) {
+    const slot = spec.slots![5];
+    drawGlassScrim(ctx, slot.x + 10, slot.y + 10, slot.w - 20, slot.h - 20, 8, 0.76);
+    ctx.save();
+    drawRoundedRect(ctx, slot.x + 10, slot.y + 10, slot.w - 20, slot.h - 20, 8);
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(`SHOWROOM TIER ${options.page}/${options.totalPages}`, slot.x + 26, slot.y + 36);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(`${cards.length} MODELS ON THIS FLOOR`, slot.x + 26, slot.y + 62);
+
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = 'bold 12px Consolas, monospace';
+    ctx.fillText(
+      truncateText(ctx, `Ride: ${cleanCanvasText(options.currentRide)} (${options.currentCooldown}m CD)`, slot.w - 52),
+      slot.x + 26,
+      slot.y + 90
+    );
     ctx.restore();
   }
 

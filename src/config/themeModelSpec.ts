@@ -245,7 +245,7 @@ export const LEADERBOARD_GRID_SPEC: GridModelSpec = {
 };
 
 /**
- * 5. SHOWROOM & MARKET GRID SPEC (-showroom 17 Cars / -gm / -avatar Boutique)
+ * 5. SHOWROOM & MARKET GRID SPEC (-showroom 16 Cars / -gm / -avatar Boutique)
  * 6-Card Showroom / Shop / Boutique Tier Page inside Dual-Box Bounds (1024x764).
  */
 export const SHOWROOM_MARKET_GRID_SPEC: GridModelSpec = {

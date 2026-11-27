@@ -8,6 +8,7 @@ import {
   buildProfileTabsRow,
   buildProfileBannerAttachment,
   buildPlayerStatCardAttachment,
+  buildPlayerBiomechanicsAttachment,
   buildLeaderboardPayload,
   normalizeLeaderboardCategory
 } from '../commands/playerCommands.js';
@@ -233,7 +234,8 @@ export async function onInteractionCreate(interaction: Interaction) {
         return await interaction.editReply({ embeds: [embed], components: [row], files: [statCard], attachments: [] });
       }
 
-      return await interaction.editReply({ embeds: [embed], components: [row], files: [], attachments: [] });
+      const bioCard = await buildPlayerBiomechanicsAttachment(player, targetUser);
+      return await interaction.editReply({ embeds: [embed], components: [row], files: [bioCard], attachments: [] });
     }
 
     // 3b. Leaderboard Category Switcher: lb_ovr, lb_goals, lb_wealth, lb_followers
