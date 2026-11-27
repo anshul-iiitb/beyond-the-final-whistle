@@ -50,7 +50,8 @@ export async function handleHelpCommand(message: Message) {
         value:
           '• `-train` — Interactive pitch drills at `tc`:\n' +
           `  🟢 \`Normal\` (+1-2 ${tp} TP, 30m, 5 ${stamina}) • 🔵 \`👑 VIP 6h\` (+6 ${tp}, 6h, 5 ${stamina}) • 🔴 \`👑 20h Endurance\` (+20 ${tp}, 20h CD, 50 ${stamina})\n` +
-          `• \`-sptrain <attr>\` / \`-convert <style>\` — Upgrade stats (3-15 ${tp}) or swap role at \`rf\`.\n` +
+          `• \`-sptrain [attr]\` / \`-convert [style]\` — Open Research Lab TP/Stamina menu & upgrade stats (` +
+          '`3–15` ' + `${tp}, \`50\` ${stamina}) or swap role at \`rf\`.\n` +
           `• \`-recovery\` / \`-coaching\` / \`-meetgreet\` — Inside **🏡 Player Clubhouse (\`-travel ch\`)**: recover +30/+100 ${stamina}, earn +50k ${coin}, or +50k ${followers}!`
       },
       {

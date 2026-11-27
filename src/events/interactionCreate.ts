@@ -1,5 +1,5 @@
 import { Interaction, ButtonInteraction, StringSelectMenuInteraction, TextChannel, MessageFlags } from 'discord.js';
-import { executeTraining } from '../engines/trainingEngine.js';
+import { executeTraining, upgradeAttribute } from '../engines/trainingEngine.js';
 import { buildTrainingSuccessEmbed } from '../commands/trainingCommands.js';
 import { executeSponsorAdvert, applyTweetVote, buildUpdatedTweetEmbed } from '../engines/socialEngine.js';
 import { prisma } from '../database/prisma.js';
@@ -139,6 +139,26 @@ export async function onInteractionCreate(interaction: Interaction) {
       return await (interaction as any).update({
         flags: MessageFlags.IsComponentsV2,
         components: [container]
+      });
+    }
+
+    // C. Research Lab Attribute Upgrade Select Menu: sptrain_select_<userId>
+    if (interaction.isStringSelectMenu() && customId.startsWith('sptrain_select_')) {
+      const ownerId = customId.replace('sptrain_select_', '');
+      if (interaction.user.id !== ownerId) {
+        return await interaction.reply({
+          content: '❌ This Research Lab menu belongs to another player. Run `-sptrain` to open yours!',
+          ephemeral: true
+        });
+      }
+
+      const selectedAttr = interaction.values[0];
+      await sendThinkingMessage(interaction, `Upgrading \`${selectedAttr.toUpperCase()}\` at Research Facility...`);
+      const result = await upgradeAttribute(interaction.user.id, selectedAttr);
+      return await updateLoadingMessage(interaction, {
+        content: result.message,
+        embeds: [],
+        components: []
       });
     }
 

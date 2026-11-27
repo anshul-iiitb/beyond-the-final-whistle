@@ -113,6 +113,65 @@ export async function executeTraining(playerId: string, type: 'normal' | 'vip' |
   };
 }
 
+export const SP_TRAIN_STAMINA_COST = 50;
+
+export interface AttributeLabItem {
+  key: string;
+  name: string;
+  category: string;
+  currentVal: number;
+  tpCost: number;
+  isMaxed: boolean;
+  canAffordTp: boolean;
+  canAffordStamina: boolean;
+  canAfford: boolean;
+}
+
+export function calculateAttributeTpCost(currentVal: number, minVal: number, maxVal: number): number {
+  if (maxVal <= minVal) return 5;
+  const ratio = (currentVal - minVal) / (maxVal - minVal);
+  return Math.max(3, Math.min(15, Math.round(3 + ratio * 12)));
+}
+
+/**
+ * Computes current ratings and live TP + stamina costs across all 15 attributes for -sptrain menu.
+ */
+export async function getAttributeLabOverview(playerId: string) {
+  const player = await prisma.player.findUnique({ where: { id: playerId } });
+  if (!player) return null;
+
+  const selectCols = Object.fromEntries(ATTRIBUTES_LIST.map(a => [a.key, true])) as Record<string, boolean>;
+  const allPlayers = await prisma.player.findMany({ select: selectCols }) as unknown as Record<string, number>[];
+
+  const attributes: AttributeLabItem[] = ATTRIBUTES_LIST.map(meta => {
+    const currentVal = (player as any)[meta.key] as number;
+    const values = allPlayers.map(p => Number(p[meta.key] ?? 50));
+    const minVal = values.length ? Math.min(...values) : 50;
+    const maxVal = values.length ? Math.max(...values) : 50;
+    const tpCost = calculateAttributeTpCost(currentVal, minVal, maxVal);
+    const isMaxed = currentVal >= 99;
+    const canAffordTp = player.trainingPoints >= tpCost;
+    const canAffordStamina = player.stamina >= SP_TRAIN_STAMINA_COST;
+    return {
+      key: meta.key,
+      name: meta.name,
+      category: meta.category,
+      currentVal,
+      tpCost,
+      isMaxed,
+      canAffordTp,
+      canAffordStamina,
+      canAfford: !isMaxed && canAffordTp && canAffordStamina
+    };
+  });
+
+  return {
+    player,
+    staminaCost: SP_TRAIN_STAMINA_COST,
+    attributes
+  };
+}
+
 /**
  * Biomechanics Lab: Upgrades an attribute using TP and stamina.
  * Costs 50 Stamina and between 3 and 15 TP dynamically calculated based on leaderboard standing.
@@ -141,8 +200,8 @@ export async function upgradeAttribute(playerId: string, attributeKey: string) {
     return { success: false, message: `⭐ **${attrMeta.name}** has already reached the absolute maximum rating of 99!` };
   }
 
-  if (player.stamina < 50) {
-    return { success: false, message: `⚡ Upgrading requires **50 Stamina** (You have ${player.stamina}/100). Rest at sauna or drink a sports drink.` };
+  if (player.stamina < SP_TRAIN_STAMINA_COST) {
+    return { success: false, message: `⚡ Upgrading requires **${SP_TRAIN_STAMINA_COST} Stamina** (You have ${player.stamina}/100). Rest at sauna or drink a sports drink.` };
   }
 
   // Calculate dynamic TP cost (3 to 15 TP)
@@ -150,15 +209,7 @@ export async function upgradeAttribute(playerId: string, attributeKey: string) {
   const values = allPlayers.map((p: any) => p[attrLower] as number);
   const minVal = values.length ? Math.min(...values) : 50;
   const maxVal = values.length ? Math.max(...values) : 50;
-
-  let tpCost = 3;
-  if (maxVal > minVal) {
-    const ratio = (currentVal - minVal) / (maxVal - minVal);
-    tpCost = Math.round(3 + ratio * 12);
-  } else {
-    tpCost = 5;
-  }
-  tpCost = Math.max(3, Math.min(15, tpCost));
+  const tpCost = calculateAttributeTpCost(currentVal, minVal, maxVal);
 
   if (player.trainingPoints < tpCost) {
     return {
@@ -172,7 +223,7 @@ export async function upgradeAttribute(playerId: string, attributeKey: string) {
     data: {
       [attrLower]: { increment: 1 },
       trainingPoints: { decrement: tpCost },
-      stamina: { decrement: 50 }
+      stamina: { decrement: SP_TRAIN_STAMINA_COST }
     }
   });
 
@@ -181,7 +232,7 @@ export async function upgradeAttribute(playerId: string, attributeKey: string) {
     message:
       `🔬 **Biomechanics Attribute Enhancement Successful!**\n\n` +
       `✨ **${attrMeta.name} (${attrMeta.key.toUpperCase()}):** \`${currentVal}\` ➔ **\`${(updated as any)[attrLower]}\`** (+1)\n` +
-      `📉 Cost: **-${tpCost} TP** | **-50 ⚡ Stamina**\n` +
+      `📉 Cost: **-${tpCost} TP** | **-${SP_TRAIN_STAMINA_COST} ⚡ Stamina**\n` +
       `📊 Remaining: \`${updated.trainingPoints} TP\` | \`${updated.stamina} ⚡ Stamina\``
   };
 }
