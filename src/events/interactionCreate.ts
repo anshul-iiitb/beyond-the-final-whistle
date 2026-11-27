@@ -9,6 +9,7 @@ import {
   normalizeLeaderboardCategory
 } from '../commands/playerCommands.js';
 import { buildShowroomPayload } from '../commands/travelCommands.js';
+import { buildCosmeticShopPayload } from '../commands/cosmeticCommands.js';
 import { buildTacticsContainer, parseTeamTactics, serializeTeamTactics, TeamTactics } from '../commands/tacticsCommand.js';
 import { formatK } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
@@ -271,6 +272,19 @@ export async function onInteractionCreate(interaction: Interaction) {
       await interaction.deferUpdate();
       const page = parseInt(customId.replace('showroom_page_', ''), 10) || 1;
       const payload = await buildShowroomPayload(interaction.user.id, page, interaction.guild);
+      return await interaction.editReply({
+        embeds: [payload.embed],
+        files: payload.files,
+        components: payload.components,
+        attachments: []
+      });
+    }
+
+    // 3d. Cosmetic Boutique Page Switcher: avatar_page_1, avatar_page_2
+    if (customId.startsWith('avatar_page_')) {
+      await interaction.deferUpdate();
+      const page = parseInt(customId.replace('avatar_page_', ''), 10) || 1;
+      const payload = await buildCosmeticShopPayload(interaction.user.id, page, interaction.guild);
       return await interaction.editReply({
         embeds: [payload.embed],
         files: payload.files,

@@ -1,4 +1,4 @@
-import { Message, EmbedBuilder, AttachmentBuilder } from 'discord.js';
+import { Message, EmbedBuilder, AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Guild } from 'discord.js';
 import path from 'path';
 import { prisma } from '../database/prisma.js';
 import {
@@ -9,65 +9,132 @@ import {
   getCurrentMonthKey
 } from '../config/constants.js';
 import { acquireMonthlyCosmetic, equipOwnedCosmetic, setPlayerProfileTheme } from '../engines/cosmeticEngine.js';
-import { resolveCosmeticAssetPath } from '../utils/themeRenderers.js';
+import { resolveCosmeticAssetPath, renderCosmeticShopCanvas, CosmeticShopCardItem } from '../utils/themeRenderers.js';
+import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
 import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
 
-export async function handleAvatarCommand(message: Message) {
+export function buildCosmeticShopPageRow(activePage: number) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('avatar_page_1')
+      .setLabel('Custom Avatars (5)')
+      .setEmoji('👤')
+      .setStyle(activePage === 1 ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('avatar_page_2')
+      .setLabel('Legend Banners (5)')
+      .setEmoji('🖼️')
+      .setStyle(activePage === 2 ? ButtonStyle.Primary : ButtonStyle.Secondary)
+  );
+}
+
+export async function buildCosmeticShopPayload(userId: string, page = 1, guild?: Guild | null) {
+  const safePage = page === 2 ? 2 : 1;
   const player = await prisma.player.findUnique({
-    where: { id: message.author.id },
+    where: { id: userId },
     include: { cosmetics: true }
   });
 
   const ownedKeys = new Set((player?.cosmetics || []).map(c => c.cosmeticKey));
   const monthKey = getCurrentMonthKey();
   const activeCatalog = getActiveMonthlyCosmetics();
-  const coinEmoji = getEmoji(message.guild, 'coin');
+  const coinEmoji = getEmoji(guild, 'coin');
   const isVip = (player?.vipTier ?? 0) >= 1;
-  const vipPassStatus = !isVip
+  const vipPassShort = !isVip
+    ? 'VIP Only (1 Free/mo)'
+    : player?.lastVipCosmeticMonth === monthKey
+      ? 'VIP Claim Used'
+      : '1 Free VIP Claim Ready';
+  const vipPassLine = !isVip
     ? '🔒 VIP Only (1 Free/month)'
     : player?.lastVipCosmeticMonth === monthKey
       ? '✅ Claimed this month'
       : '🎁 **1 Free Claim Ready!** (`-avatarclaim <alias>`)';
 
-  const avatars = activeCatalog.filter(c => c.kind === 'AVATAR');
-  const banners = activeCatalog.filter(c => c.kind === 'BANNER');
+  const targetKind = safePage === 1 ? 'AVATAR' : 'BANNER';
+  const pageItems = activeCatalog.filter(c => c.kind === targetKind);
+  const eqAvatarDef = COSMETIC_CATALOG.find(c => c.key === player?.equippedAvatar);
+  const eqBannerDef = COSMETIC_CATALOG.find(c => c.key === player?.equippedBanner);
 
-  const formatLine = (c: typeof activeCatalog[number]) => {
-    const owned = ownedKeys.has(c.key);
-    const equipped = player?.equippedAvatar === c.key || player?.equippedBanner === c.key;
-    const tag = equipped ? '⭐ Equipped' : owned ? '✅ Owned' : `**${formatK(c.cost)}** ${coinEmoji}`;
-    return `${c.emoji} **${c.name}** \`[ alias: ${c.key} | #${c.jerseyNumber} ]\` — ${tag}`;
-  };
+  const canvasItems: CosmeticShopCardItem[] = pageItems.map(c => ({
+    key: c.key,
+    name: c.name,
+    kind: c.kind,
+    jerseyNumber: c.jerseyNumber,
+    price: c.cost,
+    accentHex: c.accentHex,
+    owned: ownedKeys.has(c.key),
+    equipped: player?.equippedAvatar === c.key || player?.equippedBanner === c.key
+  }));
 
-  const ownedExtras = (player?.cosmetics || [])
-    .filter(owned => !activeCatalog.some(a => a.key === owned.cosmeticKey))
-    .map(owned => {
-      const def = COSMETIC_CATALOG.find(c => c.key === owned.cosmeticKey);
-      return `\`${owned.cosmeticKey}\` (${def?.name || owned.name})`;
-    });
+  const pageTitle = safePage === 1
+    ? 'Custom Profile Avatars — 5 Collector Icons'
+    : 'Legend Profile Banners — 5 Collector Posters';
 
-  const boutiqueSections = [
-    `Spend surplus wealth inside **🛍️ Global Market (\`-travel gm\`)** on custom Profile Cosmetics!\n` +
-    `👑 **VIP Monthly Pass:** ${vipPassStatus}`,
-    ...(avatars.length > 0 ? [`### 👤 Custom Profile Avatars (750k Coins)\n${avatars.map(formatLine).join('\n')}`] : []),
-    banners.length > 0
-      ? `### 🖼️ Full Collector Banners (3,000k High-Roller Sink)\n${banners.map(formatLine).join('\n')}`
-      : '*No banners currently stocked in this rotation.*',
-    ...(ownedExtras.length > 0 ? [`🎒 **Vaulted Locker Items:** ${ownedExtras.join(', ')}`] : []),
-    `${UI.DIVIDER}\n` +
-    subtext('💡 At Global Market (`-travel gm`): `-avatarbuy <alias>` • VIPs: `-avatarclaim <alias>` • Anywhere: `-equip avatar <name>` / `-equip <alias>`')
-  ];
+  const canvasBuf = await renderCosmeticShopCanvas({
+    pageTitle,
+    page: safePage,
+    totalPages: 2,
+    vipStatusText: vipPassShort,
+    walletCoins: player?.coins ?? 0n,
+    equippedSummary: `Avatar: ${eqAvatarDef?.key || 'Default'} | Banner: ${eqBannerDef?.key || 'None'}`,
+    items: canvasItems,
+    themeKey: player?.profileTheme
+  });
+  const file = new AttachmentBuilder(canvasBuf, { name: 'cosmetic_boutique.png' });
 
+  const quickAliases = pageItems
+    .map(c => {
+      const owned = ownedKeys.has(c.key);
+      const eq = player?.equippedAvatar === c.key || player?.equippedBanner === c.key;
+      const badge = eq ? '⭐' : owned ? '✅' : `${formatK(c.cost)} ${coinEmoji}`;
+      return `${c.emoji} \`${c.key}\` (${badge})`;
+    })
+    .join(' • ');
+
+  const botIcon = guild?.client?.user?.displayAvatarURL?.() || undefined;
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.PURPLE)
-    .setTitle(`🎨 Cosmetic Boutique — ${monthKey}`)
-    .setDescription(boutiqueSections.join(UI.SPACER))
-    .setFooter({ text: `Beyond The Final Whistle • ${activeCatalog.length} Active Collector Cosmetics` })
+    .setTitle(`🎨 Cosmetic Boutique — ${safePage === 1 ? 'Custom Avatars (5)' : 'Legend Banners (5)'}`)
+    .setDescription(
+      [
+        `👑 **VIP Monthly Pass:** ${vipPassLine}   •   💰 **Wallet:** \`${formatK(player?.coins ?? 0n)}\` ${coinEmoji}`,
+        `**Aliases on Page ${safePage}:** ${quickAliases}`,
+        subtext('💡 At Global Market (`-travel gm`): `-avatarbuy <alias>` or `-avatarclaim <alias>` • Equip: `-equip avatar <name>` / `-equip <alias>`')
+      ].join(UI.SPACER)
+    )
+    .setImage('attachment://cosmetic_boutique.png')
+    .setFooter({ text: `Page ${safePage}/2 • Cosmetic Boutique (${monthKey}) • Beyond The Final Whistle`, iconURL: botIcon })
     .setTimestamp();
 
-  await message.reply({ embeds: [embed] });
+  return {
+    embed,
+    files: [file],
+    components: [buildCosmeticShopPageRow(safePage)]
+  };
+}
+
+export async function handleAvatarCommand(message: Message, args: string[] = []) {
+  const argLower = (args[0] || '').toLowerCase();
+  const page = argLower === '2' || argLower.startsWith('banner') ? 2 : 1;
+  const thinkingMsg = await sendThinkingMessage(message, 'Opening Global Market Cosmetic Boutique...');
+
+  try {
+    const payload = await buildCosmeticShopPayload(message.author.id, page, message.guild);
+    await updateLoadingMessage(thinkingMsg, {
+      embeds: [payload.embed],
+      files: payload.files,
+      components: payload.components
+    });
+  } catch {
+    await updateLoadingMessage(thinkingMsg, {
+      content: '❌ Failed to load the Cosmetic Boutique.',
+      embeds: [],
+      files: []
+    });
+  }
 }
 
 export async function handleAvatarBuyCommand(message: Message, args: string[]) {

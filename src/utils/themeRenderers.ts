@@ -1324,6 +1324,255 @@ export async function renderShowroomCanvas(options: {
   return canvas.toBuffer('image/png');
 }
 
+export interface CosmeticShopCardItem {
+  key: string;
+  name: string;
+  kind: 'AVATAR' | 'BANNER';
+  jerseyNumber: string;
+  price: bigint;
+  accentHex: string;
+  owned: boolean;
+  equipped: boolean;
+}
+
+/**
+ * Generates the Stadium Showcase Cosmetic Boutique Card (-avatar) [1024x764]
+ */
+export async function renderCosmeticShopCanvas(options: {
+  pageTitle: string;
+  page: number;
+  totalPages: number;
+  vipStatusText: string;
+  walletCoins: bigint;
+  equippedSummary: string;
+  items: CosmeticShopCardItem[];
+  themeKey?: string | null;
+}): Promise<Buffer> {
+  const spec = SHOWROOM_MARKET_GRID_SPEC;
+  const width = spec.canvasWidth;
+  const height = spec.canvasHeight;
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  const theme = await paintThemeBackdrop(ctx, width, height, 'showroom', options.themeKey);
+
+  // 1. Header Zone (102, 112, 820x90)
+  const hz = spec.headerZone;
+  drawGlassScrim(ctx, hz.x + 8, hz.y + 8, hz.w - 16, hz.h - 16, 8, 0.76);
+  await drawBrandLogoSeal(ctx, hz.x + 48, hz.y + hz.h / 2, 26, theme.accent);
+
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  drawFittedText(
+    ctx,
+    cleanCanvasText(options.pageTitle).toUpperCase(),
+    hz.x + hz.w / 2 + 14,
+    hz.y + 32,
+    hz.w - 170,
+    '"Segoe UI", Arial, sans-serif',
+    25,
+    17
+  );
+
+  ctx.fillStyle = '#fde047';
+  drawFittedText(
+    ctx,
+    `WALLET: ${formatK(options.walletCoins)} COINS  •  ${cleanCanvasText(options.vipStatusText).toUpperCase()}  •  PAGE ${options.page}/${options.totalPages}`,
+    hz.x + hz.w / 2 + 14,
+    hz.y + 65,
+    hz.w - 170,
+    '"Segoe UI", Arial, sans-serif',
+    12.5,
+    9.5
+  );
+  ctx.restore();
+
+  // 2. Render up to 6 Cosmetic Cards inside slots[0..5]
+  const cards = options.items.slice(0, 6);
+  for (let i = 0; i < cards.length; i++) {
+    const item = cards[i];
+    const slot = spec.slots![i];
+    const isBanner = item.kind === 'BANNER';
+
+    const previewX = slot.x + 12;
+    const previewY = isBanner ? slot.y + 20 : slot.y + 12;
+    const previewW = isBanner ? 136 : 96;
+    const previewH = isBanner ? 80 : 96;
+    const scrimX = previewX + previewW + 8;
+    const scrimW = slot.x + slot.w - scrimX - 10;
+
+    drawGlassScrim(ctx, scrimX, slot.y + 10, scrimW, slot.h - 20, 6, 0.78);
+
+    if (item.equipped || item.owned) {
+      ctx.save();
+      drawRoundedRect(ctx, slot.x + 2, slot.y + 2, slot.w - 4, slot.h - 4, 8);
+      ctx.strokeStyle = item.equipped ? '#facc15' : '#10b981';
+      ctx.lineWidth = item.equipped ? 2.4 : 1.8;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Left Cosmetic Preview Artwork Frame
+    ctx.save();
+    drawRoundedRect(ctx, previewX, previewY, previewW, previewH, 8);
+    ctx.fillStyle = '#070b14';
+    ctx.fill();
+    ctx.clip();
+
+    const assetPath = resolveCosmeticAssetPath(item.kind, item.key);
+    if (assetPath) {
+      const img = await loadLocalImageCached(assetPath);
+      if (isBanner) {
+        // Contain-fit wide banners inside preview box so title + portrait + signature all show clearly
+        const scale = Math.min(previewW / img.width, previewH / img.height);
+        const dw = img.width * scale;
+        const dh = img.height * scale;
+        ctx.drawImage(img, previewX + (previewW - dw) / 2, previewY + (previewH - dh) / 2, dw, dh);
+      } else {
+        // Cover-fill 1:1 square avatars cleanly
+        const scale = Math.max(previewW / img.width, previewH / img.height);
+        const dw = img.width * scale;
+        const dh = img.height * scale;
+        ctx.drawImage(img, previewX + (previewW - dw) / 2, previewY + (previewH - dh) / 2, dw, dh);
+      }
+    } else {
+      ctx.fillStyle = item.accentHex || '#38bdf8';
+      ctx.font = 'bold 20px "Segoe UI", Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`#${item.jerseyNumber}`, previewX + previewW / 2, previewY + previewH / 2);
+    }
+    ctx.restore();
+
+    ctx.save();
+    drawRoundedRect(ctx, previewX, previewY, previewW, previewH, 8);
+    ctx.strokeStyle = item.equipped ? '#facc15' : item.accentHex || '#38bdf8';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
+    // Right Info Block — strictly bounded inside scrim
+    const tx = scrimX + 10;
+    const tw = scrimW - 20;
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.fillStyle = '#ffffff';
+    drawFittedText(
+      ctx,
+      cleanCanvasText(item.name).toUpperCase(),
+      tx,
+      slot.y + 34,
+      tw,
+      '"Segoe UI", Arial, sans-serif',
+      16,
+      11.5
+    );
+
+    ctx.fillStyle = '#cbd5e1';
+    drawFittedText(
+      ctx,
+      `alias: ${cleanCanvasText(item.key)}  •  #${cleanCanvasText(item.jerseyNumber)}`,
+      tx,
+      slot.y + 57,
+      tw,
+      '"Segoe UI", Arial, sans-serif',
+      12.5,
+      9.5
+    );
+
+    const statusBadgeText = item.equipped ? 'EQUIPPED' : item.owned ? 'OWNED' : '';
+    const priceMaxW = statusBadgeText ? tw - 82 : tw;
+    ctx.fillStyle = item.equipped ? '#fde047' : item.owned ? '#34d399' : '#facc15';
+    drawFittedText(
+      ctx,
+      `${formatK(item.price)} COINS`,
+      tx,
+      slot.y + 92,
+      priceMaxW,
+      '"Segoe UI", Arial, sans-serif',
+      17,
+      12
+    );
+
+    if (statusBadgeText) {
+      const badgeW = 74;
+      const badgeX = scrimX + scrimW - badgeW - 6;
+      ctx.fillStyle = item.equipped ? 'rgba(250, 204, 21, 0.22)' : 'rgba(16, 185, 129, 0.25)';
+      drawRoundedRect(ctx, badgeX, slot.y + 72, badgeW, 24, 6);
+      ctx.fill();
+      ctx.strokeStyle = item.equipped ? '#facc15' : '#10b981';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = item.equipped ? '#fef08a' : '#a7f3d0';
+      ctx.font = 'bold 10.5px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(statusBadgeText, badgeX + badgeW / 2, slot.y + 88);
+    }
+    ctx.restore();
+  }
+
+  if (cards.length < 6 && spec.slots![5]) {
+    const slot = spec.slots![5];
+    drawGlassScrim(ctx, slot.x + 10, slot.y + 10, slot.w - 20, slot.h - 20, 8, 0.78);
+    ctx.save();
+    drawRoundedRect(ctx, slot.x + 10, slot.y + 10, slot.w - 20, slot.h - 20, 8);
+    ctx.strokeStyle = 'rgba(168, 85, 247, 0.45)';
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#c084fc';
+    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(`COSMETIC BOUTIQUE • PAGE ${options.page}/${options.totalPages}`, slot.x + 26, slot.y + 34);
+
+    ctx.fillStyle = '#ffffff';
+    drawFittedText(ctx, `${cards.length} COLLECTOR EDITIONS`, slot.x + 26, slot.y + 58, slot.w - 52, '"Segoe UI", Arial, sans-serif', 16, 12);
+
+    ctx.fillStyle = '#cbd5e1';
+    drawFittedText(
+      ctx,
+      cleanCanvasText(options.equippedSummary),
+      slot.x + 26,
+      slot.y + 82,
+      slot.w - 52,
+      '"Segoe UI", Arial, sans-serif',
+      12,
+      9.5
+    );
+
+    ctx.fillStyle = '#fde047';
+    drawFittedText(
+      ctx,
+      'Buy: -avatarbuy <alias> • Claim: -avatarclaim <alias>',
+      slot.x + 26,
+      slot.y + 103,
+      slot.w - 52,
+      '"Segoe UI", Arial, sans-serif',
+      11.5,
+      9
+    );
+    ctx.restore();
+  }
+
+  // 3. Footer Zone (102, 682, 820x42)
+  const fz = spec.footerZone!;
+  drawGlassScrim(ctx, fz.x + 8, fz.y + 4, fz.w - 16, fz.h - 8, 6, 0.80);
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#e9d5ff';
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('GLOBAL MARKET (-travel gm)  •  BUY VIA -avatarbuy <alias>  •  EQUIP VIA -equip <alias>', fz.x + fz.w / 2, fz.y + fz.h / 2 + 1);
+  ctx.restore();
+
+  return canvas.toBuffer('image/png');
+}
+
 // =========================================================================
 // 4. AUCTION HOUSE COLLECTOR VAULT RENDERER (-ah) [1024x764]
 // =========================================================================

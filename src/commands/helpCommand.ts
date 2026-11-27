@@ -59,7 +59,7 @@ export async function handleHelpCommand(message: Message) {
         value:
           `• \`-gm\` / \`-buy <item>\` — **Matchday Gear**: \`sd\` (+50 ${stamina}, 100k ${coin}) & \`strika\`/\`passa\`/\`bully\` (+10 stat boots, 500k ${coin}).\n` +
           '• `-showroom [1-3]` & `-vehiclebuy <alias>` — **16 Cars** paginated across 3 tiers (5/6/5) inside `gm` (`mini`, `bmwm3`, `corvettec8`, `mustang`, `jaguartype`, `bentley`, `mclarenf1`, + full fleet).\n' +
-          '• `-avatar` / `-avatarbuy <alias>` / `-avatarclaim <alias>` — **5 Custom Avatars (750k)** & **5 Legend Banners (3M)**; VIPs get 1 free monthly claim!\n' +
+          '• `-avatar [1|2]` / `-avatarbuy <alias>` / `-avatarclaim <alias>` — Showroom-style **Cosmetic Boutique** (**5 Avatars @ 750k**, **5 Banners @ 3M**; VIPs get 1 free monthly claim!).\n' +
           '• `-inv [@user]` (`-inventory`) & `-equip [avatar|banner] <alias|none>` — Inspect your owned Avatars, Banners, Cars & Trophies, and equip them on `-profile`.'
       },
       {

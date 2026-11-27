@@ -118,7 +118,7 @@ export async function onMessageCreate(message: Message) {
       case 'avatar':
       case 'avatars':
       case 'boutique':
-        await handleAvatarCommand(message);
+        await handleAvatarCommand(message, args);
         break;
       case 'avatarbuy':
         await handleAvatarBuyCommand(message, args);
