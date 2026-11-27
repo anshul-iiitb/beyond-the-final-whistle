@@ -236,10 +236,46 @@ export async function handleVipCommand(message: Message, args: string[]) {
   }
 
   const mentionList = targets.map(u => `<@${u.id}>`).join(', ');
-  await message.reply(
-    `✅ **👑 VIP Granted** to ${mentionList} for **${parsedDays} day(s)** (expires <t:${unixExpiry}:D> • <t:${unixExpiry}:R>)!\n` +
-    `Unlocked: VIP training drills, 300k sponsor, +100 sauna, friendlies, monthly free cosmetic claim, & private lounge.`
-  );
+
+  const VIP_AD_GIF = 'https://images-ext-1.discordapp.net/external/WbUdmHYz0aJoSn0OIHn7HlCzc9I9OKdCUO1DZ1_9wn4/https/static.klipy.com/ii/2711dd8a75a85be822d136ec94899b3f/3b/5d/lgwAfIbEGD9B.mp4';
+
+  const vipGrantEmbed = new EmbedBuilder()
+    .setColor(THEME_COLORS.GOLD)
+    .setTitle('👑 VIP ACCESS GRANTED')
+    .setDescription(
+      `${mentionList} ${targets.length > 1 ? 'have' : 'has'} been elevated to **VIP Footballer** status!\n\n` +
+      `### 🏆 Exclusive Unlocks\n` +
+      `👑 **VIP Training** — +6 TP Elite Session (6h cooldown)\n` +
+      `⚡ **VIP 20h Endurance** — +20 TP overnight grind\n` +
+      `💰 **300k Sponsor Advert** — Premium commercial deal\n` +
+      `🛁 **Full Sauna Recovery** — 100% stamina restore\n` +
+      `🎁 **Monthly Free Cosmetic** — Avatar/banner claim\n` +
+      `🎮 **Exhibition Friendlies** — Private match access\n` +
+      `🔒 **VIP Lounge** — Private council channel\n\n` +
+      `${UI.DIVIDER}\n` +
+      subtext(`⏳ Expires: <t:${unixExpiry}:D> • <t:${unixExpiry}:R>`)
+    )
+    .setImage(VIP_AD_GIF)
+    .setFooter({ text: 'Beyond The Final Whistle • VIP Programme' })
+    .setTimestamp();
+
+  await message.reply({ embeds: [vipGrantEmbed] });
+
+  // Also announce in VIP lounge if it exists
+  if (vipChannel && 'send' in vipChannel) {
+    const loungeEmbed = new EmbedBuilder()
+      .setColor(THEME_COLORS.GOLD)
+      .setTitle('🎉 New VIP Footballer Has Arrived!')
+      .setDescription(
+        `Welcome ${mentionList} to the **VIP Council**! 👑\n\n` +
+        `Your **${parsedDays}-day** VIP pass is active until <t:${unixExpiry}:D>.\n` +
+        `Run \`-train\` to access elite sessions, \`-sponsor\` for the 300k deal, and \`-recovery\` for full stamina reset.`
+      )
+      .setImage(VIP_AD_GIF)
+      .setFooter({ text: 'Beyond The Final Whistle • VIP Lounge' })
+      .setTimestamp();
+    await (vipChannel as any).send({ embeds: [loungeEmbed] }).catch(() => {});
+  }
 }
 
 export async function handleDevFundCommand(message: Message, args: string[]) {
