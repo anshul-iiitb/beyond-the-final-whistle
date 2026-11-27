@@ -6,17 +6,39 @@ import { formatK, parseCoinAmount } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
 
 const ANTI_SNIPE_WINDOW_MS = 60 * 1000;
+const PAUSE_SETTING_PREFIX = 'auction_pause_';
 
-export function formatTimeRemaining(endsAt: Date): string {
-  const diffMs = endsAt.getTime() - Date.now();
+export function formatDurationMs(diffMs: number): string {
   if (diffMs <= 0) return 'Ended';
-  const totalSec = Math.floor(diffMs / 1000);
+  const totalSec = Math.max(1, Math.floor(diffMs / 1000));
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
+}
+
+export function formatTimeRemaining(endsAt: Date): string {
+  return formatDurationMs(endsAt.getTime() - Date.now());
+}
+
+/**
+ * Loads frozen remaining milliseconds for a batch of paused auction IDs.
+ */
+export async function getPausedLotsRemainingMap(lotIds: string[]): Promise<Map<string, number>> {
+  const result = new Map<string, number>();
+  if (lotIds.length === 0) return result;
+  const keys = lotIds.map(id => `${PAUSE_SETTING_PREFIX}${id}`);
+  const rows = await prisma.botSetting.findMany({ where: { key: { in: keys } } });
+  for (const row of rows) {
+    const id = row.key.slice(PAUSE_SETTING_PREFIX.length);
+    const ms = parseInt(row.value, 10);
+    if (!isNaN(ms) && ms > 0) {
+      result.set(id, ms);
+    }
+  }
+  return result;
 }
 
 async function announceAuctionDrop(client: Client, listings: any[], headline = '🏛️ DAILY AUCTION HOUSE DROPS ARE LIVE!') {
@@ -29,11 +51,14 @@ async function announceAuctionDrop(client: Client, listings: any[], headline = '
     ) as TextChannel | undefined;
     if (!ahChannel) continue;
 
-    const lotLines = listings.map((l, idx) =>
-      `**[Lot #${idx + 1}]** ${l.emoji} **${l.itemName}**\n` +
-      `> *${l.description}*\n` +
-      `• **Opening Bid:** \`${formatK(l.startingPrice)} coins\` • **Closes In:** \`${formatTimeRemaining(l.endsAt)}\``
-    ).join('\n\n');
+    const lotLines = listings.map((l, idx) => {
+      const priceLine = l.currentBid && BigInt(l.currentBid) > 0n
+        ? `**Current Bid:** \`${formatK(l.currentBid)} coins\` (<@${l.highestBidderId}>)`
+        : `**Opening Bid:** \`${formatK(l.startingPrice)} coins\``;
+      return `**[Lot #${idx + 1}]** ${l.emoji} **${l.itemName}**\n` +
+        `> *${l.description}*\n` +
+        `• ${priceLine} • **Closes In:** \`${formatTimeRemaining(l.endsAt)}\``;
+    }).join('\n\n');
 
     const embed = new EmbedBuilder()
       .setColor('#f59e0b')
@@ -71,15 +96,15 @@ export async function seedDailyAuctions(
   const count = countOverride ?? ahCfg.lotsPerDrop;
   const durationHours = durationHoursOverride ?? ahCfg.durationHours;
 
-  const activeListings = await prisma.auctionListing.findMany({
-    where: { status: 'ACTIVE' }
+  const openListings = await prisma.auctionListing.findMany({
+    where: { status: { in: ['ACTIVE', 'PAUSED'] } }
   });
 
-  if (onlyIfNoneToday && activeListings.length > 0) {
-    return { seeded: 0, listings: activeListings };
+  if (onlyIfNoneToday && openListings.length > 0) {
+    return { seeded: 0, listings: openListings.filter(l => l.status === 'ACTIVE') };
   }
 
-  const activeKeys = new Set(activeListings.map(a => a.itemKey));
+  const activeKeys = new Set(openListings.map(a => a.itemKey));
   const candidates = AUCTION_RELIC_POOL.filter(r => !activeKeys.has(r.itemKey));
   const pool = candidates.length >= count ? candidates : [...AUCTION_RELIC_POOL];
 
@@ -181,6 +206,10 @@ export async function placeAuctionBid(
   });
 
   if (activeLots.length === 0) {
+    const pausedCount = await prisma.auctionListing.count({ where: { status: 'PAUSED' } });
+    if (pausedCount > 0) {
+      return { success: false, message: '⏸️ Auctions are currently halted by Admin! Bidding will resume once the auction restarts.' };
+    }
     return { success: false, message: 'ℹ️ No active auctions right now. Check back at the daily drop!' };
   }
 
@@ -296,6 +325,10 @@ export async function settleOrCancelAuctionLot(
     orderBy: { endsAt: 'asc' }
   });
   if (activeLots.length === 0) {
+    const pausedCount = await prisma.auctionListing.count({ where: { status: 'PAUSED' } });
+    if (pausedCount > 0) {
+      return { success: false, message: '⏸️ Auctions are currently halted (`PAUSED`). Resume first via `-auctionresume` or target active lots.' };
+    }
     return { success: false, message: 'ℹ️ There are no active auction lots right now.' };
   }
 
@@ -441,4 +474,171 @@ export async function settleExpiredAuctions(client?: Client): Promise<number> {
   }
 
   return settledCount;
+}
+
+/**
+ * Selects all lots or a single 1-based lot index from a list of auction lots.
+ */
+function selectTargetLots(lots: any[], lotArg?: string): { lots: any[]; error?: string } {
+  if (!lotArg || lotArg.toLowerCase() === 'all') {
+    return { lots };
+  }
+  const lotNum = parseInt(lotArg, 10);
+  if (isNaN(lotNum) || lotNum < 1 || lotNum > lots.length) {
+    return { lots: [], error: `❌ Invalid lot #${lotArg}. Valid lots: \`1–${lots.length}\` (or omit to target all).` };
+  }
+  return { lots: [lots[lotNum - 1]] };
+}
+
+/**
+ * Halts active auction lot(s) and persists their exact remaining time in BotSetting
+ * so they can later resume with the same duration remaining.
+ */
+export async function haltAuctionLots(
+  lotArg?: string,
+  client?: Client
+): Promise<{ success: boolean; haltedCount: number; message: string }> {
+  const now = new Date();
+  const activeLots = await prisma.auctionListing.findMany({
+    where: { status: 'ACTIVE', endsAt: { gt: now } },
+    orderBy: { endsAt: 'asc' }
+  });
+
+  if (activeLots.length === 0) {
+    const pausedCount = await prisma.auctionListing.count({ where: { status: 'PAUSED' } });
+    if (pausedCount > 0) {
+      return { success: false, haltedCount: 0, message: `⏸️ **${pausedCount} auction lot(s)** are already halted! Use \`-auctionresume\` to restart them.` };
+    }
+    return { success: false, haltedCount: 0, message: 'ℹ️ There are no active auction lots to halt right now.' };
+  }
+
+  const selection = selectTargetLots(activeLots, lotArg);
+  if (selection.error) {
+    return { success: false, haltedCount: 0, message: selection.error };
+  }
+
+  const haltedSummary: Array<{ lot: any; remainingMs: number }> = [];
+  for (const lot of selection.lots) {
+    const pausedInfo = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.auctionListing.findUnique({ where: { id: lot.id } });
+      if (!fresh || fresh.status !== 'ACTIVE') return null;
+
+      const remainingMs = fresh.endsAt.getTime() - Date.now();
+      if (remainingMs <= 0) return null;
+
+      await tx.botSetting.upsert({
+        where: { key: `${PAUSE_SETTING_PREFIX}${fresh.id}` },
+        update: { value: String(remainingMs) },
+        create: { key: `${PAUSE_SETTING_PREFIX}${fresh.id}`, value: String(remainingMs) }
+      });
+
+      const upd = await tx.auctionListing.updateMany({
+        where: { id: fresh.id, status: 'ACTIVE' },
+        data: { status: 'PAUSED' }
+      });
+      if (upd.count === 0) return null;
+
+      return { lot: fresh, remainingMs };
+    });
+
+    if (pausedInfo) haltedSummary.push(pausedInfo);
+  }
+
+  if (haltedSummary.length === 0) {
+    return { success: false, haltedCount: 0, message: '❌ Selected lot(s) already expired before they could be halted.' };
+  }
+
+  const lines = haltedSummary.map((h, i) =>
+    `• ${h.lot.emoji} **${h.lot.itemName}** — frozen at **\`${formatDurationMs(h.remainingMs)}\`** remaining`
+  ).join('\n');
+
+  if (client) {
+    for (const guild of client.guilds.cache.values()) {
+      const ahChannel = guild.channels.cache.find(
+        c => c.isTextBased() && c.name.toLowerCase().includes('auction-house')
+      ) as TextChannel | undefined;
+      if (!ahChannel) continue;
+
+      const embed = new EmbedBuilder()
+        .setColor('#f59e0b')
+        .setTitle('⏸️ AUCTION HOUSE HALTED BY ADMIN')
+        .setDescription(
+          `Bidding has been temporarily paused — all timers are frozen!\n\n${lines}\n\n` +
+          `Admin can restart anytime with the exact same time left via \`-auctionresume\`.`
+        )
+        .setTimestamp();
+      await ahChannel.send({ embeds: [embed] }).catch(() => {});
+    }
+  }
+
+  return {
+    success: true,
+    haltedCount: haltedSummary.length,
+    message:
+      `⏸️ **Halted ${haltedSummary.length} auction lot(s)!** Timers frozen:\n${lines}\n\n` +
+      'Restart with the exact same time left using `-auctionresume`.'
+  };
+}
+
+/**
+ * Resumes halted auction lot(s) with the exact remaining milliseconds they had when halted.
+ */
+export async function resumeAuctionLots(
+  lotArg?: string,
+  client?: Client
+): Promise<{ success: boolean; resumedCount: number; message: string }> {
+  const pausedLots = await prisma.auctionListing.findMany({
+    where: { status: 'PAUSED' },
+    orderBy: { endsAt: 'asc' }
+  });
+
+  if (pausedLots.length === 0) {
+    return { success: false, resumedCount: 0, message: 'ℹ️ There are no halted auctions to resume right now.' };
+  }
+
+  const selection = selectTargetLots(pausedLots, lotArg);
+  if (selection.error) {
+    return { success: false, resumedCount: 0, message: selection.error };
+  }
+
+  const remainingMap = await getPausedLotsRemainingMap(selection.lots.map(l => l.id));
+  const resumedLots: any[] = [];
+
+  for (const lot of selection.lots) {
+    const storedMs = remainingMap.get(lot.id);
+    const fallbackMs = Math.max(60_000, lot.endsAt.getTime() - lot.createdAt.getTime());
+    const remainingMs = storedMs && storedMs > 0 ? storedMs : fallbackMs;
+    const newEndsAt = new Date(Date.now() + remainingMs);
+
+    const updatedLot = await prisma.$transaction(async (tx) => {
+      const upd = await tx.auctionListing.updateMany({
+        where: { id: lot.id, status: 'PAUSED' },
+        data: { status: 'ACTIVE', endsAt: newEndsAt }
+      });
+      if (upd.count === 0) return null;
+
+      await tx.botSetting.deleteMany({ where: { key: `${PAUSE_SETTING_PREFIX}${lot.id}` } });
+      return { ...lot, status: 'ACTIVE', endsAt: newEndsAt };
+    });
+
+    if (updatedLot) resumedLots.push(updatedLot);
+  }
+
+  if (resumedLots.length === 0) {
+    return { success: false, resumedCount: 0, message: '❌ Selected lot(s) could not be resumed (already active or settled).' };
+  }
+
+  if (client) {
+    await announceAuctionDrop(client, resumedLots, '▶️ AUCTION HOUSE RESUMED — BIDDING IS LIVE!');
+  }
+
+  const lines = resumedLots.map(l =>
+    `• ${l.emoji} **${l.itemName}** — closes in **\`${formatTimeRemaining(l.endsAt)}\`**`
+  ).join('\n');
+
+  return {
+    success: true,
+    resumedCount: resumedLots.length,
+    message: `▶️ **Resumed ${resumedLots.length} auction lot(s)** with exact frozen time restored:\n${lines}`
+  };
 }

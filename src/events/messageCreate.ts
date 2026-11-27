@@ -12,7 +12,9 @@ import {
   handleAuctionStartCommand,
   handleAuctionConfigCommand,
   handleAuctionEndCommand,
-  handleAuctionCancelCommand
+  handleAuctionCancelCommand,
+  handleAuctionHaltCommand,
+  handleAuctionResumeCommand
 } from '../commands/auctionCommands.js';
 import { handleMatchCommand, handleFriendlyCommand, handleLiveMatchCommand, handleBatchMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand, handleTestMatchCommand } from '../commands/matchCommands.js';
 import { handleTacticsCommand } from '../commands/tacticsCommand.js';
@@ -28,6 +30,7 @@ import {
 } from '../commands/adminCommands.js';
 import { handleHelpCommand } from '../commands/helpCommand.js';
 import { handleBTFWGitPull, handleBTFWGitPullBack } from '../services/gitService.js';
+import { validateCommandAccess } from '../engines/campusEngine.js';
 import { logger } from '../utils/logger.js';
 
 const PREFIX = '-';
@@ -43,6 +46,17 @@ export async function onMessageCreate(message: Message) {
   if (!cmd) return;
 
   try {
+    const access = await validateCommandAccess({
+      cmd,
+      userId: message.author.id,
+      guild: message.guild,
+      channelId: message.channelId
+    });
+    if (!access.allowed && access.message) {
+      await message.reply(access.message);
+      return;
+    }
+
     switch (cmd) {
       // Profile & Reputation
       case 'profile':
@@ -236,6 +250,21 @@ export async function onMessageCreate(message: Message) {
       case 'auctioncancel':
       case 'ahcancel':
         await handleAuctionCancelCommand(message, args);
+        break;
+      case 'auctionhalt':
+      case 'ahhalt':
+      case 'haltauction':
+      case 'auctionpause':
+      case 'ahpause':
+      case 'pauseauction':
+        await handleAuctionHaltCommand(message, args);
+        break;
+      case 'auctionresume':
+      case 'ahresume':
+      case 'resumeauction':
+      case 'auctionunpause':
+      case 'ahunpause':
+        await handleAuctionResumeCommand(message, args);
         break;
       case 'prices':
         await handlePricesCommand(message);

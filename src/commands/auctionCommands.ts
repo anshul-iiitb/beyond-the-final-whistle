@@ -11,7 +11,11 @@ import {
   placeAuctionBid,
   launchCustomAuctionLot,
   settleOrCancelAuctionLot,
-  formatTimeRemaining
+  haltAuctionLots,
+  resumeAuctionLots,
+  getPausedLotsRemainingMap,
+  formatTimeRemaining,
+  formatDurationMs
 } from '../engines/auctionEngine.js';
 import { renderAuctionHouseCanvas } from '../utils/themeRenderers.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
@@ -33,15 +37,21 @@ export async function buildAuctionHousePayload(viewerId: string, client: Client,
     where: { status: 'ACTIVE', endsAt: { gt: new Date() } },
     orderBy: { endsAt: 'asc' }
   });
+  const pausedLots = await prisma.auctionListing.findMany({
+    where: { status: 'PAUSED' },
+    orderBy: { endsAt: 'asc' }
+  });
 
-  if (activeLots.length === 0 && ahCfg.autoEnabled) {
+  if (activeLots.length === 0 && pausedLots.length === 0 && ahCfg.autoEnabled) {
     const seeded = await seedDailyAuctions(client, ahCfg.lotsPerDrop, true, ahCfg.durationHours);
     activeLots = seeded.listings;
   }
 
+  const pausedMsMap = await getPausedLotsRemainingMap(pausedLots.map(l => l.id));
+
   const caller = await prisma.player.findUnique({ where: { id: viewerId }, select: { profileTheme: true } });
   const coinEmoji = getEmoji(guild, 'coin');
-  const bidderIds = [...new Set(activeLots.map(l => l.highestBidderId).filter(Boolean) as string[])];
+  const bidderIds = [...new Set([...activeLots, ...pausedLots].map(l => l.highestBidderId).filter(Boolean) as string[])];
   const bidders = bidderIds.length > 0
     ? await prisma.player.findMany({ where: { id: { in: bidderIds } }, select: { id: true, username: true } })
     : [];
@@ -58,26 +68,50 @@ export async function buildAuctionHousePayload(viewerId: string, client: Client,
       `• **Min Next Bid:** \`${formatK(minNext)}\` ${coinEmoji} (\`${formatTimeRemaining(lot.endsAt)}\`)`;
   });
 
-  const canvasLots = activeLots.map((lot, i) => ({
-    lotNumber: i + 1,
-    itemKey: lot.itemKey,
-    itemName: lot.itemName,
-    description: lot.description,
-    leaderName: lot.highestBidderId ? bidderNameMap.get(lot.highestBidderId) || 'Collector' : null,
-    currentOrStartBid: lot.currentBid > 0n ? lot.currentBid : lot.startingPrice,
-    minNextBid: lot.currentBid > 0n ? lot.currentBid + ahCfg.minBidIncrement : lot.startingPrice,
-    timeRemaining: formatTimeRemaining(lot.endsAt)
-  }));
+  const pausedLines = pausedLots.map((lot, i) => {
+    const frozenMs = pausedMsMap.get(lot.id) ?? 0;
+    const leaderText = lot.highestBidderId
+      ? `**${bidderNameMap.get(lot.highestBidderId) || `<@${lot.highestBidderId}>`}** (\`${formatK(lot.currentBid)}\` ${coinEmoji})`
+      : `*Opens at \`${formatK(lot.startingPrice)}\` ${coinEmoji}*`;
+    return `⏸️ **[Halted #${i + 1}]** ${lot.emoji} **${lot.itemName}**\n` +
+      `• **Standing:** ${leaderText} • **Frozen Time Left:** \`${frozenMs > 0 ? formatDurationMs(frozenMs) : 'Paused'}\``;
+  });
+
+  const canvasSourceLots = activeLots.length > 0 ? activeLots : pausedLots;
+  const canvasLots = canvasSourceLots.map((lot, i) => {
+    const timeRemaining = lot.status === 'PAUSED'
+      ? `PAUSED (${formatDurationMs(pausedMsMap.get(lot.id) ?? 0)})`
+      : formatTimeRemaining(lot.endsAt);
+    return {
+      lotNumber: i + 1,
+      itemKey: lot.itemKey,
+      itemName: lot.itemName,
+      description: lot.description,
+      leaderName: lot.highestBidderId ? bidderNameMap.get(lot.highestBidderId) || 'Collector' : null,
+      currentOrStartBid: lot.currentBid > 0n ? lot.currentBid : lot.startingPrice,
+      minNextBid: lot.currentBid > 0n ? lot.currentBid + ahCfg.minBidIncrement : lot.startingPrice,
+      timeRemaining
+    };
+  });
 
   const vaultBuf = await renderAuctionHouseCanvas(canvasLots, caller?.profileTheme);
   const attachment = new AttachmentBuilder(vaultBuf, { name: 'auction_house.png' });
+
+  const bodyBlocks: string[] = [];
+  if (lines.length > 0) bodyBlocks.push(lines.join('\n\n'));
+  if (pausedLines.length > 0) {
+    bodyBlocks.push(`### ⏸️ Halted Auction Lots *(Admin \`-auctionresume\` to continue)*\n${pausedLines.join('\n\n')}`);
+  }
+  if (bodyBlocks.length === 0) {
+    bodyBlocks.push('*No active lots right now. Admins can launch via `-seedauction` or `-auctionstart`.*');
+  }
 
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.GOLD)
     .setTitle('🏛️ Automated Daily Auction House — Collector Vault')
     .setDescription(
       [
-        lines.length > 0 ? lines.join('\n\n') : '*No active lots right now. Admins can launch via `-seedauction` or `-auctionstart`.*',
+        ...bodyBlocks,
         `${UI.DIVIDER}\n` +
         subtext(`💡 At \`-travel ah\`: \`-bid <amount> [lot#]\` • Min Increment: \`+${formatK(ahCfg.minBidIncrement)}\` • Anti-Snipe: \`+${ahCfg.antiSnipeMinutes}m\``)
       ].join(UI.SPACER)
@@ -287,6 +321,26 @@ export async function handleAuctionCancelCommand(message: Message, args: string[
   if (isNaN(lotNum) || lotNum < 1) return await message.reply('❌ Usage: `-auctioncancel <lot#>`');
   try {
     const res = await settleOrCancelAuctionLot(lotNum, 'cancel', message.client);
+    await message.reply(res.message);
+  } catch (err: any) {
+    await message.reply(`❌ Failed: ${err.message}`);
+  }
+}
+
+export async function handleAuctionHaltCommand(message: Message, args: string[]) {
+  if (!isAhAdmin(message)) return await message.reply('❌ Unauthorized.');
+  try {
+    const res = await haltAuctionLots(args[0], message.client);
+    await message.reply(res.message);
+  } catch (err: any) {
+    await message.reply(`❌ Failed: ${err.message}`);
+  }
+}
+
+export async function handleAuctionResumeCommand(message: Message, args: string[]) {
+  if (!isAhAdmin(message)) return await message.reply('❌ Unauthorized.');
+  try {
+    const res = await resumeAuctionLots(args[0], message.client);
     await message.reply(res.message);
   } catch (err: any) {
     await message.reply(`❌ Failed: ${err.message}`);

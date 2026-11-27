@@ -15,12 +15,37 @@ import { buildTacticsContainer, parseTeamTactics, serializeTeamTactics, TeamTact
 import { formatK } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
+import { validateCommandAccess } from '../engines/campusEngine.js';
+
+const INTERACTION_CMD_PREFIX_MAP: Array<{ prefix: string; exact?: boolean; cmd: string }> = [
+  { prefix: 'sptrain_select_', cmd: 'sptrain' },
+  { prefix: 'train_', cmd: 'train' },
+  { prefix: 'showroom_page_', cmd: 'showroom' },
+  { prefix: 'avatar_page_', cmd: 'avatar' },
+  { prefix: 'ah_refresh', exact: true, cmd: 'ah' },
+  { prefix: 'sponsor_', cmd: 'advert' }
+];
 
 export async function onInteractionCreate(interaction: Interaction) {
   if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
 
   try {
     const customId = interaction.customId;
+
+    const matchedRule = INTERACTION_CMD_PREFIX_MAP.find(r =>
+      r.exact ? customId === r.prefix : customId.startsWith(r.prefix)
+    );
+    if (matchedRule) {
+      const access = await validateCommandAccess({
+        cmd: matchedRule.cmd,
+        userId: interaction.user.id,
+        guild: interaction.guild,
+        channelId: interaction.channelId
+      });
+      if (!access.allowed && access.message) {
+        return await interaction.reply({ content: access.message, ephemeral: true });
+      }
+    }
 
     // ==========================================
     // TACTICS SYSTEM (COMPONENTS V2)

@@ -29,20 +29,136 @@ export async function getPlayerTravelCooldown(playerId: string): Promise<{ coold
 }
 
 /**
- * Handles spatial travel between the 8 campus facilities
+ * Canonical mapping from prefix command aliases to required campus location IDs.
  */
+export const COMMAND_LOCATION_MAP: Record<string, string> = {
+  train: 'tc',
+  sptrain: 'rf',
+  upgrade: 'rf',
+  convert: 'rf',
+  recovery: 'ch',
+  sauna: 'ch',
+  coaching: 'ch',
+  coach: 'ch',
+  meetgreet: 'ch',
+  mg: 'ch',
+  buy: 'gm',
+  shop: 'gm',
+  gm: 'gm',
+  market: 'gm',
+  showroom: 'gm',
+  dealership: 'gm',
+  vs: 'gm',
+  vehiclebuy: 'gm',
+  buycar: 'gm',
+  avatar: 'gm',
+  avatars: 'gm',
+  boutique: 'gm',
+  avatarbuy: 'gm',
+  avatarclaim: 'gm',
+  advert: 'ph',
+  sponsor: 'ph',
+  intel: 'ih',
+  scout: 'ih',
+  ah: 'ah',
+  auction: 'ah',
+  auctions: 'ah',
+  bid: 'ah'
+};
+
+const CHANNEL_ONLY_COMMANDS: Record<string, { channelKeyword: string; label: string }> = {
+  chirp: { channelKeyword: 'twitter', label: '🐦 TwitFeed' },
+  tweet: { channelKeyword: 'twitter', label: '🐦 TwitFeed' }
+};
+
 /**
  * Resolves the Discord channel corresponding to a BTFW campus location ID.
  */
 export function findLocationChannel(guild: Guild, locId: string) {
   const loc = CAMPUS_LOCATIONS[locId];
   if (!loc) return undefined;
-  return guild.channels.cache.find(c => {
-    const n = c.name.toLowerCase();
-    if (n.includes(loc.channelName)) return true;
-    if (locId === 'ch' && (n.includes('local-club') || n.includes('clubhouse'))) return true;
-    return false;
+  const exact = guild.channels.cache.find(c => c.name.toLowerCase().includes(loc.channelName));
+  if (exact) return exact;
+  if (locId === 'ch') {
+    return guild.channels.cache.find(c => {
+      const n = c.name.toLowerCase();
+      return n.includes('local-club') || n.includes('clubhouse');
+    });
+  }
+  return undefined;
+}
+
+/**
+ * Validates that a command or facility interaction is executed from its designated
+ * campus location (DB `currentLocation`) and corresponding Discord channel.
+ */
+export async function validateCommandAccess(options: {
+  cmd: string;
+  userId: string;
+  guild?: Guild | null;
+  channelId?: string | null;
+}): Promise<{ allowed: boolean; message?: string }> {
+  const { cmd, userId, guild, channelId } = options;
+  const normalizedCmd = cmd.toLowerCase();
+
+  const channelSpec = CHANNEL_ONLY_COMMANDS[normalizedCmd];
+  if (channelSpec && guild) {
+    const targetCh = guild.channels.cache.find(
+      c => c.isTextBased() && c.name.toLowerCase().includes(channelSpec.channelKeyword)
+    );
+    if (targetCh && channelId !== targetCh.id) {
+      return {
+        allowed: false,
+        message: `❌ You are in the wrong location! Travel/switch to <#${targetCh.id}> (**${channelSpec.label}**) to use \`-${normalizedCmd}\`.`
+      };
+    }
+    return { allowed: true };
+  }
+
+  const requiredLocId = COMMAND_LOCATION_MAP[normalizedCmd];
+  if (!requiredLocId) {
+    return { allowed: true };
+  }
+
+  const loc = CAMPUS_LOCATIONS[requiredLocId];
+  const targetChannel = guild ? findLocationChannel(guild, requiredLocId) : undefined;
+  const wrongChannel = Boolean(guild && targetChannel && channelId !== targetChannel.id);
+
+  const player = await prisma.player.findUnique({
+    where: { id: userId },
+    select: { currentLocation: true }
   });
+
+  if (!player) {
+    const channelHint = targetChannel ? ` (<#${targetChannel.id}>)` : '';
+    if (wrongChannel) {
+      return {
+        allowed: false,
+        message: `❌ You are in the wrong location! Register first with \`-profile\`, then travel to **${loc.emoji} ${loc.name}** (\`-travel ${loc.alias}\`)${channelHint} to use \`-${normalizedCmd}\`.`
+      };
+    }
+    return {
+      allowed: false,
+      message: `❌ Player not found. Run \`-profile\` first, then travel to **${loc.emoji} ${loc.name}** (\`-travel ${loc.alias}\`) to use \`-${normalizedCmd}\`.`
+    };
+  }
+
+  const wrongLocation = player.currentLocation !== requiredLocId;
+  if (wrongLocation || wrongChannel) {
+    const channelHint = targetChannel ? ` (<#${targetChannel.id}>)` : '';
+    if (wrongLocation) {
+      return {
+        allowed: false,
+        message: `❌ You are in the wrong location! Travel to **${loc.emoji} ${loc.name}** (\`-travel ${loc.alias}\`)${channelHint} to use \`-${normalizedCmd}\`.`
+      };
+    }
+    return {
+      allowed: false,
+      message: `❌ You are in the wrong location! Head over to ${targetChannel ? `<#${targetChannel.id}>` : `**${loc.emoji} ${loc.name}**`} (**${loc.emoji} ${loc.name}** • \`-travel ${loc.alias}\`) to use \`-${normalizedCmd}\`.`
+    };
+  }
+
+  return { allowed: true };
 }
 
 /**

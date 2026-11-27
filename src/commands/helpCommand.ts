@@ -40,10 +40,11 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '🏟️ Streamlined Football Campus (-locations)',
         value:
-          '• `-travel <alias>` — Fast-travel between **7 campus hubs** (20m base CD, cars cut down to 1m):\n' +
-          '  `tc` Training Center • `rf` Research Facility • `ch` **Player Clubhouse** *(ex-Sauna & Local Club)*\n' +
-          '  `gm` **Global Market** *(Gear, Vehicles & Avatars)* • `ph` Photoshoot Hall\n' +
-          '  `ih` Intel Hub • `ah` **Auction House** *(Legacy aliases `ps`/`lc`/`vs` auto-redirect)*.'
+          '• `-travel <alias>` — Fast-travel between **7 campus hubs** (20m base CD, cars cut down to 1m). Facility commands only work in their channel:\n' +
+          '  `tc` Training Center (`-train`) • `rf` Research Lab (`-sptrain`, `-convert`)\n' +
+          '  `ch` Player Clubhouse (`-recovery`, `-coaching`, `-meetgreet`)\n' +
+          '  `gm` Global Market (`-buy`, `-showroom`, `-avatar`) • `ph` Photoshoot Hall (`-advert`)\n' +
+          '  `ih` Intel Hub (`-intel`) • `ah` Auction House (`-ah`, `-bid`). TwitFeed (`-tweet`) is locked to `#twitter`.'
       },
       {
         name: '🏋️ Training & Clubhouse Recovery (-ch)',
@@ -80,16 +81,16 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '⚽ Match Engines & VIP Exhibitions',
         value:
-          '• `-match [@user]` / `-livematch [full]` / `-batchmatch [N]` — AI 90m matches, live episodic commentary (`#live-match`), possession charts, CSV datasets & `#news` Gazette.\n' +
-          '• `-friendly [@user]` / `-match friendly` — 👑 **VIP All-Star Exhibition** (zero stat drops + permanent `+1–2` MOTM stat gain!).\n' +
+          '• `-match [@user]` / `-livematch [full]` / `-batchmatch [N]` — AI 90m matches, live 20–30s commentary (`#live-match`), charts & `#news` Gazette.\n' +
+          '• `-friendly [@user]` / `-match friendly` — 👑 **VIP All-Star Exhibition** (zero stat drops + permanent `+1–2` MOTM boost).\n' +
           '• `-tactics [team]` • `-intstats` • `-clubstats` • `-roster <alias>`.'
       },
       {
         name: '👑 Admin, VIP & DevOps',
         value:
-          '• `-setup` • `-setupemojis` (`-emojis`) • `-vip give @user <days>` / `-vip remove @user`\n' +
+          '• `-setup` • `-setupemojis` • `-vip give @user <days>` / `-vip remove @user` • `-testmatch <o1> <o2> <on|off> <on|off>`\n' +
           '• `-setprice <item|boots|avatars|banners|cars|reset> <amt>` • `-devfund <amt> [@user]`\n' +
-          '• `-seedauction [n] [hrs]` • `-auctionstart <item> <bid> [hrs]` • `-auctionconfig` • `-auctionend`/`-auctioncancel <lot#>`\n' +
+          '• `-seedauction [n] [hrs]` • `-auctionstart` • `-auctionconfig` • `-auctionhalt`/`-auctionresume [lot#]` • `-auctionend`/`-auctioncancel <lot#>`\n' +
           `• \`-additem <symbol> @user\` (${worldcup}) • \`-addvar <var> <val> @user\` • \`-gitpull\` / \`-gitpullback\``
       }
     )
