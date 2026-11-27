@@ -72,7 +72,7 @@ export async function handleHelpCommand(message: Message) {
         value:
           '• `-advert` — 6 Brand Endorsements at `ph`:\n' +
           `  ${heineken} Heineken (100k) • ${adidas} Adidas (1M) • 👑 **VIP Signature** (+300k ${coin} @ 1M fans) • ${cocacola} Coca-Cola (5M) • ${netflix} Netflix (6M) • ${nike} Nike (8M)\n` +
-          `• \`-tweet <text>\` / \`-chirp\` — Post to TwitFeed w/ 👍/👎 votes (\`+5k\` / \`-2.5k\` ${followers} + DMs).`
+          `• \`-tweet <text>\` / \`-chirp\` — Post to TwitFeed w/ 👍/👎 votes (\`+100k\` / \`-50k\` ${followers} for author, \`+5k\` ${coin} per voter + DMs).`
       },
       {
         name: '⚽ Match Engines & VIP Exhibitions',

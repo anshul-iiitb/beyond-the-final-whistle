@@ -1,7 +1,7 @@
 import { Interaction, ButtonInteraction, StringSelectMenuInteraction, TextChannel, MessageFlags } from 'discord.js';
 import { executeTraining } from '../engines/trainingEngine.js';
 import { buildTrainingSuccessEmbed } from '../commands/trainingCommands.js';
-import { executeSponsorAdvert, applyTweetVote } from '../engines/socialEngine.js';
+import { executeSponsorAdvert, applyTweetVote, buildUpdatedTweetEmbed } from '../engines/socialEngine.js';
 import { prisma } from '../database/prisma.js';
 import { buildProfileEmbed, buildProfileTabsRow, buildProfileBannerAttachment } from '../commands/playerCommands.js';
 import { buildTacticsContainer, parseTeamTactics, serializeTeamTactics, TeamTactics } from '../commands/tacticsCommand.js';
@@ -173,19 +173,22 @@ export async function onInteractionCreate(interaction: Interaction) {
         return await interaction.reply({ content: voteResult.error || '❌ Unable to vote.', ephemeral: true });
       }
 
-      const newFollowersStr = formatK(voteResult.newFollowers ?? 0n);
       const existingEmbed = interaction.message.embeds[0];
       if (existingEmbed) {
-        const newEmbed = existingEmbed.toJSON();
-        newEmbed.title = `${voteResult.authorUsername} ${voteResult.authorFlag} Tweeted!`;
-        newEmbed.fields = [
-          { name: `Followers 👤 : ${newFollowersStr}`, value: `${voteResult.likes} 👍  ${voteResult.dislikes} 👎`, inline: false }
-        ];
+        const newEmbed = buildUpdatedTweetEmbed(existingEmbed, voteResult);
         await interaction.message.edit({ embeds: [newEmbed] }).catch(() => {});
       }
 
+      const coinRewardNote =
+        voteResult.reactorCoinsAwarded && voteResult.reactorCoinsAwarded > 0n
+          ? ` You earned **+${formatK(voteResult.reactorCoinsAwarded)} coins**!`
+          : ' Register with `-profile` to earn **+5k coins** per reaction!';
+
       return await interaction.reply({
-        content: isLike ? 'You liked the tweet! (+5k followers to author)' : 'You disliked the tweet! (-2.5k followers to author)',
+        content:
+          (isLike
+            ? 'You liked the tweet! (+100k followers to author).'
+            : 'You disliked the tweet! (-50k followers to author).') + coinRewardNote,
         ephemeral: true
       });
     }

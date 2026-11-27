@@ -163,16 +163,29 @@ model FootballClub {
 }
 
 model PlayerTweet {
-  id                String    @id @default(cuid())
+  id                String            @id @default(cuid())
   discordMessageId  String?
   authorId          String
-  author            Player    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author            Player            @relation(fields: [authorId], references: [id], onDelete: Cascade)
   content           String
-  likes             Int       @default(0)
-  dislikes          Int       @default(0)
-  createdAt         DateTime  @default(now())
+  likes             Int               @default(0)
+  dislikes          Int               @default(0)
+  createdAt         DateTime          @default(now())
+  votes             PlayerTweetVote[]
 
   @@index([authorId])
+}
+
+model PlayerTweetVote {
+  id        String      @id @default(cuid())
+  tweetId   String
+  tweet     PlayerTweet @relation(fields: [tweetId], references: [id], onDelete: Cascade)
+  voterId   String
+  isLike    Boolean
+  createdAt DateTime    @default(now())
+
+  @@unique([tweetId, voterId])
+  @@index([voterId])
 }
 
 model MatchSimulation {

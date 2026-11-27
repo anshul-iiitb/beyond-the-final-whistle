@@ -8,8 +8,9 @@ import { getEmoji } from '../utils/emojiHelper.js';
 
 const tweetVotersCache = new Map<string, Set<string>>();
 
-export const TWEET_LIKE_REWARD = 5000n;
-export const TWEET_DISLIKE_PENALTY = 2500n;
+export const TWEET_LIKE_REWARD = 100000n;
+export const TWEET_DISLIKE_PENALTY = 50000n;
+export const TWEET_REACTOR_COIN_REWARD = 5000n;
 
 export interface SponsorExecutionResult {
   success: boolean;
@@ -273,11 +274,25 @@ export interface TweetVoteResult {
   newFollowers?: bigint;
   likes?: number;
   dislikes?: number;
+  reactorCoinsAwarded?: bigint;
+}
+
+/**
+ * Formats the updated TwitFeed embed JSON after a like/dislike vote.
+ */
+export function buildUpdatedTweetEmbed(existingEmbed: { toJSON(): any }, voteResult: TweetVoteResult) {
+  const newEmbed = existingEmbed.toJSON();
+  const newFollowersStr = formatK(voteResult.newFollowers ?? 0n);
+  newEmbed.title = `${voteResult.authorUsername} ${voteResult.authorFlag} Tweeted!`;
+  newEmbed.fields = [
+    { name: `Followers 👤 : ${newFollowersStr}`, value: `${voteResult.likes} 👍  ${voteResult.dislikes} 👎`, inline: false }
+  ];
+  return newEmbed;
 }
 
 /**
  * Shared TwitFeed vote processor for both interactive buttons and emoji reactions.
- * Uses balanced +5k / -2.5k follower adjustments and prevents duplicate votes per tweet.
+ * Author receives +100k followers on 👍 or -50k on 👎; registered voters earn +5k coins per post.
  */
 export async function applyTweetVote(
   lookup: { id?: string; discordMessageId?: string },
@@ -304,36 +319,82 @@ export async function applyTweetVote(
     tweetVotersCache.set(tweet.id, voters);
   }
   if (voters.has(voterId)) return { success: false, error: '❌ You have already voted on this tweet!' };
+
+  let txResult: {
+    alreadyVoted?: boolean;
+    updatedAuthor?: { username: string; followers: bigint; nation: any };
+    updatedTweet?: { likes: number; dislikes: number };
+    reactorCoinsAwarded: bigint;
+  };
+
+  try {
+    txResult = await prisma.$transaction(async (tx) => {
+      await tx.playerTweetVote.create({
+        data: { tweetId: tweet.id, voterId, isLike }
+      });
+
+      const currentAuthor = await tx.player.findUnique({
+        where: { id: tweet.authorId },
+        select: { followers: true }
+      });
+      const currentFollowers = currentAuthor?.followers ?? tweet.author.followers;
+
+      const nextFollowers = isLike
+        ? currentFollowers + TWEET_LIKE_REWARD
+        : currentFollowers >= TWEET_DISLIKE_PENALTY
+          ? currentFollowers - TWEET_DISLIKE_PENALTY
+          : 0n;
+
+      const updatedAuthor = await tx.player.update({
+        where: { id: tweet.authorId },
+        data: { followers: nextFollowers },
+        include: { nation: true }
+      });
+
+      const updatedTweet = await tx.playerTweet.update({
+        where: { id: tweet.id },
+        data: isLike ? { likes: { increment: 1 } } : { dislikes: { increment: 1 } }
+      });
+
+      // Reward any registered voter with +5k coins for engaging
+      let reactorCoinsAwarded = 0n;
+      const voterPlayer = await tx.player.findUnique({ where: { id: voterId }, select: { id: true } });
+      if (voterPlayer) {
+        await tx.player.update({
+          where: { id: voterId },
+          data: { coins: { increment: TWEET_REACTOR_COIN_REWARD } }
+        });
+        reactorCoinsAwarded = TWEET_REACTOR_COIN_REWARD;
+      }
+
+      return { updatedAuthor, updatedTweet, reactorCoinsAwarded };
+    });
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      voters.add(voterId);
+      return { success: false, error: '❌ You have already voted on this tweet!' };
+    }
+    throw err;
+  }
+
   voters.add(voterId);
-
-  const nextFollowers = isLike
-    ? tweet.author.followers + TWEET_LIKE_REWARD
-    : tweet.author.followers >= TWEET_DISLIKE_PENALTY
-      ? tweet.author.followers - TWEET_DISLIKE_PENALTY
-      : 0n;
-
-  const updatedAuthor = await prisma.player.update({
-    where: { id: tweet.authorId },
-    data: { followers: nextFollowers },
-    include: { nation: true }
-  });
-
-  const updatedTweet = await prisma.playerTweet.update({
-    where: { id: tweet.id },
-    data: isLike ? { likes: { increment: 1 } } : { dislikes: { increment: 1 } }
-  });
+  const updatedAuthor = txResult.updatedAuthor!;
+  const updatedTweet = txResult.updatedTweet!;
 
   try {
     const voterUser = await client.users.fetch(voterId).catch(() => null);
     if (voterUser) {
-      await voterUser.send(isLike ? 'You have successfully liked the tweet!' : 'You have successfully disliked the tweet!').catch(() => {});
+      const voterDm = txResult.reactorCoinsAwarded > 0n
+        ? `You ${isLike ? 'liked' : 'disliked'} **${updatedAuthor.username}**'s tweet and earned **+${formatK(txResult.reactorCoinsAwarded)} coins**!`
+        : `You have successfully ${isLike ? 'liked' : 'disliked'} the tweet! Register with \`-profile\` to earn **+5k coins** per reaction!`;
+      await voterUser.send(voterDm).catch(() => {});
     }
     const authorUser = await client.users.fetch(tweet.authorId).catch(() => null);
     if (authorUser) {
       await authorUser.send(
         isLike
-          ? 'Someone liked your post! You gained +5k followers!'
-          : 'Someone disliked your post! You lost 2.5k followers!'
+          ? 'Someone liked your post! You gained **+100k followers**!'
+          : 'Someone disliked your post! You lost **50k followers**!'
       ).catch(() => {});
     }
   } catch {}
@@ -344,6 +405,7 @@ export async function applyTweetVote(
     authorFlag: getNationFlag(updatedAuthor.nation),
     newFollowers: updatedAuthor.followers,
     likes: updatedTweet.likes,
-    dislikes: updatedTweet.dislikes
+    dislikes: updatedTweet.dislikes,
+    reactorCoinsAwarded: txResult.reactorCoinsAwarded
   };
 }

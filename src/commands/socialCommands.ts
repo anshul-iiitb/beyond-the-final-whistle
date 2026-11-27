@@ -123,7 +123,7 @@ export async function handleChirpCommand(message: Message, args: string[]) {
     .setDescription(
       `"${tweetText}"\n\n` +
       `${UI.SUB_DIVIDER}\n` +
-      `👥 **Followers:** \`${formatK(player.followers)}\` ${followersEmoji} • 💬 **TwitFeed Post** *(+5k 👍 / -2.5k 👎)*`
+      `👥 **Followers:** \`${formatK(player.followers)}\` ${followersEmoji} • 💬 **TwitFeed Post** *(+100k 👍 / -50k 👎 fans • Voters get +5k 🪙)*`
     )
     .addFields({
       name: `Followers 👤 : ${formatK(player.followers)}`,
@@ -136,12 +136,12 @@ export async function handleChirpCommand(message: Message, args: string[]) {
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`tweet_like_${tweet.id}`)
-      .setLabel('Like (+5k)')
+      .setLabel('Like (+100k)')
       .setEmoji('👍')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`tweet_dislike_${tweet.id}`)
-      .setLabel('Dislike (-2.5k)')
+      .setLabel('Dislike (-50k)')
       .setEmoji('👎')
       .setStyle(ButtonStyle.Danger)
   );
