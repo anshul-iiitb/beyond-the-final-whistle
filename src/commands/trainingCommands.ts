@@ -178,7 +178,7 @@ export function buildSpTrainSelectionMenu(
 
   const sections = [
     `**Cost Per +1 Rating:** \`${staminaCost}\` ${staminaEmoji} **Stamina** + **` +
-    `3–15\`** ${tpEmoji} **TP** *(dynamic per attribute)*\n` +
+    `3–15\`** ${tpEmoji} **TP** *(3 TP → 51/52, 4 → 53, ..., capped at 15)*\n` +
     `**Your Reserves:** **\`${player.trainingPoints} TP\`** ${tpEmoji}   •   **\`${player.stamina}/100\`** ${staminaEmoji} Stamina\n` +
     `**Facility Check:** ${atFacility ? '✅ Inside Research Facility' : '⚠️ Travel to Research Facility first (`-travel rf`)'}`,
     ...categoryBlocks,

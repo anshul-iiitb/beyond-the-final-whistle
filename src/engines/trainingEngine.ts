@@ -127,10 +127,14 @@ export interface AttributeLabItem {
   canAfford: boolean;
 }
 
-export function calculateAttributeTpCost(currentVal: number, minVal: number, maxVal: number): number {
-  if (maxVal <= minVal) return 5;
-  const ratio = (currentVal - minVal) / (maxVal - minVal);
-  return Math.max(3, Math.min(15, Math.round(3 + ratio * 12)));
+/**
+ * Progressive TP cost starting from 50:
+ * 3 TP for 51 & 52, 4 TP for 53, 5 TP for 54, ..., capped at 15 TP (64+).
+ */
+export function calculateAttributeTpCost(currentVal: number): number {
+  const nextRating = currentVal + 1;
+  if (nextRating <= 52) return 3;
+  return Math.min(15, nextRating - 49);
 }
 
 /**
@@ -140,15 +144,9 @@ export async function getAttributeLabOverview(playerId: string) {
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) return null;
 
-  const selectCols = Object.fromEntries(ATTRIBUTES_LIST.map(a => [a.key, true])) as Record<string, boolean>;
-  const allPlayers = await prisma.player.findMany({ select: selectCols }) as unknown as Record<string, number>[];
-
   const attributes: AttributeLabItem[] = ATTRIBUTES_LIST.map(meta => {
     const currentVal = (player as any)[meta.key] as number;
-    const values = allPlayers.map(p => Number(p[meta.key] ?? 50));
-    const minVal = values.length ? Math.min(...values) : 50;
-    const maxVal = values.length ? Math.max(...values) : 50;
-    const tpCost = calculateAttributeTpCost(currentVal, minVal, maxVal);
+    const tpCost = calculateAttributeTpCost(currentVal);
     const isMaxed = currentVal >= 99;
     const canAffordTp = player.trainingPoints >= tpCost;
     const canAffordStamina = player.stamina >= SP_TRAIN_STAMINA_COST;
@@ -173,8 +171,7 @@ export async function getAttributeLabOverview(playerId: string) {
 }
 
 /**
- * Biomechanics Lab: Upgrades an attribute using TP and stamina.
- * Costs 50 Stamina and between 3 and 15 TP dynamically calculated based on leaderboard standing.
+ * Biomechanics Lab: Upgrades an attribute using progressive TP (3–15 TP) and 50 Stamina.
  */
 export async function upgradeAttribute(playerId: string, attributeKey: string) {
   const player = await prisma.player.findUnique({ where: { id: playerId } });
@@ -204,12 +201,7 @@ export async function upgradeAttribute(playerId: string, attributeKey: string) {
     return { success: false, message: `⚡ Upgrading requires **${SP_TRAIN_STAMINA_COST} Stamina** (You have ${player.stamina}/100). Rest at sauna or drink a sports drink.` };
   }
 
-  // Calculate dynamic TP cost (3 to 15 TP)
-  const allPlayers = await prisma.player.findMany({ select: { [attrLower]: true } });
-  const values = allPlayers.map((p: any) => p[attrLower] as number);
-  const minVal = values.length ? Math.min(...values) : 50;
-  const maxVal = values.length ? Math.max(...values) : 50;
-  const tpCost = calculateAttributeTpCost(currentVal, minVal, maxVal);
+  const tpCost = calculateAttributeTpCost(currentVal);
 
   if (player.trainingPoints < tpCost) {
     return {
