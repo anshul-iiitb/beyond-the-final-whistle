@@ -62,6 +62,29 @@ export function truncateText(ctx: SKRSContext2D, text: string, maxWidth: number)
   return str.length > 0 ? `${str}..` : '';
 }
 
+/**
+ * Scales font down smoothly between maxPx and minPx so text never overflows maxWidth on Linux or Windows fonts.
+ */
+export function drawFittedText(
+  ctx: SKRSContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  fontFamily: string,
+  maxPx: number,
+  minPx: number,
+  weight = 'bold'
+) {
+  let size = maxPx;
+  ctx.font = `${weight} ${size}px ${fontFamily}`;
+  while (size > minPx && ctx.measureText(text).width > maxWidth) {
+    size -= 0.5;
+    ctx.font = `${weight} ${size}px ${fontFamily}`;
+  }
+  ctx.fillText(truncateText(ctx, text, maxWidth), x, y);
+}
+
 export function drawRoundedRect(
   ctx: SKRSContext2D,
   x: number,
@@ -1022,7 +1045,7 @@ async function drawVehicleSprite(ctx: SKRSContext2D, item: ShowroomCardItem, x: 
   const hiresDir = path.resolve(process.cwd(), 'assets', 'emojis_hires');
   try {
     if (item.spriteMode === 'full') {
-      const fullPath = path.join(hiresDir, `${item.key}full.png`);
+      const fullPath = path.join(hiresDir, `${item.spritePrefix}full.png`);
       if (fs.existsSync(fullPath)) {
         const img = await loadLocalImageCached(fullPath);
         ctx.drawImage(img, x, y, w, h);
@@ -1079,19 +1102,27 @@ export async function renderShowroomCanvas(options: {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 26px "Segoe UI", Arial, sans-serif';
-  ctx.fillText(truncateText(ctx, cleanCanvasText(options.pageTitle).toUpperCase(), hz.w - 170), hz.x + hz.w / 2 + 12, hz.y + 32);
+  drawFittedText(
+    ctx,
+    cleanCanvasText(options.pageTitle).toUpperCase(),
+    hz.x + hz.w / 2 + 12,
+    hz.y + 32,
+    hz.w - 170,
+    '"Segoe UI", Arial, sans-serif',
+    26,
+    18
+  );
 
   ctx.fillStyle = '#fde047';
-  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
-  ctx.fillText(
-    truncateText(
-      ctx,
-      `CURRENT RIDE: ${cleanCanvasText(options.currentRide).toUpperCase()} (${options.currentCooldown}M CD)  •  WALLET: ${formatK(options.walletCoins)} COINS  •  PAGE ${options.page}/${options.totalPages}`,
-      hz.w - 170
-    ),
+  drawFittedText(
+    ctx,
+    `CURRENT RIDE: ${cleanCanvasText(options.currentRide).toUpperCase()} (${options.currentCooldown}M CD)  •  WALLET: ${formatK(options.walletCoins)} COINS  •  PAGE ${options.page}/${options.totalPages}`,
     hz.x + hz.w / 2 + 12,
-    hz.y + 66
+    hz.y + 66,
+    hz.w - 170,
+    '"Segoe UI", Arial, sans-serif',
+    13,
+    10
   );
   ctx.restore();
 
@@ -1101,7 +1132,7 @@ export async function renderShowroomCanvas(options: {
     const car = cards[i];
     const slot = spec.slots![i];
 
-    drawGlassScrim(ctx, slot.x + 134, slot.y + 12, slot.w - 144, slot.h - 24, 6, 0.72);
+    drawGlassScrim(ctx, slot.x + 132, slot.y + 12, slot.w - 142, slot.h - 24, 6, 0.74);
 
     if (car.owned) {
       ctx.save();
@@ -1113,27 +1144,52 @@ export async function renderShowroomCanvas(options: {
     }
 
     // Left Vehicle Sprite Display (w: 116x88)
-    await drawVehicleSprite(ctx, car, slot.x + 12, slot.y + 16, 118, 88);
+    await drawVehicleSprite(ctx, car, slot.x + 12, slot.y + 16, 116, 88);
 
-    // Right Info Block
+    // Right Info Block — strictly bounded inside the dark scrim (tx: +142 .. slot.w - 22)
     const tx = slot.x + 142;
-    const tw = slot.w - 156;
+    const tw = slot.w - 166;
     ctx.save();
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 17px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(truncateText(ctx, car.name.toUpperCase(), tw), tx, slot.y + 34);
+    drawFittedText(
+      ctx,
+      cleanCanvasText(car.name).toUpperCase(),
+      tx,
+      slot.y + 34,
+      tw,
+      '"Segoe UI", Arial, sans-serif',
+      17,
+      12.5
+    );
 
     ctx.fillStyle = '#cbd5e1';
-    ctx.font = 'bold 12px Consolas, monospace';
-    ctx.fillText(`alias: ${car.key}  •  ${car.cooldownMinutes}m travel`, tx, slot.y + 58);
+    drawFittedText(
+      ctx,
+      `alias: ${cleanCanvasText(car.key)}  •  ${car.cooldownMinutes}m travel`,
+      tx,
+      slot.y + 58,
+      tw,
+      '"Segoe UI", Arial, sans-serif',
+      12.5,
+      10
+    );
 
     // Bottom Price + Owned Badge
     ctx.fillStyle = car.owned ? '#34d399' : '#facc15';
-    ctx.font = 'bold 18px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(`${formatK(car.price)} COINS`, tx, slot.y + 92);
+    const priceMaxW = car.owned ? tw - 84 : tw;
+    drawFittedText(
+      ctx,
+      `${formatK(car.price)} COINS`,
+      tx,
+      slot.y + 92,
+      priceMaxW,
+      '"Segoe UI", Arial, sans-serif',
+      18,
+      13.5
+    );
 
     if (car.owned) {
       ctx.fillStyle = 'rgba(16, 185, 129, 0.25)';
@@ -1166,15 +1222,18 @@ export async function renderShowroomCanvas(options: {
     ctx.fillText(`SHOWROOM TIER ${options.page}/${options.totalPages}`, slot.x + 26, slot.y + 36);
 
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(`${cards.length} MODELS ON THIS FLOOR`, slot.x + 26, slot.y + 62);
+    drawFittedText(ctx, `${cards.length} MODELS ON THIS FLOOR`, slot.x + 26, slot.y + 62, slot.w - 52, '"Segoe UI", Arial, sans-serif', 16, 12);
 
     ctx.fillStyle = '#cbd5e1';
-    ctx.font = 'bold 12px Consolas, monospace';
-    ctx.fillText(
-      truncateText(ctx, `Ride: ${cleanCanvasText(options.currentRide)} (${options.currentCooldown}m CD)`, slot.w - 52),
+    drawFittedText(
+      ctx,
+      `Ride: ${cleanCanvasText(options.currentRide)} (${options.currentCooldown}m CD)`,
       slot.x + 26,
-      slot.y + 90
+      slot.y + 90,
+      slot.w - 52,
+      '"Segoe UI", Arial, sans-serif',
+      12.5,
+      10
     );
     ctx.restore();
   }

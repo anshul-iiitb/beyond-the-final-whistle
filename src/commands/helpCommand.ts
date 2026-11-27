@@ -57,7 +57,7 @@ export async function handleHelpCommand(message: Message) {
         name: '🛍️ Global Market, Vehicles & Boutiques (-gm)',
         value:
           `• \`-gm\` / \`-buy <item>\` — **Matchday Gear**: \`sd\` (+50 ${stamina}, 100k ${coin}) & \`strika\`/\`passa\`/\`bully\` (+10 stat boots, 500k ${coin}).\n` +
-          '• `-showroom [1-3]` & `-vehiclebuy <alias>` — **16 Cars** paginated across 3 tiers (5/6/5) inside `gm` (`mini`, `bmwm3`, `corvettec8`, `shelbymustang`, `jaguartype`, `bentley`, `mclarenf1`, + full fleet).\n' +
+          '• `-showroom [1-3]` & `-vehiclebuy <alias>` — **16 Cars** paginated across 3 tiers (5/6/5) inside `gm` (`mini`, `bmwm3`, `corvettec8`, `mustang`, `jaguartype`, `bentley`, `mclarenf1`, + full fleet).\n' +
           '• `-avatar` / `-avatarbuy <alias>` / `-avatarclaim <alias>` — Rotating **8-player monthly Avatars (750k) & Banners (3M)**; VIPs get 1 free monthly claim! Manage via `-equip <alias|none>`.'
       },
       {

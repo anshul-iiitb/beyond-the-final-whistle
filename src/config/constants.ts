@@ -154,7 +154,7 @@ export const VEHICLE_CATALOG: VehicleDef[] = [
   { key: 'corvettec8', name: 'Corvette C8', cost: 6500000n, cooldownMinutes: 6, emoji: '<:corvettec8front:1575602205040443592><:corvettec8back:1575602209717092382>' },
   { key: 'nissan', name: 'Nissan GTR', cost: 6750000n, cooldownMinutes: 6, emoji: '<:ngtrfront:1574441117662052483><:ngtrback:1574441112632958999>' },
   { key: 'audi', name: 'Audi R8', cost: 6750000n, cooldownMinutes: 5, emoji: '<:ar8front:1574441060116074632><:ar8back:1574441055099813898>' },
-  { key: 'shelbymustang', name: 'Shelby Mustang', cost: 6900000n, cooldownMinutes: 5, emoji: '<:shelbymustangfront:1575602214167117854><:shelbymustangback:1575602218684522601>' },
+  { key: 'mustang', name: 'Shelby Mustang', cost: 6900000n, cooldownMinutes: 5, emoji: '<:shelbymustangfront:1575602214167117854><:shelbymustangback:1575602218684522601>' },
   { key: 'jaguartype', name: 'Jaguar E-Type', cost: 7250000n, cooldownMinutes: 4, emoji: '<:jaguartypefront:1575602223088668828><:jaguartypeback:1575602228025106462>' },
   { key: 'lamborghini', name: 'Lamborghini Huracan', cost: 8400000n, cooldownMinutes: 3, emoji: '<:lhfront:1574441105301315615><:lhback:1574441100280602727>' },
 
@@ -170,6 +170,7 @@ const FULL_SPRITE_VEHICLE_KEYS = new Set([
   'mini',
   'bmwm3',
   'corvettec8',
+  'mustang',
   'shelbymustang',
   'jaguartype',
   'bentley',
@@ -180,6 +181,9 @@ const FULL_SPRITE_VEHICLE_KEYS = new Set([
  * Resolves whether a vehicle renders from a unified `<key>full.png` hi-res sprite or a `<prefix>front/back.png` pair.
  */
 export function resolveVehicleSprite(vehicleKey: string, emoji = ''): { spriteMode: 'full' | 'split'; spritePrefix: string } {
+  if (vehicleKey === 'mustang' || vehicleKey === 'shelbymustang') {
+    return { spriteMode: 'full', spritePrefix: 'shelbymustang' };
+  }
   if (FULL_SPRITE_VEHICLE_KEYS.has(vehicleKey)) {
     return { spriteMode: 'full', spritePrefix: vehicleKey };
   }

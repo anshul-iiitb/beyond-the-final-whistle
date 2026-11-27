@@ -126,7 +126,9 @@ export async function buyVehicle(playerId: string, vehicleAlias: string): Promis
     return { success: false, message: '❌ You must be at the **🛍️ Global Market** (`-travel gm`) to buy a vehicle!' };
   }
 
-  const targetDef = VEHICLE_CATALOG.find(v => v.key.toLowerCase() === vehicleAlias.toLowerCase() || v.name.toLowerCase().includes(vehicleAlias.toLowerCase()));
+  const cleanAlias = vehicleAlias.toLowerCase().trim();
+  const lookupKey = cleanAlias === 'shelbymustang' ? 'mustang' : cleanAlias;
+  const targetDef = VEHICLE_CATALOG.find(v => v.key.toLowerCase() === lookupKey || v.name.toLowerCase().includes(cleanAlias));
   if (!targetDef) {
     const list = VEHICLE_CATALOG.map(v => `• \`${v.key}\` — ${v.name} (${Number(v.cost).toLocaleString()} coins • ${v.cooldownMinutes}m cooldown)`).join('\n');
     return { success: false, message: `❌ Unknown vehicle \`${vehicleAlias}\`.\n\n**Showroom Catalog:**\n${list}` };
