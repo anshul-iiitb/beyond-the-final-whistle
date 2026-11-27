@@ -10,6 +10,8 @@ import {
   resolveVehicleSprite
 } from '../config/constants.js';
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
+import { syncMemberLocationVisibility } from '../engines/campusEngine.js';
+import { syncMemberGameRoles, syncMemberNationRole } from '../utils/roleSyncHelper.js';
 import { giveMoney } from '../engines/socialEngine.js';
 import { generatePlayerProfileCard, ProfileCollectableVisual } from '../utils/chartHelper.js';
 import { renderLeaderboardCanvas, renderPlayerStatCanvas, renderPlayerBiomechanicsCanvas, LeaderboardEntryData } from '../utils/themeRenderers.js';
@@ -427,6 +429,17 @@ export async function handleProfileCommand(message: Message, args: string[]) {
       });
     }
 
+    if (message.guild && targetUser.id === message.author.id && message.member) {
+      const derived = calculateDerivedRatings(player);
+      const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
+      await syncMemberGameRoles(message.member, {
+        ovr,
+        matchesPlayed: player.matchesPlayed || 0,
+        vipTier: player.vipTier || 0
+      });
+      await syncMemberLocationVisibility(message.guild, message.author.id, player.currentLocation || 'tc');
+    }
+
     const embed = buildProfileEmbed(player, targetUser, 'main', message.guild);
     const row = buildProfileTabsRow(targetUser.id, 'main');
     const bannerAttachment = await buildProfileBannerAttachment(player, targetUser);
@@ -735,25 +748,18 @@ export async function handleJoinNationCommand(message: Message, args: string[]) 
     }
   });
 
-  // Auto-assign Discord nation role & rookie role if present in the guild
-  try {
-    if (message.guild && message.member) {
-      const nationRole = message.guild.roles.cache.find(r =>
-        r.name.toLowerCase().includes(nation.name.toLowerCase())
-      );
-      if (nationRole && !message.member.roles.cache.has(nationRole.id)) {
-        await message.member.roles.add(nationRole);
-      }
-
-      const rookieRole = message.guild.roles.cache.find(r =>
-        r.name.toLowerCase().includes('rookie')
-      );
-      if (rookieRole && !message.member.roles.cache.has(rookieRole.id)) {
-        await message.member.roles.add(rookieRole);
-      }
+  // Auto-assign Discord nation role (clearing previous nation) & tier role if present in the guild
+  if (message.guild && message.member) {
+    await syncMemberNationRole(message.member, nation.name);
+    const updatedPlayer = await prisma.player.findUnique({ where: { id: message.author.id } });
+    if (updatedPlayer) {
+      const d = calculateDerivedRatings(updatedPlayer);
+      await syncMemberGameRoles(message.member, {
+        ovr: Math.round((d.atk + d.mid + d.def) / 3),
+        matchesPlayed: updatedPlayer.matchesPlayed || 0,
+        vipTier: updatedPlayer.vipTier || 0
+      });
     }
-  } catch (err: any) {
-    console.warn('Failed to assign nation role to member:', err.message);
   }
 
   const coinEmoji = getEmoji(message.guild, 'coin');

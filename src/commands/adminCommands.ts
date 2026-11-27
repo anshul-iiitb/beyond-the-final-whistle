@@ -1,6 +1,9 @@
 import { Message, ChannelType, PermissionFlagsBits } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import { CAMPUS_LOCATIONS, ITEM_CATALOG } from '../config/constants.js';
+import { syncMemberLocationVisibility } from '../engines/campusEngine.js';
+import { syncMemberGameRoles } from '../utils/roleSyncHelper.js';
+import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { installCustomServerEmojis, getEmoji } from '../utils/emojiHelper.js';
 import { parseCoinAmount, formatK } from '../utils/formatHelper.js';
 
@@ -23,60 +26,98 @@ export async function handleSetupCommand(message: Message) {
   const statusMsg = await message.reply('⚙️ **Constructing Beyond The Final Whistle Campus Channels & Permissions...**');
 
   try {
-    let category = guild.channels.cache.find(c => c.type === ChannelType.GuildCategory && c.name.includes('FOOTBALL CAMPUS'));
+    let category = guild.channels.cache.find(
+      c => c.type === ChannelType.GuildCategory && (c.name.includes('FOOTBALL CAMPUS') || c.name.includes('Locations'))
+    );
     if (!category) {
       category = await guild.channels.create({
-        name: '🏟️ FOOTBALL CAMPUS',
-        type: ChannelType.GuildCategory,
-        permissionOverwrites: [
-          {
-            id: guild.roles.everyone.id,
-            deny: [PermissionFlagsBits.ViewChannel]
-          }
-        ]
+        name: '*- 𝓔𝓼 Locations ໒꒱ -*',
+        type: ChannelType.GuildCategory
       });
     }
 
+    const botRole = guild.roles.cache.find(r => r.managed && r.members.has(guild.client.user?.id || '')) ||
+      guild.roles.cache.find(r => r.name.toLowerCase().includes('whistle'));
+    const vipRole = guild.roles.cache.find(r => r.name.toLowerCase().includes('vip footballer'));
+    const staffRoles = guild.roles.cache.filter(r =>
+      r.name.includes('Founder') || r.name.includes('Head Administrator')
+    );
+
     const createdList: string[] = [];
 
-    for (const [key, loc] of Object.entries(CAMPUS_LOCATIONS)) {
-      const formattedName = `『${loc.emoji}』${loc.channelName}`;
-      let channel = guild.channels.cache.find(c => c.parentId === category?.id && c.name.toLowerCase().includes(loc.channelName));
+    for (const loc of Object.values(CAMPUS_LOCATIONS)) {
+      const formattedName = `๑•${loc.emoji}│${loc.channelName}`;
+      let channel = guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name.toLowerCase().includes(loc.channelName));
+
+      const overwrites: any[] = [
+        {
+          id: guild.roles.everyone.id,
+          deny: [PermissionFlagsBits.ViewChannel]
+        }
+      ];
+      if (botRole) {
+        overwrites.push({
+          id: botRole.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.EmbedLinks,
+            PermissionFlagsBits.AttachFiles,
+            PermissionFlagsBits.ReadMessageHistory
+          ]
+        });
+      }
 
       if (!channel) {
-        // Training Center is public entry for rookies; others require travel
-        const isEntry = key === 'tc';
         channel = await guild.channels.create({
           name: formattedName,
           type: ChannelType.GuildText,
           parent: category.id,
           topic: `Beyond The Final Whistle: ${loc.name} • ${loc.description}`,
-          permissionOverwrites: [
-            {
-              id: guild.roles.everyone.id,
-              allow: isEntry ? [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] : [],
-              deny: isEntry ? [] : [PermissionFlagsBits.ViewChannel]
-            }
-          ]
+          permissionOverwrites: overwrites
         });
+      } else if ('permissionOverwrites' in channel) {
+        await channel.permissionOverwrites.set(overwrites).catch(() => {});
       }
       createdList.push(`• **${loc.name}**: <#${channel.id}>`);
     }
 
-    // Private VIP Council Lounge
-    let vipChannel = guild.channels.cache.find(c => c.parentId === category?.id && c.name.toLowerCase().includes('vip-lounge'));
+    // Re-sync existing registered members so everyone only sees their active location
+    const players = await prisma.player.findMany({ select: { id: true, currentLocation: true } });
+    for (const p of players) {
+      await syncMemberLocationVisibility(guild, p.id, p.currentLocation || 'tc');
+    }
+
+    // Private VIP Council Lounge (role-gated + per-user VIP grant)
+    let vipChannel = guild.channels.cache.find(c => c.name.toLowerCase().includes('vip-lounge'));
+    const vipOverwrites: any[] = [
+      { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] }
+    ];
+    if (botRole) {
+      vipOverwrites.push({
+        id: botRole.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ReadMessageHistory]
+      });
+    }
+    if (vipRole) {
+      vipOverwrites.push({
+        id: vipRole.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+      });
+    }
+    for (const sr of staffRoles.values()) {
+      vipOverwrites.push({
+        id: sr.id,
+        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory]
+      });
+    }
     if (!vipChannel) {
       vipChannel = await guild.channels.create({
-        name: '『👑』vip-lounge',
+        name: '๑•👑│vip-lounge',
         type: ChannelType.GuildText,
         parent: category.id,
         topic: 'Private VIP Council — early feature previews, suggestions voting & exhibition friendlies.',
-        permissionOverwrites: [
-          {
-            id: guild.roles.everyone.id,
-            deny: [PermissionFlagsBits.ViewChannel]
-          }
-        ]
+        permissionOverwrites: vipOverwrites
       });
     }
     createdList.push(`• **VIP Council Lounge:** <#${vipChannel.id}>`);
@@ -93,7 +134,7 @@ export async function handleSetupCommand(message: Message) {
       `✅ **Beyond The Final Whistle Football Campus Successfully Initialized!**\n\n` +
       createdList.join('\n') +
       emojiSummary +
-      `\n\n📍 Rookies spawn at \`『🏋️』training-center\`. Players unlock other facilities using \`-travel <alias>\`.`
+      `\n\n🔒 All campus hubs are hidden by default — each player only sees their current active location (\`-travel <alias>\`).`
     );
   } catch (err: any) {
     await statusMsg.edit(`❌ Setup failed: ${err.message}`);
@@ -112,9 +153,10 @@ export async function handleVipCommand(message: Message, args: string[]) {
   }
 
   const vipChannel = message.guild?.channels.cache.find(c => c.name.toLowerCase().includes('vip-lounge'));
+  const targetMember = message.guild ? await message.guild.members.fetch(targetUser.id).catch(() => null) : null;
 
   if (subAction === 'remove') {
-    await prisma.player.upsert({
+    const updated = await prisma.player.upsert({
       where: { id: targetUser.id },
       update: { vipTier: 0, vipExpiresAt: null },
       create: { id: targetUser.id, username: targetUser.username, vipTier: 0 }
@@ -122,13 +164,21 @@ export async function handleVipCommand(message: Message, args: string[]) {
     if (vipChannel && 'permissionOverwrites' in vipChannel) {
       await vipChannel.permissionOverwrites.delete(targetUser.id).catch(() => {});
     }
+    if (targetMember) {
+      const d = calculateDerivedRatings(updated);
+      await syncMemberGameRoles(targetMember, {
+        ovr: Math.round((d.atk + d.mid + d.def) / 3),
+        matchesPlayed: updated.matchesPlayed || 0,
+        vipTier: 0
+      });
+    }
     return await message.reply(`ℹ️ Removed **VIP** status from <@${targetUser.id}>.`);
   }
 
   const tier = 1;
   const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-  await prisma.player.upsert({
+  const updated = await prisma.player.upsert({
     where: { id: targetUser.id },
     update: { vipTier: tier, vipExpiresAt: expiry },
     create: {
@@ -145,6 +195,14 @@ export async function handleVipCommand(message: Message, args: string[]) {
       SendMessages: true,
       ReadMessageHistory: true
     }).catch(() => {});
+  }
+  if (targetMember) {
+    const d = calculateDerivedRatings(updated);
+    await syncMemberGameRoles(targetMember, {
+      ovr: Math.round((d.atk + d.mid + d.def) / 3),
+      matchesPlayed: updated.matchesPlayed || 0,
+      vipTier: tier
+    });
   }
 
   const tierName = '👑 VIP';

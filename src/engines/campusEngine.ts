@@ -31,6 +31,47 @@ export async function getPlayerTravelCooldown(playerId: string): Promise<{ coold
 /**
  * Handles spatial travel between the 8 campus facilities
  */
+/**
+ * Resolves the Discord channel corresponding to a BTFW campus location ID.
+ */
+export function findLocationChannel(guild: Guild, locId: string) {
+  const loc = CAMPUS_LOCATIONS[locId];
+  if (!loc) return undefined;
+  return guild.channels.cache.find(c => {
+    const n = c.name.toLowerCase();
+    if (n.includes(loc.channelName)) return true;
+    if (locId === 'ch' && (n.includes('local-club') || n.includes('clubhouse'))) return true;
+    return false;
+  });
+}
+
+/**
+ * Shows ONLY the single campus location channel matching activeLocId to a member and hides all others.
+ */
+export async function syncMemberLocationVisibility(
+  guild: Guild,
+  memberId: string,
+  activeLocId: string
+): Promise<void> {
+  const targetChannel = findLocationChannel(guild, activeLocId);
+
+  if (targetChannel && 'permissionOverwrites' in targetChannel) {
+    await targetChannel.permissionOverwrites.create(memberId, {
+      ViewChannel: true,
+      SendMessages: true,
+      ReadMessageHistory: true
+    }).catch(() => {});
+  }
+
+  for (const locKey of Object.keys(CAMPUS_LOCATIONS)) {
+    if (locKey === activeLocId) continue;
+    const ch = findLocationChannel(guild, locKey);
+    if (ch && ch.id !== targetChannel?.id && 'permissionOverwrites' in ch) {
+      await ch.permissionOverwrites.delete(memberId).catch(() => {});
+    }
+  }
+}
+
 export async function travelToLocation(
   member: GuildMember,
   guild: Guild,
@@ -94,30 +135,9 @@ export async function travelToLocation(
     }
   });
 
-  const findFacilityChannel = (locId: string, channelName: string) =>
-    guild.channels.cache.find(c => {
-      const n = c.name.toLowerCase();
-      if (n.includes(channelName)) return true;
-      if (locId === 'ch' && (n.includes('local-club') || n.includes('clubhouse'))) return true;
-      return false;
-    });
-
-  // Attempt Discord Channel Permission updates (Spatial MMO mode)
+  // Attempt Discord Channel Permission updates (Strict single-location travel visibility)
   try {
-    const targetChannel = findFacilityChannel(targetLoc.id, targetLoc.channelName);
-    const prevChannel = findFacilityChannel(prevLoc.id, prevLoc.channelName);
-
-    if (targetChannel && 'permissionOverwrites' in targetChannel) {
-      await targetChannel.permissionOverwrites.create(member.id, {
-        ViewChannel: true,
-        SendMessages: true,
-        ReadMessageHistory: true
-      });
-    }
-
-    if (prevChannel && 'permissionOverwrites' in prevChannel && prevChannel.id !== targetChannel?.id) {
-      await prevChannel.permissionOverwrites.delete(member.id).catch(() => {});
-    }
+    await syncMemberLocationVisibility(guild, member.id, targetLoc.id);
   } catch (err) {
     // Non-fatal if bot lacks ManageChannels
   }
