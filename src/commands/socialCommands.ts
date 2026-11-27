@@ -30,6 +30,8 @@ export function buildAdvertSelectionMenu(followers: bigint, isVip = false, guild
       `• **Payout:** \`+${formatK(s.rewardCoins)}\` ${coin}   •   **Fan Delta:** \`${followerText}\` ${followersEmoji}`;
   });
 
+  const VIP_AD_GIF = 'https://images-ext-1.discordapp.net/external/WbUdmHYz0aJoSn0OIHn7HlCzc9I9OKdCUO1DZ1_9wn4/https/static.klipy.com/ii/2711dd8a75a85be822d136ec94899b3f/3b/5d/lgwAfIbEGD9B.mp4';
+
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.PURPLE)
     .setTitle('📸 Commercial Brand Endorsements — Photoshoot Hall')
@@ -41,6 +43,7 @@ export function buildAdvertSelectionMenu(followers: bigint, isVip = false, guild
         subtext('💡 Click a brand button below to sign an endorsement contract and produce campaign media.')
       ].join(UI.SPACER)
     )
+    .setImage(VIP_AD_GIF)
     .setFooter({ text: 'Beyond The Final Whistle • Commercial Endorsement Hub' })
     .setTimestamp();
 
