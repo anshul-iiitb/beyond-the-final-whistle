@@ -57,7 +57,7 @@ export async function handleAvatarCommand(message: Message) {
       : '*No banners currently stocked in this rotation.*',
     ...(ownedExtras.length > 0 ? [`🎒 **Vaulted Locker Items:** ${ownedExtras.join(', ')}`] : []),
     `${UI.DIVIDER}\n` +
-    subtext('💡 At Global Market (`-travel gm`): `-avatarbuy <alias>` • VIPs: `-avatarclaim <alias>` • Anywhere: `-equip <alias>`')
+    subtext('💡 At Global Market (`-travel gm`): `-avatarbuy <alias>` • VIPs: `-avatarclaim <alias>` • Anywhere: `-equip avatar <name>` / `-equip <alias>`')
   ];
 
   const embed = new EmbedBuilder()
@@ -92,7 +92,7 @@ export async function handleEquipCommand(message: Message, args: string[]) {
   const alias = args.join(' ').trim();
   if (!alias) {
     return await message.reply(
-      '❌ Usage: `-equip <alias>`, `-equip avatar none`, `-equip banner none`, or `-equip none`.\nCheck owned items with `-inv`.'
+      '❌ Usage: `-equip avatar <name>`, `-equip banner <name>`, `-equip <alias>`, `-equip avatar none`, `-equip banner none`, or `-equip none`.\nCheck owned items with `-inv`.'
     );
   }
   const result = await equipOwnedCosmetic(message.author.id, alias);
@@ -166,7 +166,7 @@ export async function handleInventoryCommand(message: Message, args: string[] = 
     `### 🏆 Trophies, Relics & Gear (${player.inventory.length})\n` +
     `${relicLines}`,
     `${UI.DIVIDER}\n` +
-    subtext('💡 Equip anytime: `-equip <alias>` • Clear: `-equip avatar none` / `-equip banner none`')
+    subtext('💡 Equip anytime: `-equip avatar <name>` or `-equip <alias>` • Clear: `-equip avatar none` / `-equip banner none`')
   ];
 
   const embed = new EmbedBuilder()

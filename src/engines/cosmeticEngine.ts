@@ -15,10 +15,21 @@ export interface CosmeticActionResult {
 }
 
 function findCosmeticMatch(catalog: CosmeticDef[], query: string): CosmeticDef | undefined {
-  const clean = query.trim().toLowerCase();
+  let clean = query.trim().toLowerCase();
   if (!clean) return undefined;
-  return catalog.find(
-    c => c.key.toLowerCase() === clean || c.name.toLowerCase().includes(clean)
+
+  let pool = catalog;
+  if (/^(avatar|av)\s+/.test(clean)) {
+    pool = catalog.filter(c => c.kind === 'AVATAR');
+    clean = clean.replace(/^(avatar|av)\s+/, '').trim();
+  } else if (/^(banner|bn)\s+/.test(clean)) {
+    pool = catalog.filter(c => c.kind === 'BANNER');
+    clean = clean.replace(/^(banner|bn)\s+/, '').trim();
+  }
+
+  return (
+    pool.find(c => c.key.toLowerCase() === clean) ||
+    pool.find(c => c.name.toLowerCase().includes(clean) || c.key.toLowerCase().includes(clean))
   );
 }
 
@@ -146,15 +157,13 @@ export async function equipOwnedCosmetic(playerId: string, alias: string): Promi
     return { success: true, message: '✅ Unequipped custom banner — restored your Stadium Hero Card.' };
   }
 
-  const normalizedQuery = clean.replace(/^(avatar|banner)\s+/, '');
-
   const player = await prisma.player.findUnique({
     where: { id: playerId },
     include: { cosmetics: true }
   });
   if (!player) return { success: false, message: '❌ Player not found. Run `-profile` first.' };
 
-  const target = findCosmeticMatch(COSMETIC_CATALOG, normalizedQuery);
+  const target = findCosmeticMatch(COSMETIC_CATALOG, clean);
   if (!target) {
     return { success: false, message: `❌ Unknown cosmetic \`${alias}\`. Check your locker with \`-inv\` or shop via \`-avatar\`.` };
   }

@@ -352,6 +352,14 @@ export interface CosmeticDef {
  * Curated collector cosmetics stocked from verified custom artwork assets.
  */
 export const COSMETIC_CATALOG: CosmeticDef[] = [
+  // Custom Portrait Avatars (Top-right -profile thumbnail replacing Discord DP)
+  { key: 'messi_av', name: 'Messi Icon Avatar', kind: 'AVATAR', cost: 750000n, rotationSlot: 0, emoji: '🇦🇷', accentHex: '#60a5fa', secondaryHex: '#7c3aed', jerseyNumber: '10', subtitle: 'LA PULGA • 10' },
+  { key: 'zidane_av', name: 'Zidane Icon Avatar', kind: 'AVATAR', cost: 750000n, rotationSlot: 0, emoji: '🇫🇷', accentHex: '#3b82f6', secondaryHex: '#db2777', jerseyNumber: '10', subtitle: 'ZIZOU • 10' },
+  { key: 'rijkaard_av', name: 'Rijkaard Icon Avatar', kind: 'AVATAR', cost: 750000n, rotationSlot: 0, emoji: '🇳🇱', accentHex: '#f97316', secondaryHex: '#991b1b', jerseyNumber: '8', subtitle: 'ORANJE MAESTRO' },
+  { key: 'r9_av', name: 'Ronaldo R9 Icon Avatar', kind: 'AVATAR', cost: 750000n, rotationSlot: 0, emoji: '🇧🇷', accentHex: '#eab308', secondaryHex: '#166534', jerseyNumber: '9', subtitle: 'O FENOMENO • 9' },
+  { key: 'neuer_av', name: 'Manuel Neuer Icon Avatar', kind: 'AVATAR', cost: 750000n, rotationSlot: 0, emoji: '🇩🇪', accentHex: '#facc15', secondaryHex: '#6d28d9', jerseyNumber: '1', subtitle: 'DER KAISER • 1' },
+
+  // Custom Legend Banners (Full-bleed bottom -profile collector poster)
   { key: 'messi', name: 'Messi Legend Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#60a5fa', secondaryHex: '#1e293b', jerseyNumber: '10', subtitle: 'A LEGEND FOREVER' },
   { key: 'zidane', name: 'Zidane Legend Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#f59e0b', secondaryHex: '#1e3a8a', jerseyNumber: '10', subtitle: 'ELEGANCE IN MOTION' },
   { key: 'rijkaard', name: 'Rijkaard Maestro Banner', kind: 'BANNER', cost: 3000000n, rotationSlot: 0, emoji: '🖼️', accentHex: '#f97316', secondaryHex: '#0f172a', jerseyNumber: '8', subtitle: 'THE DEFENSIVE MAESTRO' },
