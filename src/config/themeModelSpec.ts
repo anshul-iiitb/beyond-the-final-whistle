@@ -387,6 +387,50 @@ export const STANDINGS_TABLE_GRID_SPEC: GridModelSpec = {
   },
 };
 
+/**
+ * 8. MATCHDAY SCORECARD & GAZETTE SPEC (-match / -livematch 800x410 Card)
+ * Matches live generateMatchScorecardGraphic() dimensions in src/utils/chartHelper.ts.
+ */
+export const MATCH_SCORECARD_GRID_SPEC: GridModelSpec = {
+  id: 'match_scorecard',
+  name: 'Matchday Gazette Scorecard (-match / -friendly / -livematch)',
+  templateFile: 'match_scorecard_grid_template.png',
+  canvasWidth: 800,
+  canvasHeight: 410,
+  safeMargin: 16,
+  headerZone: {
+    x: 40,
+    y: 24,
+    w: 720,
+    h: 50,
+    label: 'COMPETITION & TELEMETRY HEADER BAR',
+    accent: 'gold',
+  },
+  containerZone: {
+    x: 40,
+    y: 84,
+    w: 720,
+    h: 290,
+    label: 'SCORELINE + POSSESSION + MOTM CARD ARENA',
+    accent: 'cyan',
+  },
+  slots: [
+    { x: 48, y: 94, w: 260, h: 96, label: 'HOME TEAM + CREST/FLAG', accent: 'emerald' },
+    { x: 318, y: 94, w: 164, h: 96, label: 'FULL TIME SCORE BOX', accent: 'gold' },
+    { x: 492, y: 94, w: 260, h: 96, label: 'AWAY TEAM + CREST/FLAG', accent: 'cyan' },
+    { x: 48, y: 202, w: 704, h: 72, label: 'DUAL POSSESSION TELEMETRY BAR', accent: 'purple' },
+    { x: 48, y: 286, w: 704, h: 78, label: 'MAN OF THE MATCH SPOTLIGHT + RATING', accent: 'gold' },
+  ],
+  footerZone: {
+    x: 40,
+    y: 380,
+    w: 720,
+    h: 20,
+    label: 'SPORTS JOURNALISM ENGINE FOOTER',
+    accent: 'purple',
+  },
+};
+
 export const ALL_BTFW_THEME_GRID_SPECS: Record<string, GridModelSpec> = {
   dual_box_universal: DUAL_BOX_UNIVERSAL_SPEC,
   profile_banner: PROFILE_BANNER_GRID_SPEC,
@@ -395,4 +439,5 @@ export const ALL_BTFW_THEME_GRID_SPECS: Record<string, GridModelSpec> = {
   showroom_market: SHOWROOM_MARKET_GRID_SPEC,
   auction_house: AUCTION_HOUSE_GRID_SPEC,
   points_table: STANDINGS_TABLE_GRID_SPEC,
+  match_scorecard: MATCH_SCORECARD_GRID_SPEC,
 };
