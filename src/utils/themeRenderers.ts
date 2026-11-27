@@ -13,6 +13,27 @@ import { PROFILE_THEMES } from '../config/constants.js';
 import { formatK } from './formatHelper.js';
 
 const imageCache = new Map<string, any>();
+const avatarUrlCache = new Map<string, any>();
+
+/**
+ * Draws a dark semi-opaque frosted scrim strictly inside a glass panel so text retains high contrast
+ * even when bright stadium floodlight rays cross behind the background frame.
+ */
+export function drawGlassScrim(
+  ctx: SKRSContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius = 8,
+  alpha = 0.74
+) {
+  ctx.save();
+  drawRoundedRect(ctx, x, y, w, h, radius);
+  ctx.fillStyle = `rgba(5, 9, 18, ${alpha})`;
+  ctx.fill();
+  ctx.restore();
+}
 
 /**
  * Strips emojis/non-ASCII symbols that cause Skia canvas "tofu" boxes and normalizes fancy Unicode characters.
@@ -92,13 +113,20 @@ export async function loadLocalImageCached(filePath: string) {
   return img;
 }
 
-export async function fetchRemoteImage(url?: string | null, timeoutMs = 2500) {
+export async function fetchRemoteImage(url?: string | null, timeoutMs = 1200) {
   if (!url) return null;
+  if (avatarUrlCache.has(url)) return avatarUrlCache.get(url);
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
-    return await loadImage(buf);
+    const img = await loadImage(buf);
+    if (avatarUrlCache.size >= 150) {
+      const oldest = avatarUrlCache.keys().next().value;
+      if (oldest) avatarUrlCache.delete(oldest);
+    }
+    avatarUrlCache.set(url, img);
+    return img;
   } catch {
     return null;
   }
@@ -381,6 +409,7 @@ export async function renderPlayerStatCanvas(data: PlayerStatCanvasData): Promis
 
   // 1. Header Zone (45, 45, 560x110)
   const hz = spec.headerZone;
+  drawGlassScrim(ctx, hz.x + 8, hz.y + 8, hz.w - 16, hz.h - 16, 8, 0.70);
   ctx.save();
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
@@ -394,7 +423,7 @@ export async function renderPlayerStatCanvas(data: PlayerStatCanvasData): Promis
   ctx.font = 'bold 30px "Segoe UI", Arial, sans-serif';
   ctx.fillText(truncateText(ctx, cleanCanvasText(data.username), hz.w - 44), hz.x + 22, hz.y + 72);
 
-  ctx.fillStyle = '#cbd5e1';
+  ctx.fillStyle = '#e2e8f0';
   ctx.font = '14px "Segoe UI", Arial, sans-serif';
   ctx.fillText(truncateText(ctx, cleanCanvasText(data.clubAndNation), hz.w - 44), hz.x + 22, hz.y + 96);
   ctx.restore();
@@ -417,15 +446,15 @@ export async function renderPlayerStatCanvas(data: PlayerStatCanvasData): Promis
 
     ctx.save();
     drawRoundedRect(ctx, bx, by, colW, rowH - 2, 8);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+    ctx.fillStyle = 'rgba(7, 11, 22, 0.82)';
     ctx.fill();
-    ctx.strokeStyle = item.highlight ? accent : 'rgba(148, 163, 184, 0.22)';
+    ctx.strokeStyle = item.highlight ? accent : 'rgba(148, 163, 184, 0.28)';
     ctx.lineWidth = item.highlight ? 1.4 : 1;
     ctx.stroke();
 
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#cbd5e1';
     ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
     ctx.fillText(cleanCanvasText(item.label).toUpperCase(), bx + 12, by + (rowH - 2) / 2);
 
@@ -437,15 +466,16 @@ export async function renderPlayerStatCanvas(data: PlayerStatCanvasData): Promis
   }
 
   // 3. Right Panel: Avatar Cutout + OVR Triad Matrix + Recent Form
-  const avatarImg = await fetchRemoteImage(data.avatarUrl, 2000);
+  const avatarImg = await fetchRemoteImage(data.avatarUrl, 1200);
   const avCircle = spec.circles![0]; // (790, 145, r=70)
   drawCircularImage(ctx, avatarImg, avCircle.cx, avCircle.cy, 62, data.username, accent, false);
 
   // Inner Triad + OVR Gauge inside (650, 255, 280x165)
   const radarBox = spec.slots![1];
+  drawGlassScrim(ctx, radarBox.x + 2, radarBox.y + 2, radarBox.w - 4, radarBox.h - 4, 10, 0.76);
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#94a3b8';
+  ctx.fillStyle = '#e2e8f0';
   ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
   ctx.fillText('OVERALL RATING & TRIAD', radarBox.x + radarBox.w / 2, radarBox.y + 24);
 
@@ -454,7 +484,7 @@ export async function renderPlayerStatCanvas(data: PlayerStatCanvasData): Promis
   ctx.fillText(String(data.ovr), radarBox.x + radarBox.w / 2, radarBox.y + 74);
 
   // Divider
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)';
   ctx.beginPath();
   ctx.moveTo(radarBox.x + 28, radarBox.y + 92);
   ctx.lineTo(radarBox.x + radarBox.w - 28, radarBox.y + 92);
@@ -466,7 +496,7 @@ export async function renderPlayerStatCanvas(data: PlayerStatCanvasData): Promis
     { label: 'DEF', val: data.def, x: radarBox.x + 224 },
   ];
   for (const p of pillars) {
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#cbd5e1';
     ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
     ctx.fillText(p.label, p.x, radarBox.y + 116);
     ctx.fillStyle = '#ffffff';
@@ -477,25 +507,27 @@ export async function renderPlayerStatCanvas(data: PlayerStatCanvasData): Promis
 
   // Recent Form / Milestone Strip (650, 430, 280x46)
   const formBox = spec.slots![2];
+  drawGlassScrim(ctx, formBox.x + 2, formBox.y + 2, formBox.w - 4, formBox.h - 4, 8, 0.76);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const formText = data.milestones.length > 0
     ? data.milestones.slice(0, 2).join('  •  ')
     : `FORM: ${data.recentForm.slice(-5).join(' • ')}`;
-  ctx.fillStyle = '#e2e8f0';
+  ctx.fillStyle = '#f8fafc';
   ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
   ctx.fillText(truncateText(ctx, cleanCanvasText(formText), formBox.w - 20), formBox.x + formBox.w / 2, formBox.y + formBox.h / 2);
   ctx.restore();
 
   // 4. Footer Bar (45, 500, 910x28)
   const fz = spec.footerZone!;
+  drawGlassScrim(ctx, fz.x + 6, fz.y + 2, fz.w - 12, fz.h - 4, 6, 0.78);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#94a3b8';
+  ctx.fillStyle = '#e2e8f0';
   ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
-  ctx.fillText(truncateText(ctx, cleanCanvasText(data.footerSummary), fz.w - 30), fz.x + fz.w / 2, fz.y + fz.h / 2 + 2);
+  ctx.fillText(truncateText(ctx, cleanCanvasText(data.footerSummary), fz.w - 30), fz.x + fz.w / 2, fz.y + fz.h / 2 + 1);
   ctx.restore();
 
   return canvas.toBuffer('image/png');

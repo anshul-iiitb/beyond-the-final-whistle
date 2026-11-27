@@ -203,6 +203,7 @@ export async function onInteractionCreate(interaction: Interaction) {
 
     // 3. Profile Tabs: profile_main_<userId>, profile_stats_<userId>, profile_attr_<userId>
     if (customId.startsWith('profile_')) {
+      await interaction.deferUpdate();
       const parts = customId.split('_'); // ['profile', 'main' | 'stats' | 'attr', userId]
       const tab = parts[1] as 'main' | 'stats' | 'attr';
       const targetUserId = parts[2];
@@ -213,31 +214,34 @@ export async function onInteractionCreate(interaction: Interaction) {
       });
 
       if (!player) {
-        return await interaction.reply({ content: '❌ Profile not found.', ephemeral: true });
+        return await interaction.followUp({ content: '❌ Profile not found.', ephemeral: true });
       }
 
-      const targetUser = await interaction.client.users.fetch(targetUserId).catch(() => interaction.user);
+      const targetUser =
+        interaction.client.users.cache.get(targetUserId) ||
+        (await interaction.client.users.fetch(targetUserId).catch(() => interaction.user));
       const embed = buildProfileEmbed(player, targetUser, tab, interaction.guild);
       const row = buildProfileTabsRow(targetUserId, tab);
 
       if (tab === 'main') {
         const banner = await buildProfileBannerAttachment(player, targetUser);
-        return await interaction.update({ embeds: [embed], components: [row], files: [banner], attachments: [] });
+        return await interaction.editReply({ embeds: [embed], components: [row], files: [banner], attachments: [] });
       }
 
       if (tab === 'stats') {
         const statCard = await buildPlayerStatCardAttachment(player, targetUser, 'career');
-        return await interaction.update({ embeds: [embed], components: [row], files: [statCard], attachments: [] });
+        return await interaction.editReply({ embeds: [embed], components: [row], files: [statCard], attachments: [] });
       }
 
-      return await interaction.update({ embeds: [embed], components: [row], files: [], attachments: [] });
+      return await interaction.editReply({ embeds: [embed], components: [row], files: [], attachments: [] });
     }
 
     // 3b. Leaderboard Category Switcher: lb_ovr, lb_goals, lb_wealth, lb_followers
     if (customId.startsWith('lb_')) {
+      await interaction.deferUpdate();
       const cat = normalizeLeaderboardCategory(customId.replace('lb_', ''));
       const payload = await buildLeaderboardPayload(cat, interaction.user.id, interaction.guild, interaction.client);
-      return await interaction.update({
+      return await interaction.editReply({
         embeds: [payload.embed],
         files: payload.files,
         components: payload.components,
@@ -247,9 +251,10 @@ export async function onInteractionCreate(interaction: Interaction) {
 
     // 3c. Showroom Tier Switcher: showroom_page_1, showroom_page_2, showroom_page_3
     if (customId.startsWith('showroom_page_')) {
+      await interaction.deferUpdate();
       const page = parseInt(customId.replace('showroom_page_', ''), 10) || 1;
       const payload = await buildShowroomPayload(interaction.user.id, page, interaction.guild);
-      return await interaction.update({
+      return await interaction.editReply({
         embeds: [payload.embed],
         files: payload.files,
         components: payload.components,
@@ -276,7 +281,9 @@ export async function onInteractionCreate(interaction: Interaction) {
     }
   } catch (error) {
     logger.error({ error }, 'Error in onInteractionCreate button handler');
-    if (!interaction.replied && !interaction.deferred) {
+    if (interaction.deferred && !interaction.replied) {
+      await interaction.followUp({ content: '❌ An error occurred processing this action.', ephemeral: true }).catch(() => {});
+    } else if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({ content: '❌ An error occurred processing this action.', ephemeral: true }).catch(() => {});
     }
   }

@@ -183,7 +183,7 @@ export function buildProfileEmbed(
   if (tab === 'main') {
     const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
     const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
-    const staminaBar = makeProgressBar(player.stamina, 100, 10);
+    const staminaBar = makeProgressBar(player.stamina, 100, 8);
     const color = isVip ? THEME_COLORS.GOLD : THEME_COLORS.PRIMARY;
     const themeObj = PROFILE_THEMES.find(t => t.key === player.profileTheme) || PROFILE_THEMES[0];
     const eqAvatar = COSMETIC_CATALOG.find(c => c.key === player.equippedAvatar);
@@ -194,25 +194,18 @@ export function buildProfileEmbed(
       .setTitle(`⚽ ${player.username} ${flag} Career Dossier ${vipBadge}`)
       .setDescription(
         `> *"${player.bio || 'Rising football prodigy aiming for the World Cup trophy.'}"*\n\n` +
-        `### ⚡ BIOMETRIC STATUS & VITALS\n` +
-        `${staminaEmoji} **Stamina:** \`${player.stamina}/100\`\n` +
-        `${staminaBar} **${player.stamina}%**\n` +
-        `${tpEmoji} **Training Points:** \`${player.trainingPoints} TP\` • 🏆 **Season Rank:** \`${seasonRank}\`\n` +
-        `📍 **Campus Facility:** ${loc.emoji} **${loc.name}** \`(-travel ${loc.alias})\`\n` +
-        `🎨 **Studio Setup:** Theme \`${themeObj.name}\` • Avatar: \`${eqAvatar ? eqAvatar.name : 'Default'}\` • Banner: \`${eqBanner ? eqBanner.name : 'None'}\`\n\n` +
-        `### 💰 FINANCIALS & CLOUT\n` +
-        `${coinEmoji} **Net Worth:** \`${formatK(player.coins)}\`\n` +
-        `${followersEmoji} **Global Fans:** \`${formatK(player.followers)}\`\n` +
-        `👟 **Active Boots:** \`${player.activeBoots ? player.activeBoots.toUpperCase() + ' (+10 Boost)' : 'Standard Cleats'}\`\n` +
-        `🛰️ **Tactical Intel:** \`${player.intelBonus > 0 ? '+' + player.intelBonus + ' ' + (player.intelStat || 'Boost') : 'None (-intel)'}\``
+        `### ⚡ VITALS & STUDIO SETUP\n` +
+        `${staminaEmoji} **Stamina:** ${staminaBar} \`${player.stamina}/100\`\n` +
+        `${tpEmoji} **TP:** \`${player.trainingPoints}\` • 🏆 **Rank:** \`${seasonRank}\` • 📍 ${loc.emoji} \`-travel ${loc.alias}\`\n` +
+        `🎨 **Theme:** \`${themeObj.name}\` • **Avatar:** \`${eqAvatar ? eqAvatar.name : 'Default'}\` • **Banner:** \`${eqBanner ? eqBanner.name : 'None'}\`\n\n` +
+        `### 💰 FINANCES & LOADOUT\n` +
+        `${coinEmoji} **Coins:** \`${formatK(player.coins)}\` • ${followersEmoji} **Fans:** \`${formatK(player.followers)}\`\n` +
+        `👟 **Boots:** \`${player.activeBoots ? player.activeBoots.toUpperCase() + ' (+10)' : 'Standard'}\` • 🛰️ **Intel:** \`${player.intelBonus > 0 ? '+' + player.intelBonus + ' ' + (player.intelStat || 'Boost') : 'None (-intel)'}\``
       )
       .addFields(
         {
           name: '📊 Tactical Ratings Matrix',
-          value:
-            '```\n' +
-            `🎯 ATK: ${derived.atk.toString().padEnd(3)}   •   🪄 MID: ${derived.mid.toString().padEnd(3)}   •   🛡️ DEF: ${derived.def.toString().padEnd(3)}   •   ⭐ OVR: ${ovr}\n` +
-            '```',
+          value: `🎯 \`ATK ${derived.atk}\`  •  🪄 \`MID ${derived.mid}\`  •  🛡️ \`DEF ${derived.def}\`  •  ⭐ \`OVR ${ovr}\``,
           inline: false
         },
         {
@@ -221,13 +214,13 @@ export function buildProfileEmbed(
           inline: false
         },
         {
-          name: '🛡️ Affiliations & Squad',
-          value: `• **National Team:** **${player.nation?.name || 'Free Agent (-joinnation)'}** ${flag}\n• **Club Franchise:** **${player.club?.name || 'Free Agent'}**`,
+          name: '🛡️ Affiliations',
+          value: `• **Nation:** ${flag} **${player.nation?.name || 'Free Agent'}** (\`-joinnation\`)\n• **Club:** **${player.club?.name || 'Free Agent'}**`,
           inline: true
         },
         {
           name: '📈 Recent Form (5 Matches)',
-          value: `\`${recentForm.join('  •  ')}\``,
+          value: recentForm.map(r => `\`${r}\``).join(' · '),
           inline: true
         },
         {

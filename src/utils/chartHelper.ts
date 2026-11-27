@@ -3,6 +3,7 @@ import { COSMETIC_CATALOG, PROFILE_THEMES } from '../config/constants.js';
 import {
   cleanCanvasText,
   drawCircularImage,
+  drawGlassScrim,
   fetchRemoteImage,
   paintThemeBackdrop,
   truncateText,
@@ -205,6 +206,14 @@ export async function generateMatchScorecardGraphic(data: ScorecardData): Promis
 
   await paintThemeBackdrop(ctx, width, height, 'match_scorecard', 'obsidian');
 
+  // Dark glass contrast scrims inside each frame zone
+  drawGlassScrim(ctx, 44, 26, 712, 46, 8, 0.72);
+  drawGlassScrim(ctx, 52, 98, 252, 88, 8, 0.70);
+  drawGlassScrim(ctx, 322, 98, 156, 88, 8, 0.74);
+  drawGlassScrim(ctx, 496, 98, 252, 88, 8, 0.70);
+  drawGlassScrim(ctx, 52, 206, 696, 64, 8, 0.74);
+  drawGlassScrim(ctx, 52, 290, 696, 70, 8, 0.74);
+
   // Header inside Top Header Zone (40, 24, 720x50)
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -213,8 +222,8 @@ export async function generateMatchScorecardGraphic(data: ScorecardData): Promis
   ctx.fillText('BEYOND THE FINAL WHISTLE  •  MATCHDAY TELEMETRY', width / 2, 42);
 
   ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
-  ctx.fillStyle = '#94a3b8';
-  ctx.fillText('OFFICIAL FULL TIME SCORECARD & GAZETTE', width / 2, 60);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillText('OFFICIAL FULL TIME SCORECARD & GAZETTE', width / 2, 59);
 
   // ==========================================
   // SCORELINE STRIP (y: 94..190)
@@ -308,7 +317,7 @@ export async function generateMatchScorecardGraphic(data: ScorecardData): Promis
 
   ctx.textAlign = 'center';
   ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
-  ctx.fillStyle = '#94a3b8';
+  ctx.fillStyle = '#e2e8f0';
   ctx.fillText('BALL CONTROL', width / 2, barY + 32);
 
   ctx.textAlign = 'right';
@@ -350,7 +359,7 @@ export async function generateMatchScorecardGraphic(data: ScorecardData): Promis
   // ==========================================
   ctx.textAlign = 'center';
   ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
-  ctx.fillStyle = '#94a3b8';
+  ctx.fillStyle = '#e2e8f0';
   ctx.fillText('AI SPORTS JOURNALISM ENGINE  •  OFFICIAL LIVE MATCH TELEMETRY', width / 2, 390);
 
   return canvas.toBuffer('image/png');
@@ -393,6 +402,13 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
   const theme = await paintThemeBackdrop(ctx, width, height, 'profile_banner', data.themeKey);
   const primaryAccent = bannerCosmetic?.accentHex || avatarCosmetic?.accentHex || theme.accent;
 
+  // Dark frosted scrims inside all text zones so bright spotlights never wash out typography
+  drawGlassScrim(ctx, 174, 34, 386, 90, 8, 0.74);
+  drawGlassScrim(ctx, 174, 138, 386, 68, 8, 0.74);
+  drawGlassScrim(ctx, 598, 34, 170, 172, 10, 0.78);
+  drawGlassScrim(ctx, 42, 173, 88, 20, 5, 0.82);
+  drawGlassScrim(ctx, 20, 217, 540, 18, 4, 0.82);
+
   // Optional Diagonal Legend Sash & Jersey Watermark when 3M Legend Banner equipped
   if (bannerCosmetic) {
     ctx.save();
@@ -416,7 +432,7 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
   const avX = 86;
   const avY = 108;
   const avRadius = 48;
-  const avatarImg = await fetchRemoteImage(data.avatarUrl, 2500);
+  const avatarImg = await fetchRemoteImage(data.avatarUrl, 1200);
   drawCircularImage(
     ctx,
     avatarImg,
@@ -445,7 +461,7 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
       ? 'VIP PASS'
       : 'PRO CARD';
   ctx.save();
-  ctx.fillStyle = avatarCosmetic ? avatarCosmetic.accentHex : data.vipTier >= 1 ? '#fbbf24' : '#cbd5e1';
+  ctx.fillStyle = avatarCosmetic ? avatarCosmetic.accentHex : data.vipTier >= 1 ? '#fbbf24' : '#f1f5f9';
   ctx.font = 'bold 9.5px "Segoe UI", Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -460,16 +476,16 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
   const rankLabel = data.vipTier >= 1 ? `VIP STAR  •  ${data.seasonRank.toUpperCase()}` : `${data.seasonRank.toUpperCase()} TIER`;
   ctx.font = 'bold 10.5px "Segoe UI", Arial, sans-serif';
   const pillW = Math.min(360, Math.max(124, ctx.measureText(rankLabel).width + 20));
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
   ctx.strokeStyle = data.vipTier >= 1 ? '#f59e0b' : primaryAccent;
   ctx.lineWidth = 1.3;
   ctx.beginPath();
-  ctx.roundRect(textX, 38, pillW, 21, 10.5);
+  ctx.roundRect(textX, 40, pillW, 21, 10.5);
   ctx.fill();
   ctx.stroke();
 
-  ctx.fillStyle = data.vipTier >= 1 ? '#fbbf24' : '#e2e8f0';
-  ctx.fillText(cleanCanvasText(rankLabel), textX + 10, 52);
+  ctx.fillStyle = data.vipTier >= 1 ? '#fbbf24' : '#f8fafc';
+  ctx.fillText(cleanCanvasText(rankLabel), textX + 10, 54);
 
   // Username
   ctx.fillStyle = '#ffffff';
@@ -478,18 +494,18 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
   ctx.fillText(truncateText(ctx, cleanName, 368), textX, 90);
 
   // Club & Nation
-  ctx.fillStyle = '#cbd5e1';
+  ctx.fillStyle = '#e2e8f0';
   ctx.font = '13.5px "Segoe UI", Arial, sans-serif';
   const clubNation = `${cleanCanvasText(data.clubName)}  •  ${cleanCanvasText(data.nationName)}`;
   ctx.fillText(truncateText(ctx, clubNation, 368), textX, 114);
 
   // 3. Center Bottom Banner & Milestones Glass Box (168, 134, 400x78)
   if (bannerCosmetic) {
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
     ctx.strokeStyle = bannerCosmetic.accentHex;
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.roundRect(textX, 142, 368, 22, 5);
+    ctx.roundRect(textX, 144, 368, 22, 5);
     ctx.fill();
     ctx.stroke();
 
@@ -498,12 +514,12 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
     ctx.fillText(
       truncateText(ctx, `BANNER: ${bannerCosmetic.name.toUpperCase()} (${bannerCosmetic.subtitle})`, 350),
       textX + 8,
-      157
+      159
     );
   } else {
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#7dd3fc';
     ctx.font = 'bold 11.5px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(`THEME: ${theme.name.toUpperCase()}`, textX, 156);
+    ctx.fillText(`THEME: ${theme.name.toUpperCase()}`, textX, 158);
   }
 
   let badgeX = textX;
@@ -514,29 +530,29 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
     const mw = ctx.measureText(cleanM).width + 16;
     if (badgeX + mw > 556) break;
 
-    ctx.fillStyle = 'rgba(30, 41, 59, 0.85)';
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(badgeX, 174, mw, 22, 5);
+    ctx.roundRect(badgeX, 176, mw, 22, 5);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = '#f1f5f9';
-    ctx.fillText(cleanM, badgeX + 8, 189);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(cleanM, badgeX + 8, 191);
     badgeX += mw + 7;
   }
 
   if (shownMilestones.length === 0) {
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#cbd5e1';
     ctx.font = 'italic 11px "Segoe UI", Arial, sans-serif';
-    ctx.fillText('Build milestones on the pitch (Goals, Poss Won, MVPs, Caps)...', textX, 189);
+    ctx.fillText('Build milestones on the pitch (Goals, Poss Won, MVPs, Caps)...', textX, 191);
   }
 
   // 4. Right OVR & ATK/MID/DEF Telemetry Panel (590..776, center X=683)
   const panelCenterX = 683;
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#94a3b8';
+  ctx.fillStyle = '#e2e8f0';
   ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
   ctx.fillText('OVERALL RATING', panelCenterX, 54);
 
@@ -544,7 +560,7 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
   ctx.font = 'bold 52px "Segoe UI", Arial, sans-serif';
   ctx.fillText(String(data.ovr), panelCenterX, 108);
 
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(610, 126);
@@ -557,7 +573,7 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
     { label: 'DEF', val: data.def, x: 734 }
   ];
   for (const t of triad) {
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#cbd5e1';
     ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
     ctx.fillText(t.label, t.x, 152);
 
@@ -566,9 +582,9 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
     ctx.fillText(String(t.val), t.x, 182);
   }
 
-  // 5. Bottom Studio Watermark Strip (18, 224)
+  // 5. Bottom Studio Watermark Strip (18, 226)
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#94a3b8';
+  ctx.fillStyle = '#cbd5e1';
   ctx.font = 'bold 9.5px "Segoe UI", Arial, sans-serif';
   ctx.fillText('BEYOND THE FINAL WHISTLE  •  PLAYER STUDIO', 26, 226);
 
