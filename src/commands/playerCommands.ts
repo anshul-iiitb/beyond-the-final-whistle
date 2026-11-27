@@ -513,7 +513,7 @@ export async function buildLeaderboardPayload(
       valueText: `${p.goalsScored} Goals`,
       isCaller: p.id === callerId
     }));
-    const top3 = leaders.slice(0, 3).map((p, i) => `${['🥇', '🥈', '🥉'][i]} **${p.username}** (\`${p.goalsScored}\`)`).join('  •  ');
+    const top3 = leaders.slice(0, 3).map((p, i) => `${['🥇', '🥈', '🥉'][i]} **${p.username}** — \`${p.goalsScored}\``).join('\n');
     quickList = top3 || 'No goals recorded yet.';
   } else if (category === 'wealth') {
     title = 'WORLD NET WORTH LEADERBOARD';
@@ -534,7 +534,7 @@ export async function buildLeaderboardPayload(
       valueText: formatK(p.coins),
       isCaller: p.id === callerId
     }));
-    const top3 = leaders.slice(0, 3).map((p, i) => `${['🥇', '🥈', '🥉'][i]} **${p.username}** (\`${formatK(p.coins)}\` ${coinEmoji})`).join('  •  ');
+    const top3 = leaders.slice(0, 3).map((p, i) => `${['🥇', '🥈', '🥉'][i]} **${p.username}** — \`${formatK(p.coins)}\` ${coinEmoji}`).join('\n');
     quickList = top3 || 'No wealth recorded yet.';
   } else if (category === 'followers') {
     title = 'GLOBAL CLOUT LEADERBOARD';
@@ -555,7 +555,7 @@ export async function buildLeaderboardPayload(
       valueText: formatK(p.followers),
       isCaller: p.id === callerId
     }));
-    const top3 = leaders.slice(0, 3).map((p, i) => `${['🥇', '🥈', '🥉'][i]} **${p.username}** (\`${formatK(p.followers)}\`)`).join('  •  ');
+    const top3 = leaders.slice(0, 3).map((p, i) => `${['🥇', '🥈', '🥉'][i]} **${p.username}** — \`${formatK(p.followers)}\``).join('\n');
     quickList = top3 || 'No players found.';
   } else {
     const allPlayers = await prisma.player.findMany({
@@ -586,7 +586,7 @@ export async function buildLeaderboardPayload(
       valueText: `${s.ovr} OVR`,
       isCaller: s.player.id === callerId
     }));
-    const top3 = top10.slice(0, 3).map((s, i) => `${['🥇', '🥈', '🥉'][i]} **${s.player.username}** (\`${s.ovr} OVR\`)`).join('  •  ');
+    const top3 = top10.slice(0, 3).map((s, i) => `${['🥇', '🥈', '🥉'][i]} **${s.player.username}** — \`${s.ovr} OVR\``).join('\n');
     quickList = top3 || 'No players ranked yet.';
   }
 

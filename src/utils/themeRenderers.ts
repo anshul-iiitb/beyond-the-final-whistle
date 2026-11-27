@@ -240,38 +240,91 @@ export async function renderLeaderboardCanvas(options: {
   themeKey?: string | null;
 }): Promise<Buffer> {
   const spec = LEADERBOARD_GRID_SPEC;
-  const width = spec.canvasWidth;   // 1000
-  const height = spec.canvasHeight; // 1100
+  const width = spec.canvasWidth; // 1000
+  const fullHeight = spec.canvasHeight; // 1100
+  const shownEntries = options.entries.slice(0, 10);
+  const count = shownEntries.length;
+  const isCompact = count > 0 && count < 10;
+
+  const bottomCapH = 110; // bottom frame border + caller footer height from bottom of 1100px template
+  const topCutY = isCompact ? 228 + count * 75 : fullHeight;
+  const height = isCompact ? topCutY + bottomCapH : fullHeight;
+
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  const theme = await paintThemeBackdrop(ctx, width, height, 'leaderboard', options.themeKey);
-  const accent = options.accentHex || theme.accent;
+  const themeDef = PROFILE_THEMES.find(t => t.key === options.themeKey) || PROFILE_THEMES[0];
+  const { filePath, isExactTheme } = resolveThemeAssetPath('leaderboard', options.themeKey);
 
-  // 1. Header Banner Zone (70, 50, 860x110)
+  if (filePath) {
+    const bgImg = await loadLocalImageCached(filePath);
+    if (isCompact) {
+      const srcTopH = Math.round(bgImg.height * (topCutY / fullHeight));
+      const srcBotY = Math.round(bgImg.height * ((fullHeight - bottomCapH) / fullHeight));
+      const srcBotH = bgImg.height - srcBotY;
+      ctx.drawImage(bgImg, 0, 0, bgImg.width, srcTopH, 0, 0, width, topCutY);
+      ctx.drawImage(bgImg, 0, srcBotY, bgImg.width, srcBotH, 0, topCutY, width, bottomCapH);
+
+      // Clean horizon transition across the spliced table bottom boundary
+      const blendGrad = ctx.createLinearGradient(0, topCutY - 8, 0, topCutY + 12);
+      blendGrad.addColorStop(0, 'rgba(7, 11, 20, 0.25)');
+      blendGrad.addColorStop(0.5, 'rgba(7, 11, 20, 0.92)');
+      blendGrad.addColorStop(1, 'rgba(7, 11, 20, 0.25)');
+      ctx.fillStyle = blendGrad;
+      ctx.fillRect(54, topCutY - 8, width - 108, 20);
+
+      ctx.strokeStyle = 'rgba(250, 204, 21, 0.42)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(54, topCutY + 1);
+      ctx.lineTo(width - 54, topCutY + 1);
+      ctx.stroke();
+    } else {
+      ctx.drawImage(bgImg, 0, 0, width, height);
+    }
+
+    if (!isExactTheme && themeDef.key !== 'obsidian') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = themeDef.glow;
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+    }
+  } else {
+    const grad = ctx.createLinearGradient(0, 0, width, height);
+    grad.addColorStop(0, themeDef.bgStart);
+    grad.addColorStop(1, themeDef.bgEnd);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  const accent = options.accentHex || themeDef.accent;
+
+  // 1. Header Banner Zone (70, 50, 860x110) + high-contrast dark glass scrim
   const hz = spec.headerZone;
+  drawGlassScrim(ctx, hz.x + 8, hz.y + 6, hz.w - 16, hz.h - 12, 8, 0.72);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
   ctx.shadowColor = accent;
-  ctx.shadowBlur = 16;
+  ctx.shadowBlur = 14;
   ctx.font = 'bold 34px "Segoe UI", Arial, sans-serif';
   ctx.fillText(truncateText(ctx, cleanCanvasText(options.title).toUpperCase(), hz.w - 60), hz.x + hz.w / 2, hz.y + 44);
   ctx.shadowBlur = 0;
 
-  ctx.fillStyle = accent;
+  ctx.fillStyle = '#7dd3fc';
   ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
   ctx.fillText(truncateText(ctx, cleanCanvasText(options.subtitle).toUpperCase(), hz.w - 60), hz.x + hz.w / 2, hz.y + 82);
   ctx.restore();
 
-  // 2. Replace "METRIC VALUE" label in the 3rd column pill with the active category header (e.g. OVR, GOALS, WEALTH, FANS)
+  // 2. Replace "METRIC VALUE" label in the 3rd column pill with the active category header
   const metricCol = spec.columns![2];
   ctx.save();
-  ctx.fillStyle = '#090e19';
+  ctx.fillStyle = '#070b14';
   drawRoundedRect(ctx, metricCol.x + 10, metricCol.y + 7, metricCol.w - 20, metricCol.h - 14, 5);
   ctx.fill();
-  ctx.fillStyle = accent;
+  ctx.fillStyle = '#fde047';
   ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -280,18 +333,22 @@ export async function renderLeaderboardCanvas(options: {
 
   // Fetch player avatars concurrently
   const avatarImages = await Promise.all(
-    options.entries.slice(0, 10).map(e => fetchRemoteImage(e.avatarUrl, 1500))
+    shownEntries.map(e => fetchRemoteImage(e.avatarUrl, 1200))
   );
 
-  // 3. Draw up to 10 Rows aligned cleanly with leaderboard rings
-  for (let i = 0; i < Math.min(10, options.entries.length); i++) {
-    const e = options.entries[i];
+  // 3. Draw populated rows cleanly aligned with leaderboard rings + dark text scrims
+  for (let i = 0; i < shownEntries.length; i++) {
+    const e = shownEntries[i];
     const rowSpec = spec.rows![i];
     const yCenter = rowSpec.yCenter;
     const isPodium = e.rank <= 3;
 
     const rankColor =
-      e.rank === 1 ? '#facc15' : e.rank === 2 ? '#e2e8f0' : e.rank === 3 ? '#fb923c' : '#94a3b8';
+      e.rank === 1 ? '#facc15' : e.rank === 2 ? '#f8fafc' : e.rank === 3 ? '#fb923c' : '#e2e8f0';
+
+    // Dark high-contrast scrim behind rank box & player/metric columns (leaves circular avatar ring exposed!)
+    drawGlassScrim(ctx, 64, yCenter - 27, 112, 54, 6, 0.72);
+    drawGlassScrim(ctx, 248, yCenter - 27, 686, 54, 6, 0.72);
 
     // Highlight current caller row inside the arena
     if (e.isCaller) {
@@ -300,7 +357,7 @@ export async function renderLeaderboardCanvas(options: {
       ctx.fillStyle = 'rgba(56, 189, 248, 0.14)';
       ctx.fill();
       ctx.strokeStyle = accent;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.8;
       ctx.stroke();
       ctx.restore();
     }
@@ -311,7 +368,7 @@ export async function renderLeaderboardCanvas(options: {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = rankColor;
     ctx.font = isPodium ? 'bold 26px "Segoe UI", Arial, sans-serif' : 'bold 21px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(`#${e.rank}`, 118, yCenter + 1);
+    ctx.fillText(`#${e.rank}`, 120, yCenter);
     ctx.restore();
 
     // Circular Avatar centered inside template socket (cx: 213, cy: yCenter - 5, r: 22)
@@ -323,52 +380,56 @@ export async function renderLeaderboardCanvas(options: {
       22,
       e.username,
       rankColor,
-      false // obsidian template already provides metallic circular ring!
+      false // metallic circular ring provided by background plate
     );
 
-    // Player Name & Club/Nation Subtext (x: 254..755)
+    // Player Name & Club/Nation Subtext (x: 256..755)
     ctx.save();
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = e.isCaller ? '#fef08a' : '#ffffff';
     ctx.font = isPodium ? 'bold 21px "Segoe UI", Arial, sans-serif' : 'bold 19px "Segoe UI", Arial, sans-serif';
     const cleanName = cleanCanvasText(e.username) || 'Player';
-    ctx.fillText(truncateText(ctx, cleanName, 485), 256, yCenter - 8);
+    ctx.fillText(truncateText(ctx, cleanName, 485), 258, yCenter - 9);
 
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '13px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(truncateText(ctx, cleanCanvasText(e.clubTag), 485), 256, yCenter + 14);
+    ctx.fillStyle = e.isCaller ? '#e2e8f0' : '#cbd5e1';
+    ctx.font = 'bold 12.5px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(truncateText(ctx, cleanCanvasText(e.clubTag), 485), 258, yCenter + 14);
     ctx.restore();
 
     // Metric Value Pill in Right Column (760..940)
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = isPodium ? rankColor : '#e2e8f0';
+    ctx.fillStyle = isPodium ? rankColor : '#f8fafc';
     ctx.font = isPodium ? 'bold 22px "Segoe UI", Arial, sans-serif' : 'bold 20px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(truncateText(ctx, cleanCanvasText(e.valueText), 160), 850, yCenter + 1);
+    ctx.fillText(truncateText(ctx, cleanCanvasText(e.valueText), 160), 850, yCenter);
     ctx.restore();
   }
 
   // Empty state check
-  if (options.entries.length === 0) {
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = 'bold 22px "Segoe UI", Arial, sans-serif';
-    ctx.fillText('No ranked players recorded yet.', width / 2, 560);
-    ctx.restore();
-  }
-
-  // 4. Bottom Caller Footer Zone (60, 1028, 880x46)
-  if (options.callerSummary) {
-    const fz = spec.footerZone!;
+  if (shownEntries.length === 0) {
+    drawGlassScrim(ctx, 220, 520, 560, 64, 10, 0.78);
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 22px "Segoe UI", Arial, sans-serif';
+    ctx.fillText('No ranked players recorded yet.', width / 2, 552);
+    ctx.restore();
+  }
+
+  // 4. Bottom Caller Footer Zone
+  if (options.callerSummary) {
+    const fz = spec.footerZone!;
+    const footerCenterY = isCompact ? topCutY + 69 : fz.y + fz.h / 2 + 12;
+    drawGlassScrim(ctx, fz.x + 8, footerCenterY - 19, fz.w - 16, 38, 6, 0.80);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#f8fafc';
     ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(truncateText(ctx, cleanCanvasText(options.callerSummary), fz.w - 40), fz.x + fz.w / 2, fz.y + fz.h / 2 + 12);
+    ctx.fillText(truncateText(ctx, cleanCanvasText(options.callerSummary), fz.w - 40), fz.x + fz.w / 2, footerCenterY);
     ctx.restore();
   }
 
@@ -609,6 +670,7 @@ export async function renderShowroomCanvas(options: {
 
   // 1. Header Zone (102, 112, 820x90)
   const hz = spec.headerZone;
+  drawGlassScrim(ctx, hz.x + 8, hz.y + 8, hz.w - 16, hz.h - 16, 8, 0.72);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -616,7 +678,7 @@ export async function renderShowroomCanvas(options: {
   ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
   ctx.fillText(cleanCanvasText(options.pageTitle).toUpperCase(), hz.x + hz.w / 2, hz.y + 32);
 
-  ctx.fillStyle = '#facc15';
+  ctx.fillStyle = '#fde047';
   ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
   ctx.fillText(
     `CURRENT RIDE: ${cleanCanvasText(options.currentRide).toUpperCase()} (${options.currentCooldown}M CD)  •  WALLET: ${formatK(options.walletCoins)} COINS  •  PAGE ${options.page}/${options.totalPages}`,
@@ -630,6 +692,8 @@ export async function renderShowroomCanvas(options: {
   for (let i = 0; i < cards.length; i++) {
     const car = cards[i];
     const slot = spec.slots![i];
+
+    drawGlassScrim(ctx, slot.x + 134, slot.y + 12, slot.w - 144, slot.h - 24, 6, 0.72);
 
     if (car.owned) {
       ctx.save();
@@ -654,7 +718,7 @@ export async function renderShowroomCanvas(options: {
     ctx.font = 'bold 17px "Segoe UI", Arial, sans-serif';
     ctx.fillText(truncateText(ctx, car.name.toUpperCase(), tw), tx, slot.y + 34);
 
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#cbd5e1';
     ctx.font = 'bold 12px Consolas, monospace';
     ctx.fillText(`alias: ${car.key}  •  ${car.cooldownMinutes}m travel`, tx, slot.y + 58);
 
@@ -664,14 +728,14 @@ export async function renderShowroomCanvas(options: {
     ctx.fillText(`${formatK(car.price)} COINS`, tx, slot.y + 92);
 
     if (car.owned) {
-      ctx.fillStyle = 'rgba(16, 185, 129, 0.22)';
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.25)';
       drawRoundedRect(ctx, slot.x + slot.w - 88, slot.y + 72, 76, 26, 6);
       ctx.fill();
       ctx.strokeStyle = '#10b981';
       ctx.lineWidth = 1.2;
       ctx.stroke();
       ctx.textAlign = 'center';
-      ctx.fillStyle = '#6ee7b7';
+      ctx.fillStyle = '#a7f3d0';
       ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
       ctx.fillText('OWNED', slot.x + slot.w - 50, slot.y + 89);
     }
@@ -680,12 +744,13 @@ export async function renderShowroomCanvas(options: {
 
   // 3. Footer Zone (102, 682, 820x42)
   const fz = spec.footerZone!;
+  drawGlassScrim(ctx, fz.x + 8, fz.y + 4, fz.w - 16, fz.h - 8, 6, 0.80);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = theme.accent;
+  ctx.fillStyle = '#7dd3fc';
   ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('GLOBAL MARKET DEALERSHIP (-travel gm)  •  BUY VIA -vehiclebuy <alias>', fz.x + fz.w / 2, fz.y + fz.h / 2 + 2);
+  ctx.fillText('GLOBAL MARKET DEALERSHIP (-travel gm)  •  BUY VIA -vehiclebuy <alias>', fz.x + fz.w / 2, fz.y + fz.h / 2 + 1);
   ctx.restore();
 
   return canvas.toBuffer('image/png');
@@ -735,13 +800,14 @@ export async function renderAuctionHouseCanvas(
 
   // Header Zone (102, 112, 820x90)
   const hz = spec.headerZone;
+  drawGlassScrim(ctx, hz.x + 8, hz.y + 8, hz.w - 16, hz.h - 16, 8, 0.74);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
   ctx.fillText('COLLECTOR AUCTION HOUSE VAULT', hz.x + hz.w / 2, hz.y + 32);
-  ctx.fillStyle = '#facc15';
+  ctx.fillStyle = '#fde047';
   ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
   ctx.fillText('ESCROWED DAILY RELIC AUCTIONS  •  +2M ANTI-SNIPE PROTECTION UNDER 60S', hz.x + hz.w / 2, hz.y + 66);
   ctx.restore();
@@ -792,29 +858,30 @@ export async function renderAuctionHouseCanvas(
 
     // Details below dome
     const cx = slot.x + slot.w / 2;
+    drawGlassScrim(ctx, slot.x + 18, slot.y + 162, slot.w - 36, 62, 6, 0.72);
     ctx.save();
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 20px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(truncateText(ctx, cleanCanvasText(lot.itemName).toUpperCase(), slot.w - 36), cx, slot.y + 186);
+    ctx.fillText(truncateText(ctx, cleanCanvasText(lot.itemName).toUpperCase(), slot.w - 44), cx, slot.y + 186);
 
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#e2e8f0';
     ctx.font = '12px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(truncateText(ctx, cleanCanvasText(lot.description), slot.w - 40), cx, slot.y + 212);
+    ctx.fillText(truncateText(ctx, cleanCanvasText(lot.description), slot.w - 48), cx, slot.y + 212);
 
     // Escrow Metrics Box
     drawRoundedRect(ctx, slot.x + 22, slot.y + 234, slot.w - 44, 134, 10);
-    ctx.fillStyle = 'rgba(7, 11, 20, 0.78)';
+    ctx.fillStyle = 'rgba(5, 9, 18, 0.86)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = '#cbd5e1';
     ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
     ctx.fillText(lot.leaderName ? 'HIGHEST BIDDER' : 'OPENING RESERVE PRICE', cx, slot.y + 258);
 
-    ctx.fillStyle = lot.leaderName ? '#38bdf8' : '#cbd5e1';
+    ctx.fillStyle = lot.leaderName ? '#7dd3fc' : '#f1f5f9';
     ctx.font = 'bold 17px "Segoe UI", Arial, sans-serif';
     ctx.fillText(truncateText(ctx, cleanCanvasText(lot.leaderName || 'NO BIDS YET'), slot.w - 70), cx, slot.y + 282);
 
@@ -830,12 +897,13 @@ export async function renderAuctionHouseCanvas(
 
   // Footer Zone (102, 682, 820x42)
   const fz = spec.footerZone!;
+  drawGlassScrim(ctx, fz.x + 8, fz.y + 4, fz.w - 16, fz.h - 8, 6, 0.80);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = theme.accent;
+  ctx.fillStyle = '#7dd3fc';
   ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('TRAVEL TO AUCTION HALL (-travel ah)  •  PLACE ESCROWED BIDS VIA -bid <amount> [lot#]', fz.x + fz.w / 2, fz.y + fz.h / 2 + 2);
+  ctx.fillText('TRAVEL TO AUCTION HALL (-travel ah)  •  PLACE ESCROWED BIDS VIA -bid <amount> [lot#]', fz.x + fz.w / 2, fz.y + fz.h / 2 + 1);
   ctx.restore();
 
   return canvas.toBuffer('image/png');
@@ -875,18 +943,20 @@ export async function renderStandingsTableCanvas(options: {
 
   // Header Zone (60, 44, 1080x96)
   const hz = spec.headerZone;
+  drawGlassScrim(ctx, hz.x + 8, hz.y + 6, hz.w - 16, hz.h - 12, 8, 0.74);
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 34px "Segoe UI", Arial, sans-serif';
   ctx.fillText(cleanCanvasText(options.title).toUpperCase(), hz.x + hz.w / 2, hz.y + 34);
-  ctx.fillStyle = '#facc15';
+  ctx.fillStyle = '#fde047';
   ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
   ctx.fillText(cleanCanvasText(options.subtitle).toUpperCase(), hz.x + hz.w / 2, hz.y + 72);
   ctx.restore();
 
   // Column Labels (60..1140 at y:160..208)
+  drawGlassScrim(ctx, 64, 162, 1072, 44, 6, 0.78);
   ctx.save();
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#facc15';
@@ -904,6 +974,7 @@ export async function renderStandingsTableCanvas(options: {
     const r = shown[i];
     const rowSpec = spec.rows![i];
     const cy = rowSpec.yCenter;
+    drawGlassScrim(ctx, 64, cy - 26, 1072, 52, 6, 0.72);
     const cols = spec.columns!;
     const vals = [
       String(r.rank),
@@ -936,10 +1007,11 @@ export async function renderStandingsTableCanvas(options: {
   // Footer Zone (60, 824, 1080x46)
   if (options.footerText) {
     const fz = spec.footerZone!;
+    drawGlassScrim(ctx, fz.x + 8, fz.y + 4, fz.w - 16, fz.h - 8, 6, 0.80);
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#cbd5e1';
+    ctx.fillStyle = '#f8fafc';
     ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
     ctx.fillText(cleanCanvasText(options.footerText), fz.x + fz.w / 2, fz.y + fz.h / 2);
     ctx.restore();
