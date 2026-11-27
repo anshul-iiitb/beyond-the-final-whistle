@@ -8,6 +8,7 @@ import {
   getCurrentMonthKey
 } from '../config/constants.js';
 import { formatK } from '../utils/formatHelper.js';
+import { getEffectivePrice, loadConfigCache } from '../services/configService.js';
 
 export interface CosmeticActionResult {
   success: boolean;
@@ -41,6 +42,7 @@ export async function acquireMonthlyCosmetic(
   alias: string,
   mode: 'buy' | 'claim'
 ): Promise<CosmeticActionResult> {
+  await loadConfigCache();
   const player = await prisma.player.findUnique({
     where: { id: playerId },
     include: { cosmetics: true }
@@ -76,6 +78,7 @@ export async function acquireMonthlyCosmetic(
 
   const monthKey = getCurrentMonthKey();
 
+  const effectiveCost = getEffectivePrice(target.key, target.cost);
   if (mode === 'claim') {
     if (player.vipTier < 1) {
       return {
@@ -89,10 +92,10 @@ export async function acquireMonthlyCosmetic(
         message: `⏳ You have already claimed your free **VIP Monthly Avatar/Banner** for \`${monthKey}\`!`
       };
     }
-  } else if (player.coins < target.cost) {
+  } else if (player.coins < effectiveCost) {
     return {
       success: false,
-      message: `🪙 Insufficient coins! **${target.name}** costs **${formatK(target.cost)} coins** (Your balance: \`${formatK(player.coins)}\`).`
+      message: `🪙 Insufficient coins! **${target.name}** costs **${formatK(effectiveCost)} coins** (Your balance: \`${formatK(player.coins)}\`).`
     };
   }
 
@@ -102,7 +105,7 @@ export async function acquireMonthlyCosmetic(
     prisma.player.update({
       where: { id: playerId },
       data: {
-        coins: mode === 'buy' ? { decrement: target.cost } : undefined,
+        coins: mode === 'buy' ? { decrement: effectiveCost } : undefined,
         lastVipCosmeticMonth: mode === 'claim' ? monthKey : undefined,
         [equipField]: target.key
       }
@@ -118,7 +121,7 @@ export async function acquireMonthlyCosmetic(
     })
   ]);
 
-  const claimBadge = mode === 'claim' ? '👑 **VIP Monthly Pass Claimed (FREE)!**' : `🛍️ **Boutique Purchase Complete!** (-${formatK(target.cost)} coins)`;
+  const claimBadge = mode === 'claim' ? '👑 **VIP Monthly Pass Claimed (FREE)!**' : `🛍️ **Boutique Purchase Complete!** (-${formatK(effectiveCost)} coins)`;
   return {
     success: true,
     message:

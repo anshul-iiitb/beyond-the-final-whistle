@@ -3,6 +3,9 @@ import { prisma } from '../database/prisma.js';
 import { formatK } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
 import { seedDailyAuctions, settleExpiredAuctions } from '../engines/auctionEngine.js';
+import { getAuctionAutomationConfig, loadConfigCache } from './configService.js';
+import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
+import { syncMemberGameRoles } from '../utils/roleSyncHelper.js';
 
 let dailyTimer: NodeJS.Timeout | null = null;
 let auctionTimer: NodeJS.Timeout | null = null;
@@ -67,12 +70,55 @@ export async function executeDailyLifecycle(client: Client) {
   logger.info(`Daily Lifecycle Reset completed for ${players.length} players.`);
 }
 
+async function expireElapsedVips(client: Client) {
+  const now = new Date();
+  const expiredVips = await prisma.player.findMany({
+    where: { vipTier: { gte: 1 }, vipExpiresAt: { lte: now } }
+  });
+
+  for (const player of expiredVips) {
+    try {
+      const updated = await prisma.player.update({
+        where: { id: player.id },
+        data: { vipTier: 0, vipExpiresAt: null }
+      });
+
+      const derived = calculateDerivedRatings(updated);
+      const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
+
+      for (const guild of client.guilds.cache.values()) {
+        const vipChannel = guild.channels.cache.find(c => c.name.toLowerCase().includes('vip-lounge'));
+        if (vipChannel && 'permissionOverwrites' in vipChannel) {
+          await vipChannel.permissionOverwrites.delete(player.id).catch(() => {});
+        }
+        const member = await guild.members.fetch(player.id).catch(() => null);
+        if (member) {
+          await syncMemberGameRoles(member, { ovr, matchesPlayed: updated.matchesPlayed || 0, vipTier: 0 });
+        }
+      }
+
+      const user = await client.users.fetch(player.id).catch(() => null);
+      if (user) {
+        await user.send('👑 Your **VIP Pass** on Beyond The Final Whistle has expired. Thanks for supporting the league!').catch(() => {});
+      }
+    } catch (err) {
+      logger.error({ err, playerId: player.id }, 'Error expiring VIP pass');
+    }
+  }
+}
+
 async function runAuctionLifecycleTick(client: Client) {
   if (auctionTickRunning) return;
   auctionTickRunning = true;
   try {
+    await loadConfigCache();
+    await expireElapsedVips(client);
     await settleExpiredAuctions(client);
-    await seedDailyAuctions(client, 2, true);
+
+    const ahCfg = getAuctionAutomationConfig();
+    if (ahCfg.autoEnabled) {
+      await seedDailyAuctions(client, ahCfg.lotsPerDrop, true, ahCfg.durationHours);
+    }
   } catch (err) {
     logger.error({ err }, 'Auction lifecycle tick failed');
   } finally {

@@ -10,6 +10,7 @@ import {
 } from '../commands/playerCommands.js';
 import { buildShowroomPayload } from '../commands/travelCommands.js';
 import { buildCosmeticShopPayload } from '../commands/cosmeticCommands.js';
+import { buildAuctionHousePayload } from '../commands/auctionCommands.js';
 import { buildTacticsContainer, parseTeamTactics, serializeTeamTactics, TeamTactics } from '../commands/tacticsCommand.js';
 import { formatK } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
@@ -285,6 +286,18 @@ export async function onInteractionCreate(interaction: Interaction) {
       await interaction.deferUpdate();
       const page = parseInt(customId.replace('avatar_page_', ''), 10) || 1;
       const payload = await buildCosmeticShopPayload(interaction.user.id, page, interaction.guild);
+      return await interaction.editReply({
+        embeds: [payload.embed],
+        files: payload.files,
+        components: payload.components,
+        attachments: []
+      });
+    }
+
+    // 3e. Auction House Live Refresh: ah_refresh
+    if (customId === 'ah_refresh') {
+      await interaction.deferUpdate();
+      const payload = await buildAuctionHousePayload(interaction.user.id, interaction.client, interaction.guild);
       return await interaction.editReply({
         embeds: [payload.embed],
         files: payload.files,

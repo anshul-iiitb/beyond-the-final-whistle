@@ -65,8 +65,9 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '🏛️ Auction House & Scouting (-ah, -ih)',
         value:
-          '• `-ah` / `-auction` — View automated daily collectible trophy & relic auctions (closes daily w/ `+2m` anti-snipe under `60s`).\n' +
+          '• `-ah` / `-auction` — View automated collector relic auctions w/ live Refresh (`+2m` anti-snipe under `60s`).\n' +
           `• \`-bid <amount> [lot#]\` — Place escrowed bids inside \`ah\` (instant outbid refunds + DM alerts!).\n` +
+          '• `-prices` — Inspect live Market, Vehicle, Cosmetic & Relic pricing.\n' +
           '• `-intel` — Claim scouting report at **🛰️ Intel Hub (`-travel ih`)** for +1 to +6 match boost.'
       },
       {
@@ -86,10 +87,10 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '👑 Admin, VIP & DevOps',
         value:
-          '• `-setup` (creates streamlined Campus + `👑 vip-lounge`) • `-setupemojis` (`-emojis`)\n' +
-          '• `-vip add/remove [reason] @user` — Manage 30d VIP pass & lounge access.\n' +
-          '• `-devfund <amount> [@user]` • `-seedauction [count]` — Mint event payouts or seed AH relics.\n' +
-          `• \`-additem <symbol> @user\` (${worldcup}) • \`-addvar <var> <val> @user\` • \`-gitpull\` • \`-gitpullback\``
+          '• `-setup` • `-setupemojis` (`-emojis`) • `-vip give @user <days>` / `-vip remove @user`\n' +
+          '• `-setprice <item|boots|avatars|banners|cars|reset> <amt>` • `-devfund <amt> [@user]`\n' +
+          '• `-seedauction [n] [hrs]` • `-auctionstart <item> <bid> [hrs]` • `-auctionconfig` • `-auctionend`/`-auctioncancel <lot#>`\n' +
+          `• \`-additem <symbol> @user\` (${worldcup}) • \`-addvar <var> <val> @user\` • \`-gitpull\` / \`-gitpullback\``
       }
     )
     .setFooter({

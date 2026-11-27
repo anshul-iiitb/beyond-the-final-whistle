@@ -1,12 +1,11 @@
 import { Client, EmbedBuilder, TextChannel } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import { AUCTION_RELIC_POOL } from '../config/constants.js';
+import { getAuctionAutomationConfig, getEffectivePrice, loadConfigCache } from '../services/configService.js';
 import { formatK, parseCoinAmount } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
 
-const MIN_BID_INCREMENT = 50000n;
 const ANTI_SNIPE_WINDOW_MS = 60 * 1000;
-const ANTI_SNIPE_EXTEND_MS = 2 * 60 * 1000;
 
 export function formatTimeRemaining(endsAt: Date): string {
   const diffMs = endsAt.getTime() - Date.now();
@@ -20,14 +19,58 @@ export function formatTimeRemaining(endsAt: Date): string {
   return `${s}s`;
 }
 
+async function announceAuctionDrop(client: Client, listings: any[], headline = '🏛️ DAILY AUCTION HOUSE DROPS ARE LIVE!') {
+  if (!client || listings.length === 0) return;
+  const ahCfg = getAuctionAutomationConfig();
+
+  for (const guild of client.guilds.cache.values()) {
+    const ahChannel = guild.channels.cache.find(
+      c => c.isTextBased() && c.name.toLowerCase().includes('auction-house')
+    ) as TextChannel | undefined;
+    if (!ahChannel) continue;
+
+    const lotLines = listings.map((l, idx) =>
+      `**[Lot #${idx + 1}]** ${l.emoji} **${l.itemName}**\n` +
+      `> *${l.description}*\n` +
+      `• **Opening Bid:** \`${formatK(l.startingPrice)} coins\` • **Closes In:** \`${formatTimeRemaining(l.endsAt)}\``
+    ).join('\n\n');
+
+    const embed = new EmbedBuilder()
+      .setColor('#f59e0b')
+      .setTitle(headline)
+      .setDescription(
+        `The BTFW Collector Vault has released rare relics for public bidding!\n\n${lotLines}\n\n` +
+        `💡 **How to Bid:** Travel here (\`-travel ah\`) and run \`-bid <amount> [lot#]\` (e.g. \`-bid 2.5m 1\`).`
+      )
+      .setFooter({ text: `Anti-Snipe Active: Bids under 60s remaining extend closing by +${ahCfg.antiSnipeMinutes}m!` })
+      .setTimestamp();
+
+    const sent = await ahChannel.send({ embeds: [embed] }).catch(() => null);
+    if (sent) {
+      for (const l of listings) {
+        await prisma.auctionListing.update({
+          where: { id: l.id },
+          data: { channelId: ahChannel.id, discordMessageId: sent.id }
+        }).catch(() => {});
+      }
+    }
+  }
+}
+
 /**
- * Seeds 1-2 rare collectibles into AuctionListing if needed (or forced by admin).
+ * Seeds 1-4 rare collectibles into AuctionListing if needed (or forced by admin).
  */
 export async function seedDailyAuctions(
   client?: Client,
-  count = 2,
-  onlyIfNoneToday = true
+  countOverride?: number,
+  onlyIfNoneToday = true,
+  durationHoursOverride?: number
 ): Promise<{ seeded: number; listings: any[] }> {
+  await loadConfigCache();
+  const ahCfg = getAuctionAutomationConfig();
+  const count = countOverride ?? ahCfg.lotsPerDrop;
+  const durationHours = durationHoursOverride ?? ahCfg.durationHours;
+
   const activeListings = await prisma.auctionListing.findMany({
     where: { status: 'ACTIVE' }
   });
@@ -36,24 +79,23 @@ export async function seedDailyAuctions(
     return { seeded: 0, listings: activeListings };
   }
 
-  // Avoid duplicating already active itemKeys when seeding
   const activeKeys = new Set(activeListings.map(a => a.itemKey));
   const candidates = AUCTION_RELIC_POOL.filter(r => !activeKeys.has(r.itemKey));
   const pool = candidates.length >= count ? candidates : [...AUCTION_RELIC_POOL];
 
-  // Shuffle candidates
   const shuffled = [...pool].sort(() => Math.random() - 0.5).slice(0, count);
-  const endsAt = new Date(Date.now() + 22 * 60 * 60 * 1000); // 22-hour daily auction window
+  const endsAt = new Date(Date.now() + Math.max(0.05, durationHours) * 60 * 60 * 1000);
 
   const createdListings = [];
   for (const relic of shuffled) {
+    const startPrice = getEffectivePrice(relic.itemKey, relic.startingPrice);
     const listing = await prisma.auctionListing.create({
       data: {
         itemKey: relic.itemKey,
         itemName: relic.itemName,
         emoji: relic.emoji,
         description: relic.description,
-        startingPrice: relic.startingPrice,
+        startingPrice: startPrice,
         currentBid: 0n,
         status: 'ACTIVE',
         endsAt
@@ -62,43 +104,45 @@ export async function seedDailyAuctions(
     createdListings.push(listing);
   }
 
-  // Announce in #auction-house across guilds if client is online
   if (client && createdListings.length > 0) {
-    for (const guild of client.guilds.cache.values()) {
-      const ahChannel = guild.channels.cache.find(
-        c => c.isTextBased() && c.name.toLowerCase().includes('auction-house')
-      ) as TextChannel | undefined;
-      if (!ahChannel) continue;
-
-      const lotLines = createdListings.map((l, idx) =>
-        `**[Lot #${idx + 1}]** ${l.emoji} **${l.itemName}**\n` +
-        `> *${l.description}*\n` +
-        `• **Opening Bid:** \`${formatK(l.startingPrice)} coins\` • **Closes In:** \`${formatTimeRemaining(l.endsAt)}\``
-      ).join('\n\n');
-
-      const embed = new EmbedBuilder()
-        .setColor('#f59e0b')
-        .setTitle('🏛️ DAILY AUCTION HOUSE DROPS ARE LIVE!')
-        .setDescription(
-          `The BTFW Collector Vault has released rare relics for public bidding!\n\n${lotLines}\n\n` +
-          `💡 **How to Bid:** Travel here (\`-travel ah\`) and run \`-bid <amount> [lot#]\` (e.g. \`-bid 2.5m 1\`).`
-        )
-        .setFooter({ text: 'Anti-Snipe Active: Bids under 60s remaining extend closing by +2m!' })
-        .setTimestamp();
-
-      const sent = await ahChannel.send({ embeds: [embed] }).catch(() => null);
-      if (sent) {
-        for (const l of createdListings) {
-          await prisma.auctionListing.update({
-            where: { id: l.id },
-            data: { channelId: ahChannel.id, discordMessageId: sent.id }
-          }).catch(() => {});
-        }
-      }
-    }
+    await announceAuctionDrop(client, createdListings);
   }
 
   return { seeded: createdListings.length, listings: createdListings };
+}
+
+/**
+ * Launches a custom admin auction lot immediately and announces it in #auction-house.
+ */
+export async function launchCustomAuctionLot(options: {
+  itemKey: string;
+  itemName: string;
+  emoji: string;
+  description: string;
+  startingPrice: bigint;
+  durationHours: number;
+  client?: Client;
+}) {
+  await loadConfigCache();
+  const endsAt = new Date(Date.now() + Math.max(0.05, options.durationHours) * 60 * 60 * 1000);
+  const listing = await prisma.auctionListing.create({
+    data: {
+      itemKey: options.itemKey,
+      itemName: options.itemName,
+      emoji: options.emoji,
+      description: options.description,
+      startingPrice: options.startingPrice,
+      currentBid: 0n,
+      status: 'ACTIVE',
+      endsAt
+    }
+  });
+
+  if (options.client) {
+    await announceAuctionDrop(options.client, [listing], '⚡ CUSTOM AUCTION LOT NOW LIVE!');
+  }
+
+  return listing;
 }
 
 /**
@@ -110,6 +154,10 @@ export async function placeAuctionBid(
   lotNumber = 1,
   client?: Client
 ): Promise<{ success: boolean; message: string }> {
+  await loadConfigCache();
+  const ahCfg = getAuctionAutomationConfig();
+  const minIncrement = ahCfg.minBidIncrement;
+
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) {
     return { success: false, message: '❌ Player not found. Run `-profile` first to register.' };
@@ -140,7 +188,7 @@ export async function placeAuctionBid(
   const targetLot = activeLots[idx];
 
   const minRequired = targetLot.currentBid > 0n
-    ? targetLot.currentBid + MIN_BID_INCREMENT
+    ? targetLot.currentBid + minIncrement
     : targetLot.startingPrice;
 
   if (bidAmount < minRequired) {
@@ -166,8 +214,8 @@ export async function placeAuctionBid(
 
   const now = new Date();
   const msLeft = targetLot.endsAt.getTime() - now.getTime();
-  const extended = msLeft < ANTI_SNIPE_WINDOW_MS;
-  const nextEndsAt = extended ? new Date(now.getTime() + ANTI_SNIPE_EXTEND_MS) : targetLot.endsAt;
+  const extended = ahCfg.antiSnipeMinutes > 0 && msLeft < ANTI_SNIPE_WINDOW_MS;
+  const nextEndsAt = extended ? new Date(now.getTime() + ahCfg.antiSnipeMinutes * 60 * 1000) : targetLot.endsAt;
 
   // Atomic escrow transaction
   const prevBidderId = targetLot.highestBidderId;
@@ -178,7 +226,7 @@ export async function placeAuctionBid(
     if (!freshLot || freshLot.status !== 'ACTIVE' || freshLot.endsAt <= new Date()) {
       throw new Error('This auction just closed!');
     }
-    const freshMin = freshLot.currentBid > 0n ? freshLot.currentBid + MIN_BID_INCREMENT : freshLot.startingPrice;
+    const freshMin = freshLot.currentBid > 0n ? freshLot.currentBid + minIncrement : freshLot.startingPrice;
     if (bidAmount < freshMin) {
       throw new Error(`Someone just outbid you! Minimum required is now ${formatK(freshMin)} coins.`);
     }
@@ -224,7 +272,7 @@ export async function placeAuctionBid(
     }
   }
 
-  const snipeNote = extended ? '\n⏱️ **Anti-Snipe Activated:** Closing timer extended by **+2 minutes**!' : '';
+  const snipeNote = extended ? `\n⏱️ **Anti-Snipe Activated:** Closing timer extended by **+${ahCfg.antiSnipeMinutes} minute(s)**!` : '';
   return {
     success: true,
     message:
@@ -232,6 +280,100 @@ export async function placeAuctionBid(
       `${targetLot.emoji} **${targetLot.itemName}**\n` +
       `• **Your Leading Bid:** \`${formatK(bidAmount)} coins\` *(Escrowed)*\n` +
       `• **Time Remaining:** \`${formatTimeRemaining(nextEndsAt)}\`${snipeNote}`
+  };
+}
+
+/**
+ * Settles a single active auction lot (awarding highest bidder) or cancels it (refunding escrow).
+ */
+export async function settleOrCancelAuctionLot(
+  lotNumber: number,
+  mode: 'end' | 'cancel',
+  client?: Client
+): Promise<{ success: boolean; message: string }> {
+  const activeLots = await prisma.auctionListing.findMany({
+    where: { status: 'ACTIVE', endsAt: { gt: new Date() } },
+    orderBy: { endsAt: 'asc' }
+  });
+  if (activeLots.length === 0) {
+    return { success: false, message: 'ℹ️ There are no active auction lots right now.' };
+  }
+
+  const idx = lotNumber - 1;
+  if (idx < 0 || idx >= activeLots.length) {
+    return { success: false, message: `❌ Invalid lot #${lotNumber}. Active lots: \`1–${activeLots.length}\`.` };
+  }
+
+  const lot = activeLots[idx];
+  if (mode === 'cancel') {
+    await prisma.$transaction(async (tx) => {
+      const upd = await tx.auctionListing.updateMany({
+        where: { id: lot.id, status: 'ACTIVE' },
+        data: { status: 'CANCELLED' }
+      });
+      if (upd.count === 0) throw new Error('Lot already closed.');
+      if (lot.highestBidderId && lot.currentBid > 0n) {
+        await tx.player.update({
+          where: { id: lot.highestBidderId },
+          data: { coins: { increment: lot.currentBid } }
+        });
+      }
+    });
+
+    if (client && lot.highestBidderId && lot.currentBid > 0n) {
+      const bidder = await client.users.fetch(lot.highestBidderId).catch(() => null);
+      if (bidder) {
+        await bidder.send(
+          `🏛️ **Auction Cancelled:** ${lot.emoji} **${lot.itemName}** was cancelled by an Admin. Your \`${formatK(lot.currentBid)} coins\` escrow has been refunded.`
+        ).catch(() => {});
+      }
+    }
+
+    return {
+      success: true,
+      message: `🚫 Cancelled **Lot #${lotNumber}** (${lot.emoji} **${lot.itemName}**)${lot.highestBidderId ? ` and refunded \`${formatK(lot.currentBid)}\` coins to <@${lot.highestBidderId}>` : ''}.`
+    };
+  }
+
+  // Early settlement
+  await prisma.$transaction(async (tx) => {
+    const upd = await tx.auctionListing.updateMany({
+      where: { id: lot.id, status: 'ACTIVE' },
+      data: { status: 'SETTLED', endsAt: new Date() }
+    });
+    if (upd.count === 0) throw new Error('Lot already closed.');
+    if (lot.highestBidderId) {
+      await tx.inventoryItem.create({
+        data: {
+          playerId: lot.highestBidderId,
+          itemKey: lot.itemKey,
+          name: lot.itemName,
+          emoji: lot.emoji
+        }
+      });
+    }
+  });
+
+  if (client && lot.highestBidderId) {
+    const winner = await client.users.fetch(lot.highestBidderId).catch(() => null);
+    if (winner) {
+      await winner.send(
+        `🎉 **AUCTION WON!** You claimed ${lot.emoji} **${lot.itemName}** for \`${formatK(lot.currentBid)} coins\`!`
+      ).catch(() => {});
+    }
+    if (lot.channelId) {
+      const ch = client.channels.cache.get(lot.channelId) as TextChannel | undefined;
+      if (ch?.isTextBased()) {
+        await ch.send(`🏛️ **SOLD (Admin Settled)!** ${lot.emoji} **${lot.itemName}** goes to <@${lot.highestBidderId}> for **\`${formatK(lot.currentBid)} coins\`**!`).catch(() => {});
+      }
+    }
+  }
+
+  return {
+    success: true,
+    message: lot.highestBidderId
+      ? `✅ Settled **Lot #${lotNumber}** (${lot.emoji} **${lot.itemName}**) — awarded to <@${lot.highestBidderId}> for \`${formatK(lot.currentBid)} coins\`!`
+      : `ℹ️ Settled **Lot #${lotNumber}** (${lot.emoji} **${lot.itemName}**) with zero bids.`
   };
 }
 
@@ -286,6 +428,11 @@ export async function settleExpiredAuctions(client?: Client): Promise<number> {
               `🏛️ **SOLD!** ${lot.emoji} **${lot.itemName}** goes to <@${lot.highestBidderId}> for **\`${formatK(lot.currentBid)} coins\`**!`
             ).catch(() => {});
           }
+        }
+      } else if (client && !lot.highestBidderId && lot.channelId) {
+        const ch = client.channels.cache.get(lot.channelId) as TextChannel | undefined;
+        if (ch?.isTextBased()) {
+          await ch.send(`🏛️ **AUCTION ENDED:** ${lot.emoji} **${lot.itemName}** closed with no bids and returned to the Vault.`).catch(() => {});
         }
       }
     } catch (err) {

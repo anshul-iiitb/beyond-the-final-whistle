@@ -71,11 +71,11 @@ export async function buildPlayerStatCardAttachment(
   const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
   const milestones = getUnlockedMilestones(player);
 
-  let recentForm = ['6.8', '7.2', '7.5', '8.0', '7.4'];
+  let recentForm: string[] = [];
   try {
     const parsed = JSON.parse(player.recentRatings || '[]');
     if (Array.isArray(parsed) && parsed.length > 0) {
-      recentForm = parsed.map((n: number) => n.toFixed(1));
+      recentForm = parsed.map((n: number) => Number(n).toFixed(1));
     }
   } catch { }
 
@@ -211,11 +211,11 @@ export function buildProfileEmbed(
   const followersEmoji = getEmoji(guild, 'followers');
   const carEmoji = getEmoji(guild, 'car');
 
-  let recentForm = ['6.8', '7.2', '7.5', '8.0', '7.4'];
+  let recentForm: string[] = [];
   try {
     const parsed = JSON.parse(player.recentRatings || '[]');
     if (Array.isArray(parsed) && parsed.length > 0) {
-      recentForm = parsed.map((n: number) => n.toFixed(1));
+      recentForm = parsed.map((n: number) => Number(n).toFixed(1));
     }
   } catch { }
 
@@ -241,26 +241,37 @@ export function buildProfileEmbed(
     const bootsLabel = player.activeBoots ? `${player.activeBoots.toUpperCase()} (+10)` : 'Standard';
     const intelLabel = player.intelBonus > 0 ? `+${player.intelBonus} ${player.intelStat || 'Boost'}` : 'None';
 
+    const recentFormText = recentForm.length > 0
+      ? `${recentForm.join(' | ')} ⭐`
+      : '*No matches played yet*';
+
     const sections = [
       `*${player.bio || 'Rising football prodigy aiming for the World Cup trophy.'}*`,
       `### 🛡️ Team Stats\n` +
-      `**National Team :** ${flag} ${player.nation?.name || 'Free Agent'} (\`-joinnation\`)\n` +
-      `**Club Team :** ${player.club?.name || 'Free Agent'}\n` +
+      `**Nation :** ${flag} ${player.nation?.name || 'Free Agent'} (\`-joinnation\`)\n` +
+      `**Club :** ${player.club?.name || 'Free Agent'}\n` +
       `**Location :** ${loc.emoji} ${loc.name} (\`-travel ${loc.alias}\`)`,
       `### 📊 Individual Stats\n` +
-      `**Total Appearances :** ${player.matchesPlayed || 0} 🎯\n` +
-      `**Goals Scored :** ${player.goalsScored || 0} ⚽   •   **Assists :** ${player.assists || 0} 👟\n` +
-      `**Yellow Cards :** ${player.yellowCards || 0} 🟨   •   **Red Cards :** ${player.redCards || 0} 🟥\n` +
-      `**Clean Sheets :** ${player.cleanSheets || 0} 🧤   •   **MOTM Awards :** ${player.motmCount || 0} ${motmEmoji}`,
+      `**Appearances :** ${player.matchesPlayed || 0} 🎯\n` +
+      `**Goals :** ${player.goalsScored || 0} ⚽\n` +
+      `**Assists :** ${player.assists || 0} 👟\n` +
+      `**Yellow Cards :** ${player.yellowCards || 0} 🟨\n` +
+      `**Red Cards :** ${player.redCards || 0} 🟥\n` +
+      `**Clean Sheets :** ${player.cleanSheets || 0} 🧤\n` +
+      `**MOTM Awards :** ${player.motmCount || 0} ${motmEmoji}`,
       `### 📈 Recent Form\n` +
-      `**Last 5 Match Ratings :** ${recentForm.join(' | ')} ⭐`,
+      `**Last 5 Ratings :** ${recentFormText}`,
       `### ⚡ Player Attributes\n` +
-      `**Playstyle :** ${style.emoji} ${style.name} (${style.code}) • ${style.position}\n` +
-      `**Ratings :** ATK **${derived.atk}**  |  MID **${derived.mid}**  |  DEF **${derived.def}**  |  OVR **${ovr}**\n` +
-      `**Stamina :** ${staminaEmoji} ${player.stamina}/100   •   **Training Points :** ${tpEmoji} ${player.trainingPoints}\n` +
-      `**Loadout :** 👟 ${bootsLabel}   •   🛰️ ${intelLabel}`,
-      `### 💰 Followers and Wealth\n` +
-      `**Followers :** ${formatK(player.followers)} ${followersEmoji}   •   **Coins :** ${formatK(player.coins)} ${coinEmoji}`,
+      `**Playstyle :** ${style.emoji} ${style.name} (${style.code})\n` +
+      `**Position :** ${style.position}  •  **OVR :** ${ovr}\n` +
+      `**Ratings :** ATK **${derived.atk}** | MID **${derived.mid}** | DEF **${derived.def}**\n` +
+      `**Stamina :** ${staminaEmoji} ${player.stamina}/100\n` +
+      `**Training Pts :** ${tpEmoji} ${player.trainingPoints}\n` +
+      `**Boots :** 👟 ${bootsLabel}\n` +
+      `**Intel :** 🛰️ ${intelLabel}`,
+      `### 💰 Followers & Wealth\n` +
+      `**Followers :** ${formatK(player.followers)} ${followersEmoji}\n` +
+      `**Coins :** ${formatK(player.coins)} ${coinEmoji}`,
       `### 🎁 Collectables\n` +
       `${collectablesDisplay}\n\n` +
       subtext(`🏆 ${seasonRank} Tier • Manage gear via -inv & -equip`)
@@ -294,19 +305,22 @@ export function buildProfileEmbed(
       : 0;
 
     const statSections = [
-      `🏅 **Season Rank:** ${seasonRank}   •   🎖️ **Record (W-D-L):** ${wins}-${draws}-${losses}   •   🔥 **Total G/A:** ${gaTotal}` +
+      `🏅 **Season Rank:** ${seasonRank}\n🎖️ **Record (W-D-L):** ${wins}-${draws}-${losses}\n🔥 **Total G/A:** ${gaTotal}` +
       (milestones.length > 0 ? `\n🏆 **Milestones:** ${milestones.join(' • ')}` : ''),
       `### ⚔️ Attacking & Passing\n` +
       `**Shots :** ${player.shots || 0} (${player.shotsOnTarget || 0} on target)\n` +
-      `**Passes Completed :** ${player.passesCompleted || 0} / ${player.passesAttempted || 0} (${passPct}%)\n` +
-      `**Key Passes :** ${player.keyPasses || 0}   •   **Second Assists :** ${player.secondAssists || 0}\n` +
+      `**Passes :** ${player.passesCompleted || 0} / ${player.passesAttempted || 0} (${passPct}%)\n` +
+      `**Key Passes :** ${player.keyPasses || 0}\n` +
+      `**Second Assists :** ${player.secondAssists || 0}\n` +
       `**Dribbles Won :** ${player.dribblesCompleted || 0} / ${player.dribblesAttempted || 0}`,
       `### 🛡️ Defending & Discipline\n` +
-      `**Tackles Won :** ${player.tacklesWon || 0} / ${player.tacklesAttempted || 0}   •   **Interceptions :** ${player.interceptions || 0}\n` +
-      `**Clearances :** ${player.clearances || 0}   •   **Possession W/L :** ${player.possessionWon || 0} / ${player.possessionLost || 0}\n` +
+      `**Tackles Won :** ${player.tacklesWon || 0} / ${player.tacklesAttempted || 0}\n` +
+      `**Interceptions :** ${player.interceptions || 0}\n` +
+      `**Clearances :** ${player.clearances || 0}\n` +
+      `**Possession W/L :** ${player.possessionWon || 0} / ${player.possessionLost || 0}\n` +
       `**Fouls Comm / Earned :** ${player.foulsCommitted || 0} / ${player.foulsEarned || 0}\n` +
       `**Saves / Clean Sheets :** ${player.savesMade || 0} / ${player.cleanSheets || 0}\n` +
-      `**Penalties Scored / Saved :** ${player.penaltiesScored || 0} / ${player.penaltiesSaved || 0}`
+      `**Penalties S / Sv :** ${player.penaltiesScored || 0} / ${player.penaltiesSaved || 0}`
     ];
 
     return new EmbedBuilder()

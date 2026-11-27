@@ -1,11 +1,14 @@
 import { EmbedBuilder } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import { VEHICLE_CATALOG } from '../config/constants.js';
+import { getEffectivePrice, getMarketItemPrice, loadConfigCache } from '../services/configService.js';
+import { formatK } from '../utils/formatHelper.js';
 
 /**
  * Handles purchases at the Global Market
  */
 export async function buyMarketItem(playerId: string, itemAlias: string): Promise<{ success: boolean; message: string }> {
+  await loadConfigCache();
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) return { success: false, message: '❌ Player not found.' };
 
@@ -16,9 +19,9 @@ export async function buyMarketItem(playerId: string, itemAlias: string): Promis
   const alias = itemAlias.toLowerCase();
 
   if (alias === 'sd' || alias === 'drink' || alias === 'sportsdrink') {
-    const cost = 100000n;
+    const cost = getMarketItemPrice('sd');
     if (player.coins < cost) {
-      return { success: false, message: `🪙 Insufficient funds! Sports Drink costs **100k coins** (Your balance: ${Number(player.coins).toLocaleString()} coins).` };
+      return { success: false, message: `🪙 Insufficient funds! Sports Drink costs **${formatK(cost)} coins** (Your balance: ${formatK(player.coins)} coins).` };
     }
 
     const previousStamina = player.stamina;
@@ -35,16 +38,16 @@ export async function buyMarketItem(playerId: string, itemAlias: string): Promis
 
     return {
       success: true,
-      message: `🥤 **Guzzled Energy Sports Drink!**\n` +
+      message: `🥤 **Guzzled Energy Sports Drink!** (-${formatK(cost)} coins)\n` +
         `Restored **+${actualGained} Stamina** (Capped at 100)!\n` +
-        `Current Stamina: \`${updated.stamina}/100\` | Balance: \`${Number(updated.coins).toLocaleString()} coins\``
+        `Current Stamina: \`${updated.stamina}/100\` | Balance: \`${formatK(updated.coins)} coins\``
     };
   }
 
   if (alias === 'strika' || alias === 'passa' || alias === 'bully') {
-    const cost = 500000n;
+    const cost = getMarketItemPrice(alias);
     if (player.coins < cost) {
-      return { success: false, message: `🪙 Insufficient funds! Performance boots cost **500k coins** (Your balance: ${Number(player.coins).toLocaleString()} coins).` };
+      return { success: false, message: `🪙 Insufficient funds! Performance boots cost **${formatK(cost)} coins** (Your balance: ${formatK(player.coins)} coins).` };
     }
 
     if (player.activeBoots === alias) {
@@ -63,15 +66,15 @@ export async function buyMarketItem(playerId: string, itemAlias: string): Promis
 
     return {
       success: true,
-      message: `👟 **Equipped Elite ${alias.toUpperCase()} Boots!**\n` +
+      message: `👟 **Equipped Elite ${alias.toUpperCase()} Boots!** (-${formatK(cost)} coins)\n` +
         `Active Matchday Boost: **${boostLabel}** for your next match!\n` +
-        `Balance: \`${Number(updated.coins).toLocaleString()} coins\`\n*(Note: Resets after matchday)*`
+        `Balance: \`${formatK(updated.coins)} coins\`\n*(Note: Resets after matchday)*`
     };
   }
 
   return {
     success: false,
-    message: '❌ Invalid item alias. Available: `-buy sd` (100k), `-buy strika` (500k), `-buy passa` (500k), `-buy bully` (500k).'
+    message: `❌ Invalid item alias. Available: \`-buy sd\` (${formatK(getMarketItemPrice('sd'))}), \`-buy strika\` (${formatK(getMarketItemPrice('strika'))}), \`-buy passa\` (${formatK(getMarketItemPrice('passa'))}), \`-buy bully\` (${formatK(getMarketItemPrice('bully'))}).`
   };
 }
 
@@ -116,6 +119,7 @@ export async function claimIntelScouting(playerId: string): Promise<{ success: b
  * Handles vehicle purchase at the Vehicle Showroom
  */
 export async function buyVehicle(playerId: string, vehicleAlias: string): Promise<{ success: boolean; message: string }> {
+  await loadConfigCache();
   const player = await prisma.player.findUnique({
     where: { id: playerId },
     include: { vehicles: true }
@@ -130,7 +134,7 @@ export async function buyVehicle(playerId: string, vehicleAlias: string): Promis
   const lookupKey = cleanAlias === 'shelbymustang' ? 'mustang' : cleanAlias;
   const targetDef = VEHICLE_CATALOG.find(v => v.key.toLowerCase() === lookupKey || v.name.toLowerCase().includes(cleanAlias));
   if (!targetDef) {
-    const list = VEHICLE_CATALOG.map(v => `• \`${v.key}\` — ${v.name} (${Number(v.cost).toLocaleString()} coins • ${v.cooldownMinutes}m cooldown)`).join('\n');
+    const list = VEHICLE_CATALOG.map(v => `• \`${v.key}\` — ${v.name} (${formatK(getEffectivePrice(v.key, v.cost))} coins • ${v.cooldownMinutes}m cooldown)`).join('\n');
     return { success: false, message: `❌ Unknown vehicle \`${vehicleAlias}\`.\n\n**Showroom Catalog:**\n${list}` };
   }
 
@@ -139,17 +143,18 @@ export async function buyVehicle(playerId: string, vehicleAlias: string): Promis
     return { success: false, message: `ℹ️ You already own a **${targetDef.name}** in your personal garage!` };
   }
 
-  if (player.coins < targetDef.cost) {
+  const vehicleCost = getEffectivePrice(targetDef.key, targetDef.cost);
+  if (player.coins < vehicleCost) {
     return {
       success: false,
-      message: `🪙 Insufficient funds! **${targetDef.name}** costs **${Number(targetDef.cost).toLocaleString()} coins** (You have: ${Number(player.coins).toLocaleString()} coins).`
+      message: `🪙 Insufficient funds! **${targetDef.name}** costs **${formatK(vehicleCost)} coins** (You have: ${formatK(player.coins)} coins).`
     };
   }
 
   await prisma.$transaction([
     prisma.player.update({
       where: { id: playerId },
-      data: { coins: { decrement: targetDef.cost } }
+      data: { coins: { decrement: vehicleCost } }
     }),
     prisma.playerVehicle.create({
       data: {
@@ -163,7 +168,7 @@ export async function buyVehicle(playerId: string, vehicleAlias: string): Promis
 
   return {
     success: true,
-    message: `🏎️ **CONGRATULATIONS! Delivery Complete!**\n` +
+    message: `🏎️ **CONGRATULATIONS! Delivery Complete!** (-${formatK(vehicleCost)} coins)\n` +
       `You purchased the **${targetDef.emoji} ${targetDef.name}**!\n` +
       `⏱️ **New Travel Cooldown:** Slashed down to **${targetDef.cooldownMinutes} minutes**!\n` +
       `Added to your permanent garage on \`-profile\`.`

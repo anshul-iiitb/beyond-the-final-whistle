@@ -2,7 +2,9 @@ import { Message, EmbedBuilder, AttachmentBuilder, Guild } from 'discord.js';
 import path from 'path';
 import fs from 'fs';
 import { buyMarketItem, claimIntelScouting } from '../engines/marketEngine.js';
+import { getMarketItemPrice, loadConfigCache } from '../services/configService.js';
 import { getEmoji } from '../utils/emojiHelper.js';
+import { formatK } from '../utils/formatHelper.js';
 import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
 
 export function buildGlobalMarketEmbed(guild?: Guild | null) {
@@ -13,6 +15,11 @@ export function buildGlobalMarketEmbed(guild?: Guild | null) {
   const passa = getEmoji(guild, 'passa');
   const bully = getEmoji(guild, 'bully');
 
+  const sdCost = formatK(getMarketItemPrice('sd'));
+  const strikaCost = formatK(getMarketItemPrice('strika'));
+  const passaCost = formatK(getMarketItemPrice('passa'));
+  const bullyCost = formatK(getMarketItemPrice('bully'));
+
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.EMERALD)
     .setTitle('🛍️ Global Market — Gear, Vehicle Showroom & Avatar Boutique')
@@ -20,10 +27,10 @@ export function buildGlobalMarketEmbed(guild?: Guild | null) {
       [
         'Your all-in-one commercial hub! Buy matchday gear, shop 16 exotic vehicles, and unlock collector banners.',
         `### 🥤 Matchday Gear & Stamina\n` +
-        `${sd} **SPORTS DRINK** \`[ alias: sd ]\` — \`+50\` ${stamina} Stamina • **\`100k\`** ${coin}\n` +
-        `${strika} **STRIKA BOOTS** \`[ alias: strika ]\` — \`+10 ATK\` next match • **\`500k\`** ${coin}\n` +
-        `${passa} **PASSA BOOTS** \`[ alias: passa ]\` — \`+10 MID\` next match • **\`500k\`** ${coin}\n` +
-        `${bully} **BULLY BOOTS** \`[ alias: bully ]\` — \`+10 DEF\` next match • **\`500k\`** ${coin}`,
+        `${sd} **SPORTS DRINK** \`[ alias: sd ]\` — \`+50\` ${stamina} Stamina • **\`${sdCost}\`** ${coin}\n` +
+        `${strika} **STRIKA BOOTS** \`[ alias: strika ]\` — \`+10 ATK\` next match • **\`${strikaCost}\`** ${coin}\n` +
+        `${passa} **PASSA BOOTS** \`[ alias: passa ]\` — \`+10 MID\` next match • **\`${passaCost}\`** ${coin}\n` +
+        `${bully} **BULLY BOOTS** \`[ alias: bully ]\` — \`+10 DEF\` next match • **\`${bullyCost}\`** ${coin}`,
         `### 🏎️ Dealership & Cosmetics (Located Inside Global Market)\n` +
         `• **16-Car Dealership:** Inspect with \`-showroom\` • Purchase with \`-vehiclebuy <alias>\`\n` +
         `• **Avatar & Banner Boutique:** Browse collector editions with \`-avatar\` • Buy with \`-avatarbuy <alias>\``,
@@ -48,6 +55,7 @@ export function buildGlobalMarketEmbed(guild?: Guild | null) {
 }
 
 export async function handleBuyCommand(message: Message, args: string[]) {
+  await loadConfigCache();
   const itemAlias = args[0];
 
   if (!itemAlias) {

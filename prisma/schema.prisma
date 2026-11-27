@@ -260,3 +260,9 @@ model AuctionBid {
   @@index([auctionId])
   @@index([bidderId])
 }
+
+model BotSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

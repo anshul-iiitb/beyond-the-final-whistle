@@ -9,6 +9,7 @@ import {
   getCurrentMonthKey
 } from '../config/constants.js';
 import { acquireMonthlyCosmetic, equipOwnedCosmetic, setPlayerProfileTheme } from '../engines/cosmeticEngine.js';
+import { getEffectivePrice, loadConfigCache } from '../services/configService.js';
 import { resolveCosmeticAssetPath, renderCosmeticShopCanvas, CosmeticShopCardItem } from '../utils/themeRenderers.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
@@ -31,6 +32,7 @@ export function buildCosmeticShopPageRow(activePage: number) {
 }
 
 export async function buildCosmeticShopPayload(userId: string, page = 1, guild?: Guild | null) {
+  await loadConfigCache();
   const safePage = page === 2 ? 2 : 1;
   const player = await prisma.player.findUnique({
     where: { id: userId },
@@ -63,7 +65,7 @@ export async function buildCosmeticShopPayload(userId: string, page = 1, guild?:
     name: c.name,
     kind: c.kind,
     jerseyNumber: c.jerseyNumber,
-    price: c.cost,
+    price: getEffectivePrice(c.key, c.cost),
     accentHex: c.accentHex,
     owned: ownedKeys.has(c.key),
     equipped: player?.equippedAvatar === c.key || player?.equippedBanner === c.key
@@ -89,10 +91,10 @@ export async function buildCosmeticShopPayload(userId: string, page = 1, guild?:
     .map(c => {
       const owned = ownedKeys.has(c.key);
       const eq = player?.equippedAvatar === c.key || player?.equippedBanner === c.key;
-      const badge = eq ? '⭐' : owned ? '✅' : `${formatK(c.cost)} ${coinEmoji}`;
+      const badge = eq ? '⭐' : owned ? '✅' : `${formatK(getEffectivePrice(c.key, c.cost))} ${coinEmoji}`;
       return `${c.emoji} \`${c.key}\` (${badge})`;
     })
-    .join(' • ');
+    .join('\n');
 
   const botIcon = guild?.client?.user?.displayAvatarURL?.() || undefined;
   const embed = new EmbedBuilder()
@@ -100,9 +102,9 @@ export async function buildCosmeticShopPayload(userId: string, page = 1, guild?:
     .setTitle(`🎨 Cosmetic Boutique — ${safePage === 1 ? 'Custom Avatars (5)' : 'Legend Banners (5)'}`)
     .setDescription(
       [
-        `👑 **VIP Monthly Pass:** ${vipPassLine}   •   💰 **Wallet:** \`${formatK(player?.coins ?? 0n)}\` ${coinEmoji}`,
-        `**Aliases on Page ${safePage}:** ${quickAliases}`,
-        subtext('💡 At Global Market (`-travel gm`): `-avatarbuy <alias>` or `-avatarclaim <alias>` • Equip: `-equip avatar <name>` / `-equip <alias>`')
+        `👑 **VIP Pass:** ${vipPassLine}\n💰 **Wallet:** \`${formatK(player?.coins ?? 0n)}\` ${coinEmoji}`,
+        `**Items on Page ${safePage}:**\n${quickAliases}`,
+        subtext('💡 At `-travel gm`: `-avatarbuy <alias>` or `-avatarclaim <alias>` • Equip: `-equip avatar <name>` / `-equip <alias>`')
       ].join(UI.SPACER)
     )
     .setImage('attachment://cosmetic_boutique.png')

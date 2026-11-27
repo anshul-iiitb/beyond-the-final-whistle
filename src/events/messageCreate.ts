@@ -5,10 +5,27 @@ import { handleTrainCommand, handleSpTrainCommand, handleRecoveryCommand, handle
 import { handleAdvertCommand, handleCoachingCommand, handleMeetGreetCommand, handleChirpCommand } from '../commands/socialCommands.js';
 import { handleBuyCommand, handleIntelCommand } from '../commands/marketCommands.js';
 import { handleAvatarCommand, handleAvatarBuyCommand, handleAvatarClaimCommand, handleEquipCommand, handleThemeCommand, handleInventoryCommand } from '../commands/cosmeticCommands.js';
-import { handleAuctionHouseCommand, handleBidCommand, handleSeedAuctionCommand } from '../commands/auctionCommands.js';
+import {
+  handleAuctionHouseCommand,
+  handleBidCommand,
+  handleSeedAuctionCommand,
+  handleAuctionStartCommand,
+  handleAuctionConfigCommand,
+  handleAuctionEndCommand,
+  handleAuctionCancelCommand
+} from '../commands/auctionCommands.js';
 import { handleMatchCommand, handleFriendlyCommand, handleLiveMatchCommand, handleBatchMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand } from '../commands/matchCommands.js';
 import { handleTacticsCommand } from '../commands/tacticsCommand.js';
-import { handleSetupCommand, handleVipCommand, handleDevFundCommand, handleAddItemCommand, handleAddVarCommand, handleSetupEmojisCommand } from '../commands/adminCommands.js';
+import {
+  handleSetupCommand,
+  handleVipCommand,
+  handleDevFundCommand,
+  handleAddItemCommand,
+  handleAddVarCommand,
+  handleSetupEmojisCommand,
+  handlePricesCommand,
+  handleSetPriceCommand
+} from '../commands/adminCommands.js';
 import { handleHelpCommand } from '../commands/helpCommand.js';
 import { handleBTFWGitPull, handleBTFWGitPullBack } from '../services/gitService.js';
 import { logger } from '../utils/logger.js';
@@ -198,6 +215,30 @@ export async function onMessageCreate(message: Message) {
         break;
       case 'seedauction':
         await handleSeedAuctionCommand(message, args);
+        break;
+      case 'auctionstart':
+      case 'ahstart':
+      case 'createauction':
+        await handleAuctionStartCommand(message, args);
+        break;
+      case 'auctionconfig':
+      case 'ahconfig':
+        await handleAuctionConfigCommand(message, args);
+        break;
+      case 'auctionend':
+      case 'ahend':
+        await handleAuctionEndCommand(message, args);
+        break;
+      case 'auctioncancel':
+      case 'ahcancel':
+        await handleAuctionCancelCommand(message, args);
+        break;
+      case 'prices':
+        await handlePricesCommand(message);
+        break;
+      case 'setprice':
+      case 'setprices':
+        await handleSetPriceCommand(message, args);
         break;
       case 'additem':
         await handleAddItemCommand(message, args);

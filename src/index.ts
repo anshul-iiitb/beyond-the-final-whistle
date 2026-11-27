@@ -8,6 +8,7 @@ import { syncMemberGameRoles } from './utils/roleSyncHelper.js';
 import { EmbedBuilder, TextChannel } from 'discord.js';
 import { startKeepAliveServer, startKeepAliveWorker } from './services/keepAliveService.js';
 import { startDailyLifecycleWorker } from './services/lifecycleService.js';
+import { loadConfigCache } from './services/configService.js';
 import { logger } from './utils/logger.js';
 
 async function bootstrap() {
@@ -38,6 +39,7 @@ async function bootstrap() {
     for (const guild of client.guilds.cache.values()) {
       await guild.emojis.fetch().catch(() => {});
     }
+    await loadConfigCache(true);
     startDailyLifecycleWorker(client);
   });
 

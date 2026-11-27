@@ -3,6 +3,7 @@ import { prisma } from '../database/prisma.js';
 import { CAMPUS_LOCATIONS, VEHICLE_CATALOG, resolveVehicleSprite } from '../config/constants.js';
 import { travelToLocation, getPlayerTravelCooldown } from '../engines/campusEngine.js';
 import { buyVehicle } from '../engines/marketEngine.js';
+import { getEffectivePrice, loadConfigCache } from '../services/configService.js';
 import { renderShowroomCanvas, ShowroomCardItem } from '../utils/themeRenderers.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { formatK } from '../utils/formatHelper.js';
@@ -79,6 +80,7 @@ export function buildShowroomPageRow(activePage: number) {
 }
 
 export async function buildShowroomPayload(userId: string, page = 1, guild?: Guild | null) {
+  await loadConfigCache();
   const safePage = Math.max(1, Math.min(3, page));
   const { cooldownMinutes, vehicleName } = await getPlayerTravelCooldown(userId);
   const player = await prisma.player.findUnique({
@@ -103,7 +105,7 @@ export async function buildShowroomPayload(userId: string, page = 1, guild?: Gui
       key: v.key,
       name: v.name,
       cooldownMinutes: v.cooldownMinutes,
-      price: v.cost,
+      price: getEffectivePrice(v.key, v.cost),
       owned: ownedKeys.has(v.key),
       spriteMode,
       spritePrefix
@@ -127,7 +129,7 @@ export async function buildShowroomPayload(userId: string, page = 1, guild?: Gui
       const f = getEmoji(guild, `${v.key}front`);
       const b = getEmoji(guild, `${v.key}back`);
       const sprite = f.includes('<:') && b.includes('<:') ? `${f}${b}` : v.emoji;
-      return `${sprite} \`${v.key}\` (${formatK(v.cost)} ${coinEmoji})`;
+      return `${sprite} \`${v.key}\` (${formatK(getEffectivePrice(v.key, v.cost))} ${coinEmoji})`;
     })
     .join(' • ');
 
