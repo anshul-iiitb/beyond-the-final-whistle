@@ -1,7 +1,10 @@
-import { Message, EmbedBuilder } from 'discord.js';
+import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, AttachmentBuilder, Guild } from 'discord.js';
+import { prisma } from '../database/prisma.js';
 import { CAMPUS_LOCATIONS, VEHICLE_CATALOG } from '../config/constants.js';
 import { travelToLocation, getPlayerTravelCooldown } from '../engines/campusEngine.js';
 import { buyVehicle } from '../engines/marketEngine.js';
+import { renderShowroomCanvas, ShowroomCardItem } from '../utils/themeRenderers.js';
+import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { formatK } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
 import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
@@ -47,39 +50,127 @@ export async function handleTravelCommand(message: Message, args: string[]) {
   }
 }
 
-export async function handleShowroomCommand(message: Message) {
-  const { cooldownMinutes, vehicleName } = await getPlayerTravelCooldown(message.author.id);
-  const coinEmoji = getEmoji(message.guild, 'coin');
+export function buildShowroomPageRow(activePage: number) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('showroom_page_1')
+      .setLabel('Entry & Sports (1–6)')
+      .setEmoji('🚗')
+      .setStyle(activePage === 1 ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('showroom_page_2')
+      .setLabel('Track & Muscle (7–12)')
+      .setEmoji('🏎️')
+      .setStyle(activePage === 2 ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('showroom_page_3')
+      .setLabel('Luxury & Hypercars (13–17)')
+      .setEmoji('🚀')
+      .setStyle(activePage === 3 ? ButtonStyle.Primary : ButtonStyle.Secondary)
+  );
+}
 
-  const lines = VEHICLE_CATALOG.map(v => {
-    const millions = Number(v.cost) / 1000000;
-    const priceDisplay = Number(v.cost) >= 1000000
-      ? `${millions % 1 === 0 ? millions : parseFloat(millions.toFixed(2))}M`
-      : `${formatK(v.cost)}`;
-
-    const frontEmoji = getEmoji(message.guild, `${v.key}front`);
-    const backEmoji = getEmoji(message.guild, `${v.key}back`);
-    const hasSplitEmoji = frontEmoji.includes('<:') && backEmoji.includes('<:');
-    const displayEmoji = hasSplitEmoji ? `${frontEmoji}${backEmoji}` : v.emoji;
-
-    return `${displayEmoji} **${v.name.toUpperCase()}** \`[ alias: ${v.key} ]\`\n` +
-      `• **Campus Cooldown:** \`${v.cooldownMinutes} min\` ⏱️   •   **Price:** \`${priceDisplay}\` ${coinEmoji}`;
+export async function buildShowroomPayload(userId: string, page = 1, guild?: Guild | null) {
+  const safePage = Math.max(1, Math.min(3, page));
+  const { cooldownMinutes, vehicleName } = await getPlayerTravelCooldown(userId);
+  const player = await prisma.player.findUnique({
+    where: { id: userId },
+    include: { vehicles: true }
   });
+
+  const ownedKeys = new Set((player?.vehicles || []).map(v => v.vehicleKey));
+  const fullSpriteKeys = new Set(['mini', 'bmwm3', 'corvettec8', 'shelbymustang', 'jaguartype', 'bentley', 'mclarenf1']);
+  const pageTitles = [
+    'Tier 1: Entry Roadsters & Sports Coupes',
+    'Tier 2: Track Weapons & American Muscle',
+    'Tier 3: Ultra-Luxury & Pinnacle Hypercars'
+  ];
+
+  const startIdx = (safePage - 1) * 6;
+  const pageVehicles = VEHICLE_CATALOG.slice(startIdx, startIdx + 6);
+  const coinEmoji = getEmoji(guild, 'coin');
+
+  const canvasItems: ShowroomCardItem[] = pageVehicles.map(v => {
+    const splitMatch = v.emoji.match(/<:(\w+)front:/);
+    let spriteMode: ShowroomCardItem['spriteMode'] = 'split';
+    let spritePrefix = splitMatch ? splitMatch[1] : v.key;
+    if (v.key === 'basic') {
+      spriteMode = 'basic';
+      spritePrefix = 'car';
+    } else if (fullSpriteKeys.has(v.key)) {
+      spriteMode = 'full';
+      spritePrefix = v.key;
+    }
+    return {
+      key: v.key,
+      name: v.name,
+      cooldownMinutes: v.cooldownMinutes,
+      price: v.cost,
+      owned: ownedKeys.has(v.key),
+      spriteMode,
+      spritePrefix
+    };
+  });
+
+  const canvasBuf = await renderShowroomCanvas({
+    pageTitle: pageTitles[safePage - 1],
+    page: safePage,
+    totalPages: 3,
+    currentRide: vehicleName,
+    currentCooldown: cooldownMinutes,
+    walletCoins: player?.coins ?? 0n,
+    items: canvasItems,
+    themeKey: player?.profileTheme
+  });
+  const file = new AttachmentBuilder(canvasBuf, { name: 'showroom_catalog.png' });
+
+  const quickAliases = pageVehicles
+    .map(v => {
+      const f = getEmoji(guild, `${v.key}front`);
+      const b = getEmoji(guild, `${v.key}back`);
+      const sprite = f.includes('<:') && b.includes('<:') ? `${f}${b}` : v.emoji;
+      return `${sprite} \`${v.key}\` (${formatK(v.cost)} ${coinEmoji})`;
+    })
+    .join(' • ');
 
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.SCARLET)
-    .setTitle('🏎️ Luxury Dealership — Exotic Supercars & Hypercars')
+    .setTitle(`🏎️ Global Market Dealership — ${pageTitles[safePage - 1]}`)
     .setDescription(
-      `🚗 **Current Ride:** \`${vehicleName}\` • **Campus Cooldown:** \`${cooldownMinutes}m\`\n` +
-      `Acquire vehicles to slash travel cooldowns between campus facilities down to 1 minute!\n\n` +
-      lines.join('\n\n') +
-      `\n\n${UI.DIVIDER}\n` +
-      subtext('💡 To purchase a ride: `-vehiclebuy <alias>` (e.g. `-vehiclebuy toyota` or `-vehiclebuy bugatti`).')
+      `🚗 **Current Ride:** \`${vehicleName}\` (\`${cooldownMinutes}m\` travel cooldown)\n` +
+      `**Aliases on Page ${safePage}:** ${quickAliases}\n` +
+      subtext('💡 Must be at Global Market (`-travel gm`). Purchase with `-vehiclebuy <alias>`.')
     )
-    .setFooter({ text: `Current Ride: ${vehicleName} (${cooldownMinutes}m cooldown) • Beyond The Final Whistle` })
+    .setImage('attachment://showroom_catalog.png')
+    .setFooter({ text: `Page ${safePage}/3 • Current Ride: ${vehicleName} • Beyond The Final Whistle` })
     .setTimestamp();
 
-  await message.reply({ embeds: [embed] });
+  return {
+    embed,
+    files: [file],
+    components: [buildShowroomPageRow(safePage)]
+  };
+}
+
+export async function handleShowroomCommand(message: Message, args: string[] = []) {
+  const pageArg = parseInt(args[0] || '1', 10);
+  const page = isNaN(pageArg) ? 1 : Math.max(1, Math.min(3, pageArg));
+  const thinkingMsg = await sendThinkingMessage(message, 'Opening Global Market Luxury Showroom...');
+
+  try {
+    const payload = await buildShowroomPayload(message.author.id, page, message.guild);
+    await updateLoadingMessage(thinkingMsg, {
+      embeds: [payload.embed],
+      files: payload.files,
+      components: payload.components
+    });
+  } catch {
+    await updateLoadingMessage(thinkingMsg, {
+      content: '❌ Failed to load the vehicle showroom.',
+      embeds: [],
+      files: []
+    });
+  }
 }
 
 export async function handleVehicleBuyCommand(message: Message, args: string[]) {

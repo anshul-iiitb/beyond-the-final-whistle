@@ -1,0 +1,921 @@
+import { createCanvas, loadImage, SKRSContext2D } from '@napi-rs/canvas';
+import path from 'path';
+import fs from 'fs';
+import {
+  DUAL_BOX_UNIVERSAL_SPEC,
+  PLAYER_STAT_CARD_SPEC,
+  LEADERBOARD_GRID_SPEC,
+  SHOWROOM_MARKET_GRID_SPEC,
+  AUCTION_HOUSE_GRID_SPEC,
+  STANDINGS_TABLE_GRID_SPEC,
+} from '../config/themeModelSpec.js';
+import { PROFILE_THEMES } from '../config/constants.js';
+import { formatK } from './formatHelper.js';
+
+const imageCache = new Map<string, any>();
+
+/**
+ * Strips emojis/non-ASCII symbols that cause Skia canvas "tofu" boxes and normalizes fancy Unicode characters.
+ */
+export function cleanCanvasText(input?: string | null): string {
+  if (!input) return '';
+  return input
+    .normalize('NFKD')
+    .replace(/[\u2018\u2019\u201A\u201B\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
+    .replace(/[\u2013\u2014\u2015]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/<a?:\w+:\d+>/g, '')
+    .replace(/[^\x20-\x7E\u00A0-\u00FF\u2022]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function truncateText(ctx: SKRSContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let str = text;
+  while (str.length > 0 && ctx.measureText(`${str}..`).width > maxWidth) {
+    str = str.slice(0, -1);
+  }
+  return str.length > 0 ? `${str}..` : '';
+}
+
+export function drawRoundedRect(
+  ctx: SKRSContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius: number
+) {
+  const r = Math.min(radius, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+}
+
+/**
+ * Resolves a custom generated theme image for a given slot (`profile_banner`, `leaderboard`, `showroom`, etc.).
+ * Prefers the user's explicit theme folder (`assets/themes/<themeKey>/<slot>.png|jpg|webp`) and falls back to `obsidian`.
+ */
+export function resolveThemeAssetPath(
+  slot:
+    | 'dual_box'
+    | 'profile_banner'
+    | 'player_stat_card'
+    | 'leaderboard'
+    | 'showroom'
+    | 'auction_house'
+    | 'points_table'
+    | 'match_scorecard',
+  themeKey?: string | null
+): { filePath: string | null; isExactTheme: boolean } {
+  const cleanKey = (themeKey || 'obsidian').toLowerCase();
+  const candidates = cleanKey !== 'obsidian' ? [cleanKey, 'obsidian'] : ['obsidian'];
+  const exts = ['png', 'jpg', 'jpeg', 'webp'];
+
+  for (const folder of candidates) {
+    for (const ext of exts) {
+      const p = path.resolve(process.cwd(), 'assets', 'themes', folder, `${slot}.${ext}`);
+      if (fs.existsSync(p)) {
+        return { filePath: p, isExactTheme: folder === cleanKey };
+      }
+    }
+  }
+  return { filePath: null, isExactTheme: false };
+}
+
+export async function loadLocalImageCached(filePath: string) {
+  if (imageCache.has(filePath)) return imageCache.get(filePath);
+  const img = await loadImage(filePath);
+  imageCache.set(filePath, img);
+  return img;
+}
+
+export async function fetchRemoteImage(url?: string | null, timeoutMs = 2500) {
+  if (!url) return null;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    return await loadImage(buf);
+  } catch {
+    return null;
+  }
+}
+
+export function drawCircularImage(
+  ctx: SKRSContext2D,
+  img: any,
+  cx: number,
+  cy: number,
+  r: number,
+  fallbackText: string,
+  accentColor: string,
+  drawRing = true
+) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+
+  if (img) {
+    ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+  } else {
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.fillStyle = accentColor;
+    ctx.font = `bold ${Math.max(12, Math.round(r * 0.72))}px "Segoe UI", Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText((fallbackText[0] || 'P').toUpperCase(), cx, cy + 1);
+  }
+  ctx.restore();
+
+  if (drawRing) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + 1.5, 0, Math.PI * 2);
+    ctx.strokeStyle = accentColor;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/**
+ * Draws the resolved Obsidian/Theme backdrop + optional subtle tint when a secondary theme borrows the structural obsidian plate.
+ */
+export async function paintThemeBackdrop(
+  ctx: SKRSContext2D,
+  w: number,
+  h: number,
+  slot:
+    | 'dual_box'
+    | 'profile_banner'
+    | 'player_stat_card'
+    | 'leaderboard'
+    | 'showroom'
+    | 'auction_house'
+    | 'points_table'
+    | 'match_scorecard',
+  themeKey?: string | null
+) {
+  const themeDef = PROFILE_THEMES.find(t => t.key === themeKey) || PROFILE_THEMES[0];
+  const { filePath, isExactTheme } = resolveThemeAssetPath(slot, themeKey);
+
+  if (filePath) {
+    const bgImg = await loadLocalImageCached(filePath);
+    ctx.drawImage(bgImg, 0, 0, w, h);
+
+    // Subtle thematic color wash only if using another palette on the obsidian structural base
+    if (!isExactTheme && themeDef.key !== 'obsidian') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = themeDef.glow;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+    return themeDef;
+  }
+
+  // Fallback gradient backdrop
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, themeDef.bgStart);
+  grad.addColorStop(1, themeDef.bgEnd);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  return themeDef;
+}
+
+// =========================================================================
+// 1. GLOBAL LEADERBOARD RENDERER (-lb) [1000x1100]
+// =========================================================================
+
+export interface LeaderboardEntryData {
+  rank: number;
+  userId: string;
+  username: string;
+  clubTag: string;
+  avatarUrl?: string | null;
+  valueText: string;
+  isCaller?: boolean;
+}
+
+export async function renderLeaderboardCanvas(options: {
+  title: string;
+  subtitle: string;
+  metricHeader: string;
+  entries: LeaderboardEntryData[];
+  callerSummary?: string;
+  accentHex?: string;
+  themeKey?: string | null;
+}): Promise<Buffer> {
+  const spec = LEADERBOARD_GRID_SPEC;
+  const width = spec.canvasWidth;   // 1000
+  const height = spec.canvasHeight; // 1100
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  const theme = await paintThemeBackdrop(ctx, width, height, 'leaderboard', options.themeKey);
+  const accent = options.accentHex || theme.accent;
+
+  // 1. Header Banner Zone (70, 50, 860x110)
+  const hz = spec.headerZone;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = accent;
+  ctx.shadowBlur = 16;
+  ctx.font = 'bold 34px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(options.title).toUpperCase(), hz.w - 60), hz.x + hz.w / 2, hz.y + 44);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = accent;
+  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(options.subtitle).toUpperCase(), hz.w - 60), hz.x + hz.w / 2, hz.y + 82);
+  ctx.restore();
+
+  // 2. Replace "METRIC VALUE" label in the 3rd column pill with the active category header (e.g. OVR, GOALS, WEALTH, FANS)
+  const metricCol = spec.columns![2];
+  ctx.save();
+  ctx.fillStyle = '#090e19';
+  drawRoundedRect(ctx, metricCol.x + 10, metricCol.y + 7, metricCol.w - 20, metricCol.h - 14, 5);
+  ctx.fill();
+  ctx.fillStyle = accent;
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(cleanCanvasText(options.metricHeader).toUpperCase(), metricCol.x + metricCol.w / 2, metricCol.y + metricCol.h / 2);
+  ctx.restore();
+
+  // Fetch player avatars concurrently
+  const avatarImages = await Promise.all(
+    options.entries.slice(0, 10).map(e => fetchRemoteImage(e.avatarUrl, 1500))
+  );
+
+  // 3. Draw up to 10 Rows aligned cleanly with leaderboard rings
+  for (let i = 0; i < Math.min(10, options.entries.length); i++) {
+    const e = options.entries[i];
+    const rowSpec = spec.rows![i];
+    const yCenter = rowSpec.yCenter;
+    const isPodium = e.rank <= 3;
+
+    const rankColor =
+      e.rank === 1 ? '#facc15' : e.rank === 2 ? '#e2e8f0' : e.rank === 3 ? '#fb923c' : '#94a3b8';
+
+    // Highlight current caller row inside the arena
+    if (e.isCaller) {
+      ctx.save();
+      drawRoundedRect(ctx, 56, yCenter - 32, 888, 64, 8);
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.14)';
+      ctx.fill();
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Rank # in Column 1 (x: 60..175)
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = rankColor;
+    ctx.font = isPodium ? 'bold 26px "Segoe UI", Arial, sans-serif' : 'bold 21px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(`#${e.rank}`, 118, yCenter + 1);
+    ctx.restore();
+
+    // Circular Avatar centered inside template socket (cx: 213, cy: yCenter - 5, r: 22)
+    drawCircularImage(
+      ctx,
+      avatarImages[i],
+      213,
+      yCenter - 5,
+      22,
+      e.username,
+      rankColor,
+      false // obsidian template already provides metallic circular ring!
+    );
+
+    // Player Name & Club/Nation Subtext (x: 254..755)
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = e.isCaller ? '#fef08a' : '#ffffff';
+    ctx.font = isPodium ? 'bold 21px "Segoe UI", Arial, sans-serif' : 'bold 19px "Segoe UI", Arial, sans-serif';
+    const cleanName = cleanCanvasText(e.username) || 'Player';
+    ctx.fillText(truncateText(ctx, cleanName, 485), 256, yCenter - 8);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '13px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(truncateText(ctx, cleanCanvasText(e.clubTag), 485), 256, yCenter + 14);
+    ctx.restore();
+
+    // Metric Value Pill in Right Column (760..940)
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = isPodium ? rankColor : '#e2e8f0';
+    ctx.font = isPodium ? 'bold 22px "Segoe UI", Arial, sans-serif' : 'bold 20px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(truncateText(ctx, cleanCanvasText(e.valueText), 160), 850, yCenter + 1);
+    ctx.restore();
+  }
+
+  // Empty state check
+  if (options.entries.length === 0) {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 22px "Segoe UI", Arial, sans-serif';
+    ctx.fillText('No ranked players recorded yet.', width / 2, 560);
+    ctx.restore();
+  }
+
+  // 4. Bottom Caller Footer Zone (60, 1028, 880x46)
+  if (options.callerSummary) {
+    const fz = spec.footerZone!;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(truncateText(ctx, cleanCanvasText(options.callerSummary), fz.w - 40), fz.x + fz.w / 2, fz.y + fz.h / 2 + 12);
+    ctx.restore();
+  }
+
+  return canvas.toBuffer('image/png');
+}
+
+// =========================================================================
+// 2. FULL PLAYER STAT & TELEMETRY CARD (-profile stats / -intstats / -clubstats) [1000x550]
+// =========================================================================
+
+export interface PlayerStatCanvasData {
+  titleTag: string;
+  username: string;
+  clubAndNation: string;
+  seasonRank: string;
+  vipTier: number;
+  avatarUrl?: string | null;
+  ovr: number;
+  atk: number;
+  mid: number;
+  def: number;
+  stats: Array<{ label: string; value: string; highlight?: boolean }>;
+  recentForm: string[];
+  milestones: string[];
+  footerSummary: string;
+  themeKey?: string | null;
+}
+
+export async function renderPlayerStatCanvas(data: PlayerStatCanvasData): Promise<Buffer> {
+  const spec = PLAYER_STAT_CARD_SPEC;
+  const width = spec.canvasWidth;   // 1000
+  const height = spec.canvasHeight; // 550
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  const theme = await paintThemeBackdrop(ctx, width, height, 'player_stat_card', data.themeKey);
+  const accent = data.vipTier >= 1 ? '#f59e0b' : theme.accent;
+
+  // 1. Header Zone (45, 45, 560x110)
+  const hz = spec.headerZone;
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  const topPill = `${cleanCanvasText(data.titleTag).toUpperCase()}  •  ${cleanCanvasText(data.seasonRank).toUpperCase()}${data.vipTier >= 1 ? '  •  VIP' : ''}`;
+  ctx.fillStyle = accent;
+  ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(topPill, hz.x + 22, hz.y + 34);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 30px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(data.username), hz.w - 44), hz.x + 22, hz.y + 72);
+
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '14px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(data.clubAndNation), hz.w - 44), hz.x + 22, hz.y + 96);
+  ctx.restore();
+
+  // 2. 12-Stat Matrix Grid (45, 170, 560x320) -> 2 columns x 6 rows
+  const cz = spec.containerZone;
+  const colW = 250;
+  const rowH = 44;
+  const colX1 = cz.x + 22;
+  const colX2 = cz.x + 292;
+  const startY = cz.y + 24;
+
+  const shownStats = data.stats.slice(0, 12);
+  for (let i = 0; i < shownStats.length; i++) {
+    const item = shownStats[i];
+    const isRightCol = i >= 6;
+    const rowIdx = i % 6;
+    const bx = isRightCol ? colX2 : colX1;
+    const by = startY + rowIdx * (rowH + 5);
+
+    ctx.save();
+    drawRoundedRect(ctx, bx, by, colW, rowH - 2, 8);
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+    ctx.fill();
+    ctx.strokeStyle = item.highlight ? accent : 'rgba(148, 163, 184, 0.22)';
+    ctx.lineWidth = item.highlight ? 1.4 : 1;
+    ctx.stroke();
+
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(cleanCanvasText(item.label).toUpperCase(), bx + 12, by + (rowH - 2) / 2);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = item.highlight ? accent : '#ffffff';
+    ctx.font = item.value.length >= 12 ? 'bold 14px "Segoe UI", Arial, sans-serif' : 'bold 16px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(truncateText(ctx, cleanCanvasText(item.value), 128), bx + colW - 12, by + (rowH - 2) / 2);
+    ctx.restore();
+  }
+
+  // 3. Right Panel: Avatar Cutout + OVR Triad Matrix + Recent Form
+  const avatarImg = await fetchRemoteImage(data.avatarUrl, 2000);
+  const avCircle = spec.circles![0]; // (790, 145, r=70)
+  drawCircularImage(ctx, avatarImg, avCircle.cx, avCircle.cy, 62, data.username, accent, false);
+
+  // Inner Triad + OVR Gauge inside (650, 255, 280x165)
+  const radarBox = spec.slots![1];
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('OVERALL RATING & TRIAD', radarBox.x + radarBox.w / 2, radarBox.y + 24);
+
+  ctx.fillStyle = accent;
+  ctx.font = 'bold 48px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(String(data.ovr), radarBox.x + radarBox.w / 2, radarBox.y + 74);
+
+  // Divider
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.beginPath();
+  ctx.moveTo(radarBox.x + 28, radarBox.y + 92);
+  ctx.lineTo(radarBox.x + radarBox.w - 28, radarBox.y + 92);
+  ctx.stroke();
+
+  const pillars = [
+    { label: 'ATK', val: data.atk, x: radarBox.x + 56 },
+    { label: 'MID', val: data.mid, x: radarBox.x + 140 },
+    { label: 'DEF', val: data.def, x: radarBox.x + 224 },
+  ];
+  for (const p of pillars) {
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(p.label, p.x, radarBox.y + 116);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 22px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(String(p.val), p.x, radarBox.y + 144);
+  }
+  ctx.restore();
+
+  // Recent Form / Milestone Strip (650, 430, 280x46)
+  const formBox = spec.slots![2];
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const formText = data.milestones.length > 0
+    ? data.milestones.slice(0, 2).join('  •  ')
+    : `FORM: ${data.recentForm.slice(-5).join(' • ')}`;
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(formText), formBox.w - 20), formBox.x + formBox.w / 2, formBox.y + formBox.h / 2);
+  ctx.restore();
+
+  // 4. Footer Bar (45, 500, 910x28)
+  const fz = spec.footerZone!;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(truncateText(ctx, cleanCanvasText(data.footerSummary), fz.w - 30), fz.x + fz.w / 2, fz.y + fz.h / 2 + 2);
+  ctx.restore();
+
+  return canvas.toBuffer('image/png');
+}
+
+// =========================================================================
+// 3. SHOWROOM VEHICLE DEALERSHIP RENDERER (-showroom) [1024x764]
+// =========================================================================
+
+export interface ShowroomCardItem {
+  key: string;
+  name: string;
+  cooldownMinutes: number;
+  price: bigint;
+  owned: boolean;
+  spriteMode: 'full' | 'split' | 'basic';
+  spritePrefix: string; // e.g. 'mini', 'hc', 'car'
+}
+
+async function drawVehicleSprite(ctx: SKRSContext2D, item: ShowroomCardItem, x: number, y: number, w: number, h: number) {
+  const hiresDir = path.resolve(process.cwd(), 'assets', 'emojis_hires');
+  try {
+    if (item.spriteMode === 'full') {
+      const fullPath = path.join(hiresDir, `${item.key}full.png`);
+      if (fs.existsSync(fullPath)) {
+        const img = await loadLocalImageCached(fullPath);
+        ctx.drawImage(img, x, y, w, h);
+        return;
+      }
+    } else if (item.spriteMode === 'basic') {
+      const carPath = path.join(hiresDir, 'car.png');
+      if (fs.existsSync(carPath)) {
+        const img = await loadLocalImageCached(carPath);
+        ctx.drawImage(img, x + w * 0.12, y + h * 0.08, w * 0.76, h * 0.84);
+        return;
+      }
+    } else {
+      const fPath = path.join(hiresDir, `${item.spritePrefix}front.png`);
+      const bPath = path.join(hiresDir, `${item.spritePrefix}back.png`);
+      if (fs.existsSync(fPath) && fs.existsSync(bPath)) {
+        const [fImg, bImg] = await Promise.all([loadLocalImageCached(fPath), loadLocalImageCached(bPath)]);
+        const halfW = Math.floor(w / 2);
+        // Right-facing Discord emojis list front + back side-by-side
+        ctx.drawImage(fImg, x, y + 6, halfW, h - 12);
+        ctx.drawImage(bImg, x + halfW - 2, y + 6, halfW, h - 12);
+        return;
+      }
+    }
+  } catch {
+    // Fallback emblem below
+  }
+
+  ctx.save();
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(item.key.toUpperCase(), x + w / 2, y + h / 2);
+  ctx.restore();
+}
+
+export async function renderShowroomCanvas(options: {
+  pageTitle: string;
+  page: number;
+  totalPages: number;
+  currentRide: string;
+  currentCooldown: number;
+  walletCoins: bigint;
+  items: ShowroomCardItem[];
+  themeKey?: string | null;
+}): Promise<Buffer> {
+  const spec = SHOWROOM_MARKET_GRID_SPEC;
+  const width = spec.canvasWidth;   // 1024
+  const height = spec.canvasHeight; // 764
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  const theme = await paintThemeBackdrop(ctx, width, height, 'showroom', options.themeKey);
+
+  // 1. Header Zone (102, 112, 820x90)
+  const hz = spec.headerZone;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(cleanCanvasText(options.pageTitle).toUpperCase(), hz.x + hz.w / 2, hz.y + 32);
+
+  ctx.fillStyle = '#facc15';
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(
+    `CURRENT RIDE: ${cleanCanvasText(options.currentRide).toUpperCase()} (${options.currentCooldown}M CD)  •  WALLET: ${formatK(options.walletCoins)} COINS  •  PAGE ${options.page}/${options.totalPages}`,
+    hz.x + hz.w / 2,
+    hz.y + 66
+  );
+  ctx.restore();
+
+  // 2. Render up to 6 Vehicle Cards inside slots[0..5]
+  const cards = options.items.slice(0, 6);
+  for (let i = 0; i < cards.length; i++) {
+    const car = cards[i];
+    const slot = spec.slots![i];
+
+    if (car.owned) {
+      ctx.save();
+      drawRoundedRect(ctx, slot.x + 2, slot.y + 2, slot.w - 4, slot.h - 4, 8);
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Left Vehicle Sprite Display (w: 116x88)
+    await drawVehicleSprite(ctx, car, slot.x + 12, slot.y + 16, 118, 88);
+
+    // Right Info Block
+    const tx = slot.x + 142;
+    const tw = slot.w - 156;
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 17px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(truncateText(ctx, car.name.toUpperCase(), tw), tx, slot.y + 34);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 12px Consolas, monospace';
+    ctx.fillText(`alias: ${car.key}  •  ${car.cooldownMinutes}m travel`, tx, slot.y + 58);
+
+    // Bottom Price + Owned Badge
+    ctx.fillStyle = car.owned ? '#34d399' : '#facc15';
+    ctx.font = 'bold 18px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(`${formatK(car.price)} COINS`, tx, slot.y + 92);
+
+    if (car.owned) {
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.22)';
+      drawRoundedRect(ctx, slot.x + slot.w - 88, slot.y + 72, 76, 26, 6);
+      ctx.fill();
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#6ee7b7';
+      ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+      ctx.fillText('OWNED', slot.x + slot.w - 50, slot.y + 89);
+    }
+    ctx.restore();
+  }
+
+  // 3. Footer Zone (102, 682, 820x42)
+  const fz = spec.footerZone!;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = theme.accent;
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('GLOBAL MARKET DEALERSHIP (-travel gm)  •  BUY VIA -vehiclebuy <alias>', fz.x + fz.w / 2, fz.y + fz.h / 2 + 2);
+  ctx.restore();
+
+  return canvas.toBuffer('image/png');
+}
+
+// =========================================================================
+// 4. AUCTION HOUSE COLLECTOR VAULT RENDERER (-ah) [1024x764]
+// =========================================================================
+
+export interface AuctionLotCanvasData {
+  lotNumber: number;
+  itemKey: string;
+  itemName: string;
+  description: string;
+  leaderName: string | null;
+  currentOrStartBid: bigint;
+  minNextBid: bigint;
+  timeRemaining: string;
+}
+
+function resolveRelicSpritePath(itemKey: string): string | null {
+  const hiresDir = path.resolve(process.cwd(), 'assets', 'emojis_hires');
+  const map: Record<string, string> = {
+    worldcup_replica: 'worldcup.png',
+    golden_boot_relic: 'goldenboot.png',
+    ballon_trophy: 'motm.png',
+  };
+  const file = map[itemKey];
+  if (file) {
+    const p = path.join(hiresDir, file);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+export async function renderAuctionHouseCanvas(
+  lots: AuctionLotCanvasData[],
+  themeKey?: string | null
+): Promise<Buffer> {
+  const spec = AUCTION_HOUSE_GRID_SPEC;
+  const width = spec.canvasWidth;   // 1024
+  const height = spec.canvasHeight; // 764
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  const theme = await paintThemeBackdrop(ctx, width, height, 'auction_house', themeKey);
+
+  // Header Zone (102, 112, 820x90)
+  const hz = spec.headerZone;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('COLLECTOR AUCTION HOUSE VAULT', hz.x + hz.w / 2, hz.y + 32);
+  ctx.fillStyle = '#facc15';
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('ESCROWED DAILY RELIC AUCTIONS  •  +2M ANTI-SNIPE PROTECTION UNDER 60S', hz.x + hz.w / 2, hz.y + 66);
+  ctx.restore();
+
+  // Render up to 2 side-by-side Collector Pedestals
+  const shown = lots.slice(0, 2);
+  for (let i = 0; i < shown.length; i++) {
+    const lot = shown[i];
+    const slot = spec.slots![i];
+    const dome = spec.circles![i]; // (312, 350, r=58) & (712, 350, r=58)
+    const accent = i === 0 ? '#facc15' : '#38bdf8';
+
+    // Lot Number Pill Top Left
+    ctx.save();
+    drawRoundedRect(ctx, slot.x + 16, slot.y + 14, 78, 24, 6);
+    ctx.fillStyle = 'rgba(250, 204, 21, 0.16)';
+    ctx.fill();
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = accent;
+    ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(`LOT #${lot.lotNumber}`, slot.x + 55, slot.y + 26);
+
+    // Countdown Top Right
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#fb7185';
+    ctx.font = 'bold 13px Consolas, monospace';
+    ctx.fillText(`ENDS: ${lot.timeRemaining}`, slot.x + slot.w - 16, slot.y + 26);
+    ctx.restore();
+
+    // Relic Sprite inside spotlight dome
+    const spritePath = resolveRelicSpritePath(lot.itemKey);
+    if (spritePath) {
+      const img = await loadLocalImageCached(spritePath);
+      ctx.drawImage(img, dome.cx - 42, dome.cy - 42, 84, 84);
+    } else {
+      ctx.save();
+      ctx.fillStyle = accent;
+      ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('RELIC', dome.cx, dome.cy);
+      ctx.restore();
+    }
+
+    // Details below dome
+    const cx = slot.x + slot.w / 2;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 20px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(truncateText(ctx, cleanCanvasText(lot.itemName).toUpperCase(), slot.w - 36), cx, slot.y + 186);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '12px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(truncateText(ctx, cleanCanvasText(lot.description), slot.w - 40), cx, slot.y + 212);
+
+    // Escrow Metrics Box
+    drawRoundedRect(ctx, slot.x + 22, slot.y + 234, slot.w - 44, 134, 10);
+    ctx.fillStyle = 'rgba(7, 11, 20, 0.78)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(lot.leaderName ? 'HIGHEST BIDDER' : 'OPENING RESERVE PRICE', cx, slot.y + 258);
+
+    ctx.fillStyle = lot.leaderName ? '#38bdf8' : '#cbd5e1';
+    ctx.font = 'bold 17px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(truncateText(ctx, cleanCanvasText(lot.leaderName || 'NO BIDS YET'), slot.w - 70), cx, slot.y + 282);
+
+    ctx.fillStyle = accent;
+    ctx.font = 'bold 24px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(`${formatK(lot.currentOrStartBid)} COINS`, cx, slot.y + 318);
+
+    ctx.fillStyle = '#6ee7b7';
+    ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(`MIN NEXT BID: ${formatK(lot.minNextBid)} COINS`, cx, slot.y + 348);
+    ctx.restore();
+  }
+
+  // Footer Zone (102, 682, 820x42)
+  const fz = spec.footerZone!;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = theme.accent;
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('TRAVEL TO AUCTION HALL (-travel ah)  •  PLACE ESCROWED BIDS VIA -bid <amount> [lot#]', fz.x + fz.w / 2, fz.y + fz.h / 2 + 2);
+  ctx.restore();
+
+  return canvas.toBuffer('image/png');
+}
+
+// =========================================================================
+// 5. COMPETITION STANDINGS / POINTS TABLE RENDERER [1200x900]
+// =========================================================================
+
+export interface StandingsRowData {
+  rank: number;
+  teamName: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  gf: number;
+  ga: number;
+  gd: number;
+  points: number;
+}
+
+export async function renderStandingsTableCanvas(options: {
+  title: string;
+  subtitle: string;
+  rows: StandingsRowData[];
+  footerText?: string;
+  themeKey?: string | null;
+}): Promise<Buffer> {
+  const spec = STANDINGS_TABLE_GRID_SPEC;
+  const width = spec.canvasWidth;   // 1200
+  const height = spec.canvasHeight; // 900
+  const canvas = createCanvas(width, height);
+  const ctx = canvas.getContext('2d');
+
+  const theme = await paintThemeBackdrop(ctx, width, height, 'points_table', options.themeKey);
+
+  // Header Zone (60, 44, 1080x96)
+  const hz = spec.headerZone;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 34px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(cleanCanvasText(options.title).toUpperCase(), hz.x + hz.w / 2, hz.y + 34);
+  ctx.fillStyle = '#facc15';
+  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(cleanCanvasText(options.subtitle).toUpperCase(), hz.x + hz.w / 2, hz.y + 72);
+  ctx.restore();
+
+  // Column Labels (60..1140 at y:160..208)
+  ctx.save();
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#facc15';
+  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  for (const col of spec.columns!) {
+    ctx.textAlign = col.label === 'TEAM / NATION' ? 'left' : 'center';
+    const tx = col.label === 'TEAM / NATION' ? col.x + 14 : col.x + col.w / 2;
+    ctx.fillText(col.label, tx, col.y + col.h / 2);
+  }
+  ctx.restore();
+
+  // 8 Team Rows
+  const shown = options.rows.slice(0, 8);
+  for (let i = 0; i < shown.length; i++) {
+    const r = shown[i];
+    const rowSpec = spec.rows![i];
+    const cy = rowSpec.yCenter;
+    const cols = spec.columns!;
+    const vals = [
+      String(r.rank),
+      truncateText(ctx, cleanCanvasText(r.teamName), 355),
+      String(r.played),
+      String(r.won),
+      String(r.drawn),
+      String(r.lost),
+      String(r.gf),
+      String(r.ga),
+      r.gd >= 0 ? `+${r.gd}` : String(r.gd),
+      String(r.points),
+    ];
+
+    ctx.save();
+    ctx.textBaseline = 'middle';
+    for (let c = 0; c < cols.length; c++) {
+      const col = cols[c];
+      const isTeam = c === 1;
+      const isPts = c === 9;
+      ctx.textAlign = isTeam ? 'left' : 'center';
+      ctx.fillStyle = isPts ? '#facc15' : c === 0 && r.rank <= 3 ? theme.accent : '#f8fafc';
+      ctx.font = isPts || isTeam ? 'bold 18px "Segoe UI", Arial, sans-serif' : '16px "Segoe UI", Arial, sans-serif';
+      const tx = isTeam ? col.x + 14 : col.x + col.w / 2;
+      ctx.fillText(vals[c], tx, cy);
+    }
+    ctx.restore();
+  }
+
+  // Footer Zone (60, 824, 1080x46)
+  if (options.footerText) {
+    const fz = spec.footerZone!;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(cleanCanvasText(options.footerText), fz.x + fz.w / 2, fz.y + fz.h / 2);
+    ctx.restore();
+  }
+
+  return canvas.toBuffer('image/png');
+}
+
+export function getDualBoxSpec() {
+  return DUAL_BOX_UNIVERSAL_SPEC;
+}

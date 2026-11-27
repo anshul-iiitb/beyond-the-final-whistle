@@ -1504,7 +1504,7 @@ export async function runLiveEpisodicMatch(
   }
 
   // Generate authentic broadcast-grade match scorecard graphic
-  const scorecardBuf = generateMatchScorecardGraphic({
+  const scorecardBuf = await generateMatchScorecardGraphic({
     homeTeam: homeTeam.name,
     awayTeam: awayTeam.name,
     homeScore: homeTeam.score,

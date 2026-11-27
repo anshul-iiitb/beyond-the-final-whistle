@@ -3,7 +3,15 @@ import { executeTraining } from '../engines/trainingEngine.js';
 import { buildTrainingSuccessEmbed } from '../commands/trainingCommands.js';
 import { executeSponsorAdvert, applyTweetVote, buildUpdatedTweetEmbed } from '../engines/socialEngine.js';
 import { prisma } from '../database/prisma.js';
-import { buildProfileEmbed, buildProfileTabsRow, buildProfileBannerAttachment } from '../commands/playerCommands.js';
+import {
+  buildProfileEmbed,
+  buildProfileTabsRow,
+  buildProfileBannerAttachment,
+  buildPlayerStatCardAttachment,
+  buildLeaderboardPayload,
+  normalizeLeaderboardCategory
+} from '../commands/playerCommands.js';
+import { buildShowroomPayload } from '../commands/travelCommands.js';
 import { buildTacticsContainer, parseTeamTactics, serializeTeamTactics, TeamTactics } from '../commands/tacticsCommand.js';
 import { formatK } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
@@ -217,7 +225,36 @@ export async function onInteractionCreate(interaction: Interaction) {
         return await interaction.update({ embeds: [embed], components: [row], files: [banner], attachments: [] });
       }
 
+      if (tab === 'stats') {
+        const statCard = await buildPlayerStatCardAttachment(player, targetUser, 'career');
+        return await interaction.update({ embeds: [embed], components: [row], files: [statCard], attachments: [] });
+      }
+
       return await interaction.update({ embeds: [embed], components: [row], files: [], attachments: [] });
+    }
+
+    // 3b. Leaderboard Category Switcher: lb_ovr, lb_goals, lb_wealth, lb_followers
+    if (customId.startsWith('lb_')) {
+      const cat = normalizeLeaderboardCategory(customId.replace('lb_', ''));
+      const payload = await buildLeaderboardPayload(cat, interaction.user.id, interaction.guild, interaction.client);
+      return await interaction.update({
+        embeds: [payload.embed],
+        files: payload.files,
+        components: payload.components,
+        attachments: []
+      });
+    }
+
+    // 3c. Showroom Tier Switcher: showroom_page_1, showroom_page_2, showroom_page_3
+    if (customId.startsWith('showroom_page_')) {
+      const page = parseInt(customId.replace('showroom_page_', ''), 10) || 1;
+      const payload = await buildShowroomPayload(interaction.user.id, page, interaction.guild);
+      return await interaction.update({
+        embeds: [payload.embed],
+        files: payload.files,
+        components: payload.components,
+        attachments: []
+      });
     }
 
     // 4. Commercial Sponsor Endorsements: sponsor_heineken, sponsor_adidas, etc.

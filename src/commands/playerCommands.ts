@@ -1,4 +1,4 @@
-import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, User, Guild, AttachmentBuilder } from 'discord.js';
+import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, User, Guild, AttachmentBuilder, Client } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import {
   CAMPUS_LOCATIONS,
@@ -11,6 +11,7 @@ import {
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { giveMoney } from '../engines/socialEngine.js';
 import { generatePlayerProfileCard } from '../utils/chartHelper.js';
+import { renderLeaderboardCanvas, renderPlayerStatCanvas, LeaderboardEntryData } from '../utils/themeRenderers.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { formatK, parseCoinAmount, getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
@@ -60,6 +61,68 @@ export async function buildProfileBannerAttachment(player: any, targetUser: User
   });
 
   return new AttachmentBuilder(buffer, { name: 'profile_banner.png' });
+}
+
+export async function buildPlayerStatCardAttachment(
+  player: any,
+  targetUser: User,
+  mode: 'career' | 'int' | 'club' = 'career'
+): Promise<AttachmentBuilder> {
+  const derived = calculateDerivedRatings(player);
+  const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
+  const seasonRank = computeSeasonRank(ovr, player.matchesPlayed || 0);
+  const milestones = getUnlockedMilestones(player);
+
+  let recentForm = ['6.8', '7.2', '7.5', '8.0', '7.4'];
+  try {
+    const parsed = JSON.parse(player.recentRatings || '[]');
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      recentForm = parsed.map((n: number) => n.toFixed(1));
+    }
+  } catch {}
+
+  const passPct = player.passesAttempted > 0
+    ? `${Math.round((player.passesCompleted / player.passesAttempted) * 100)}%`
+    : '0%';
+
+  const titleMap = {
+    career: 'MATCH TELEMETRY DOSSIER',
+    int: 'INTERNATIONAL CAREER CARD',
+    club: 'CLUB FRANCHISE CARD'
+  };
+
+  const buf = await renderPlayerStatCanvas({
+    titleTag: titleMap[mode],
+    username: player.username || targetUser.username,
+    clubAndNation: `${player.club?.name || 'Free Agent'}  •  ${player.nation?.name || 'Free Agent'}`,
+    seasonRank,
+    vipTier: player.vipTier || 0,
+    avatarUrl: targetUser.displayAvatarURL({ extension: 'png', size: 256 }),
+    ovr,
+    atk: derived.atk,
+    mid: derived.mid,
+    def: derived.def,
+    themeKey: player.profileTheme,
+    recentForm,
+    milestones,
+    footerSummary: `BOOTS: ${player.activeBoots ? player.activeBoots.toUpperCase() : 'STANDARD'}  •  INTEL: ${player.intelBonus > 0 ? '+' + player.intelBonus : 'NONE'}  •  COINS: ${formatK(player.coins)}`,
+    stats: [
+      { label: 'CAPS (W-D-L)', value: `${player.matchesPlayed} (${player.wins || 0}-${player.draws || 0}-${player.losses || 0})` },
+      { label: 'GOALS / ASSISTS', value: `${player.goalsScored}G / ${player.assists}A`, highlight: true },
+      { label: 'SHOTS (ON TARGET)', value: `${player.shots} (${player.shotsOnTarget})` },
+      { label: 'PASSING (ACC)', value: `${player.passesCompleted} (${passPct})` },
+      { label: 'KEY PASS / DRIB', value: `${player.keyPasses} / ${player.dribblesCompleted}` },
+      { label: 'TACKLES / INT', value: `${player.tacklesWon} / ${player.interceptions}` },
+      { label: 'POSS WON / LOST', value: `${player.possessionWon || 0} / ${player.possessionLost || 0}` },
+      { label: 'FOULS COMM / EARN', value: `${player.foulsCommitted || 0} / ${player.foulsEarned || 0}` },
+      { label: 'SAVES / CLEAN SH', value: `${player.savesMade || 0} / ${player.cleanSheets}` },
+      { label: 'PEN SCORED / SAV', value: `${player.penaltiesScored || 0} / ${player.penaltiesSaved || 0}` },
+      { label: 'CARDS (Y / R)', value: `${player.yellowCards} / ${player.redCards}` },
+      { label: 'MOTM AWARDS', value: `${player.motmCount}`, highlight: true }
+    ]
+  });
+
+  return new AttachmentBuilder(buf, { name: 'player_stat_card.png' });
 }
 
 export function buildProfileTabsRow(targetUserId: string, currentTab: 'main' | 'stats' | 'attr') {
@@ -229,6 +292,7 @@ export function buildProfileEmbed(
         }
       )
       .setThumbnail(targetUser.displayAvatarURL())
+      .setImage('attachment://player_stat_card.png')
       .setFooter({ text: 'Beyond The Final Whistle • Match Telemetry • Tab 2/3' })
       .setTimestamp();
   }
@@ -376,91 +440,216 @@ export async function handleGiveCommand(message: Message, args: string[]) {
   await message.reply(result.message);
 }
 
-export async function handleLeaderboardCommand(message: Message, args: string[]) {
-  const category = args[0]?.toLowerCase() || 'ovr';
+export type LeaderboardCategory = 'ovr' | 'goals' | 'wealth' | 'followers';
 
-  if (category === 'goals' || category === 'g') {
+export function normalizeLeaderboardCategory(raw?: string): LeaderboardCategory {
+  const c = (raw || 'ovr').toLowerCase();
+  if (c === 'goals' || c === 'g') return 'goals';
+  if (c === 'wealth' || c === 'money' || c === 'coins') return 'wealth';
+  if (c === 'followers' || c === 'fans') return 'followers';
+  return 'ovr';
+}
+
+export function buildLeaderboardTabsRow(active: LeaderboardCategory) {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId('lb_ovr')
+      .setLabel('OVR Ratings')
+      .setEmoji('🏆')
+      .setStyle(active === 'ovr' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('lb_goals')
+      .setLabel('Goals')
+      .setEmoji('⚽')
+      .setStyle(active === 'goals' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('lb_wealth')
+      .setLabel('Wealth')
+      .setEmoji('🪙')
+      .setStyle(active === 'wealth' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId('lb_followers')
+      .setLabel('Followers')
+      .setEmoji('👥')
+      .setStyle(active === 'followers' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+  );
+}
+
+export async function buildLeaderboardPayload(
+  category: LeaderboardCategory,
+  callerId: string,
+  guild?: Guild | null,
+  client?: Client
+) {
+  const coinEmoji = getEmoji(guild, 'coin');
+  const callerRecord = await prisma.player.findUnique({ where: { id: callerId }, select: { profileTheme: true } });
+
+  const resolveAvatarUrl = (p: any): string | null => {
+    const cached = client?.users.cache.get(p.id)?.displayAvatarURL({ extension: 'png', size: 128 });
+    if (cached) return cached;
+    if (p.avatar && typeof p.avatar === 'string' && p.avatar.startsWith('http')) {
+      return p.avatar.replace(/\.\w+(\?|$)/, '.png$1');
+    }
+    return null;
+  };
+
+  let title = 'WORLD OVERALL RATINGS LEADERBOARD';
+  let subtitle = 'TOP 10 GLOBAL FOOTBALLERS • OVR RANKINGS';
+  let metricHeader = 'OVR';
+  let embedColor: number = THEME_COLORS.PRIMARY;
+  let entries: LeaderboardEntryData[] = [];
+  let callerSummary = '';
+  let quickList = '';
+
+  if (category === 'goals') {
+    title = 'WORLD GOLDEN BOOT LEADERBOARD';
+    subtitle = 'TOP 10 CAREER GOALSCORERS • ALL COMPETITIONS';
+    metricHeader = 'GOALS';
+    embedColor = THEME_COLORS.GOLD;
     const leaders = await prisma.player.findMany({
       orderBy: { goalsScored: 'desc' },
       take: 10,
-      include: { nation: true }
+      include: { nation: true, club: true }
     });
-    const lines = leaders.map((p, i) => {
-      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `\`#${i + 1}\``;
-      return `${medal} **${p.username}** ${getNationFlag(p.nation)} ➔ \`${p.goalsScored} Goals\` ⚽`;
-    });
-    const embed = new EmbedBuilder()
-      .setColor(THEME_COLORS.GOLD)
-      .setTitle('🏆 World Golden Boot Leaderboard — Top Scorers')
-      .setDescription(lines.join('\n') || 'No goals recorded yet.')
-      .setFooter({ text: 'Beyond The Final Whistle • Global Standings' })
-      .setTimestamp();
-    return await message.reply({ embeds: [embed] });
-  }
-
-  if (category === 'wealth' || category === 'money' || category === 'coins') {
-    const coinEmoji = getEmoji(message.guild, 'coin');
+    entries = leaders.map((p, i) => ({
+      rank: i + 1,
+      userId: p.id,
+      username: p.username,
+      clubTag: `${p.club?.name || 'Free Agent'} • ${p.nation?.name || 'Global'}`,
+      avatarUrl: resolveAvatarUrl(p),
+      valueText: `${p.goalsScored} Goals`,
+      isCaller: p.id === callerId
+    }));
+    const top3 = leaders.slice(0, 3).map((p, i) => `${['🥇', '🥈', '🥉'][i]} **${p.username}** (\`${p.goalsScored}\`)`).join('  •  ');
+    quickList = top3 || 'No goals recorded yet.';
+  } else if (category === 'wealth') {
+    title = 'WORLD NET WORTH LEADERBOARD';
+    subtitle = 'TOP 10 RICHEST FOOTBALLERS • TREASURY STANDINGS';
+    metricHeader = 'WEALTH';
+    embedColor = THEME_COLORS.EMERALD;
     const leaders = await prisma.player.findMany({
       orderBy: { coins: 'desc' },
       take: 10,
-      include: { nation: true }
+      include: { nation: true, club: true }
     });
-    const lines = leaders.map((p, i) => {
-      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `\`#${i + 1}\``;
-      return `${medal} **${p.username}** ${getNationFlag(p.nation)} ➔ \`${formatK(p.coins)}\` ${coinEmoji}`;
-    });
-    const embed = new EmbedBuilder()
-      .setColor(THEME_COLORS.GOLD)
-      .setTitle(`${coinEmoji} World Wealth & Net Worth Leaderboard`)
-      .setDescription(lines.join('\n') || 'No wealth recorded.')
-      .setFooter({ text: 'Beyond The Final Whistle • Global Standings' })
-      .setTimestamp();
-    return await message.reply({ embeds: [embed] });
-  }
-
-  if (category === 'followers' || category === 'fans') {
+    entries = leaders.map((p, i) => ({
+      rank: i + 1,
+      userId: p.id,
+      username: p.username,
+      clubTag: `${p.club?.name || 'Free Agent'} • ${p.nation?.name || 'Global'}`,
+      avatarUrl: resolveAvatarUrl(p),
+      valueText: formatK(p.coins),
+      isCaller: p.id === callerId
+    }));
+    const top3 = leaders.slice(0, 3).map((p, i) => `${['🥇', '🥈', '🥉'][i]} **${p.username}** (\`${formatK(p.coins)}\` ${coinEmoji})`).join('  •  ');
+    quickList = top3 || 'No wealth recorded yet.';
+  } else if (category === 'followers') {
+    title = 'GLOBAL CLOUT LEADERBOARD';
+    subtitle = 'TOP 10 MOST FOLLOWED STARS • FAN STANDINGS';
+    metricHeader = 'FANS';
+    embedColor = THEME_COLORS.PURPLE;
     const leaders = await prisma.player.findMany({
       orderBy: { followers: 'desc' },
       take: 10,
-      include: { nation: true }
+      include: { nation: true, club: true }
     });
-    const lines = leaders.map((p, i) => {
-      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `\`#${i + 1}\``;
-      return `${medal} **${p.username}** ${getNationFlag(p.nation)} ➔ \`${formatK(p.followers)}\` 👤`;
+    entries = leaders.map((p, i) => ({
+      rank: i + 1,
+      userId: p.id,
+      username: p.username,
+      clubTag: `${p.club?.name || 'Free Agent'} • ${p.nation?.name || 'Global'}`,
+      avatarUrl: resolveAvatarUrl(p),
+      valueText: formatK(p.followers),
+      isCaller: p.id === callerId
+    }));
+    const top3 = leaders.slice(0, 3).map((p, i) => `${['🥇', '🥈', '🥉'][i]} **${p.username}** (\`${formatK(p.followers)}\`)`).join('  •  ');
+    quickList = top3 || 'No players found.';
+  } else {
+    const allPlayers = await prisma.player.findMany({
+      include: { nation: true, club: true },
+      take: 150
     });
-    const embed = new EmbedBuilder()
-      .setColor(THEME_COLORS.PURPLE)
-      .setTitle('👥 Global Fan Following & Clout Leaderboard')
-      .setDescription(lines.join('\n') || 'No players found.')
-      .setFooter({ text: 'Beyond The Final Whistle • Global Standings' })
-      .setTimestamp();
-    return await message.reply({ embeds: [embed] });
+    const ranked = allPlayers
+      .map(p => {
+        const d = calculateDerivedRatings(p);
+        const ovr = Math.round((d.atk + d.mid + d.def) / 3);
+        return { player: p, ovr, derived: d };
+      })
+      .sort((a, b) => b.ovr - a.ovr);
+
+    const callerIdx = ranked.findIndex(r => r.player.id === callerId);
+    if (callerIdx >= 0) {
+      const c = ranked[callerIdx];
+      callerSummary = `YOUR STANDING: RANK #${callerIdx + 1}  •  ${c.ovr} OVR (ATK ${c.derived.atk} | MID ${c.derived.mid} | DEF ${c.derived.def})`;
+    }
+
+    const top10 = ranked.slice(0, 10);
+    entries = top10.map((s, i) => ({
+      rank: i + 1,
+      userId: s.player.id,
+      username: s.player.username,
+      clubTag: `${s.player.club?.name || 'Free Agent'} • A:${s.derived.atk} M:${s.derived.mid} D:${s.derived.def}`,
+      avatarUrl: resolveAvatarUrl(s.player),
+      valueText: `${s.ovr} OVR`,
+      isCaller: s.player.id === callerId
+    }));
+    const top3 = top10.slice(0, 3).map((s, i) => `${['🥇', '🥈', '🥉'][i]} **${s.player.username}** (\`${s.ovr} OVR\`)`).join('  •  ');
+    quickList = top3 || 'No players ranked yet.';
   }
 
-  // Default overall ratings leaderboard
-  const allPlayers = await prisma.player.findMany({ include: { nation: true }, take: 100 });
-  const sorted = allPlayers.map(p => {
-    const d = calculateDerivedRatings(p);
-    const ovr = Math.round((d.atk + d.mid + d.def) / 3);
-    return { player: p, ovr, derived: d };
-  }).sort((a, b) => b.ovr - a.ovr).slice(0, 10);
+  if (!callerSummary) {
+    const inTop = entries.find(e => e.isCaller);
+    callerSummary = inTop
+      ? `YOUR STANDING: RANK #${inTop.rank}  •  ${inTop.valueText}`
+      : 'SWITCH CATEGORIES BELOW  •  BUILD STATS TO CLIMB INTO THE TOP 10';
+  }
 
-  const lines = sorted.map((s, i) => {
-    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `\`#${i + 1}\``;
-    return `${medal} **${s.player.username}** ${getNationFlag(s.player.nation)} ➔ **${s.ovr} OVR** \`[ A:${s.derived.atk} | M:${s.derived.mid} | D:${s.derived.def} ]\``;
+  const cardBuf = await renderLeaderboardCanvas({
+    title,
+    subtitle,
+    metricHeader,
+    entries,
+    callerSummary,
+    themeKey: callerRecord?.profileTheme
   });
+  const file = new AttachmentBuilder(cardBuf, { name: 'leaderboard.png' });
 
   const embed = new EmbedBuilder()
-    .setColor(THEME_COLORS.PRIMARY)
-    .setTitle('🏆 World Overall Ratings Leaderboard')
+    .setColor(embedColor)
+    .setTitle(`🏆 ${title}`)
     .setDescription(
-      lines.join('\n') +
-      `\n\n${subtext('💡 Other leaderboards: `-lb goals`, `-lb wealth`, `-lb followers`')}`
+      `${quickList}\n` +
+      subtext('💡 Switch leaderboards live using the buttons below or `-lb goals` / `-lb wealth` / `-lb followers`.')
     )
-    .setFooter({ text: 'Beyond The Final Whistle • Global Standings' })
+    .setImage('attachment://leaderboard.png')
+    .setFooter({ text: 'Beyond The Final Whistle • Official Global Standings' })
     .setTimestamp();
 
-  await message.reply({ embeds: [embed] });
+  return {
+    embed,
+    files: [file],
+    components: [buildLeaderboardTabsRow(category)]
+  };
+}
+
+export async function handleLeaderboardCommand(message: Message, args: string[]) {
+  const category = normalizeLeaderboardCategory(args[0]);
+  const thinkingMsg = await sendThinkingMessage(message, 'Compiling Official Global Standings...');
+
+  try {
+    const payload = await buildLeaderboardPayload(category, message.author.id, message.guild, message.client);
+    await updateLoadingMessage(thinkingMsg, {
+      embeds: [payload.embed],
+      files: payload.files,
+      components: payload.components
+    });
+  } catch {
+    await updateLoadingMessage(thinkingMsg, {
+      content: '❌ Failed to render global leaderboard.',
+      embeds: [],
+      files: []
+    });
+  }
 }
 
 export async function handleJoinNationCommand(message: Message, args: string[]) {

@@ -61,7 +61,7 @@ export async function onMessageCreate(message: Message) {
       case 'showroom':
       case 'dealership':
       case 'vs':
-        await handleShowroomCommand(message);
+        await handleShowroomCommand(message, args);
         break;
       case 'vehiclebuy':
       case 'buycar':

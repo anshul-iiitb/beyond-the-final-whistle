@@ -1,5 +1,12 @@
-import { createCanvas, CanvasRenderingContext2D, loadImage } from '@napi-rs/canvas';
+import { createCanvas, SKRSContext2D } from '@napi-rs/canvas';
 import { COSMETIC_CATALOG, PROFILE_THEMES } from '../config/constants.js';
+import {
+  cleanCanvasText,
+  drawCircularImage,
+  fetchRemoteImage,
+  paintThemeBackdrop,
+  truncateText,
+} from './themeRenderers.js';
 
 export interface ScorecardData {
   homeTeam: string;
@@ -36,7 +43,7 @@ function rgbToHex(rgb: [number, number, number]): string {
  * Helper to draw rounded rectangles
  */
 function roundRect(
-  ctx: CanvasRenderingContext2D,
+  ctx: SKRSContext2D,
   x: number,
   y: number,
   w: number,
@@ -179,9 +186,9 @@ export function generatePossessionPieChart(
 }
 
 /**
- * Generates an authentic dynamic matchday scorecard graphic for the Sports Gazette
+ * Generates an authentic dynamic matchday scorecard graphic for the Sports Gazette (800x410)
  */
-export function generateMatchScorecardGraphic(data: ScorecardData): Buffer {
+export async function generateMatchScorecardGraphic(data: ScorecardData): Promise<Buffer> {
   const width = 800;
   const height = 410;
   const canvas = createCanvas(width, height);
@@ -189,226 +196,162 @@ export function generateMatchScorecardGraphic(data: ScorecardData): Buffer {
 
   // Determine contrasting team colors
   const homeColorRgb: [number, number, number] = data.homeColor || [16, 185, 129];
-  const awayColorRgb: [number, number, number] = data.awayColor || [5, 150, 105];
+  const awayColorRgb: [number, number, number] = data.awayColor || [56, 189, 248];
 
   const colorHome = rgbToHex(homeColorRgb);
-  let colorAway = areColorsTooClose(homeColorRgb, awayColorRgb)
-    ? '#06b6d4' // Electric Cyan if away color clashes with home color
+  const colorAway = areColorsTooClose(homeColorRgb, awayColorRgb)
+    ? '#06b6d4'
     : rgbToHex(awayColorRgb);
 
-  // Background: Obsidian Slate Gradient
-  const bg = ctx.createLinearGradient(0, 0, 0, height);
-  bg.addColorStop(0, '#090d16');
-  bg.addColorStop(0.5, '#0d1322');
-  bg.addColorStop(1, '#080c14');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, width, height);
+  await paintThemeBackdrop(ctx, width, height, 'match_scorecard', 'obsidian');
 
-  // Subtle Stadium Center Glow
-  const radialGlow = ctx.createRadialGradient(width / 2, 130, 20, width / 2, 130, 320);
-  radialGlow.addColorStop(0, 'rgba(30, 41, 59, 0.45)');
-  radialGlow.addColorStop(1, 'rgba(9, 13, 22, 0)');
-  ctx.fillStyle = radialGlow;
-  ctx.fillRect(0, 0, width, height);
-
-  // Outer Card Border
-  roundRect(ctx, 16, 16, width - 32, height - 32, 18);
-  ctx.strokeStyle = '#1e293b';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Top Champions Gold Accent Stripe
-  const stripe = ctx.createLinearGradient(16, 0, width - 32, 0);
-  stripe.addColorStop(0, colorHome);
-  stripe.addColorStop(0.5, '#f59e0b');
-  stripe.addColorStop(1, colorAway);
-  ctx.fillStyle = stripe;
-  ctx.fillRect(16, 16, width - 32, 4);
-
-  // Header
+  // Header inside Top Header Zone (40, 24, 720x50)
   ctx.textAlign = 'center';
-  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
-  ctx.fillStyle = '#f59e0b';
-  ctx.fillText('BEYOND THE FINAL WHISTLE', width / 2, 44);
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#facc15';
+  ctx.fillText('BEYOND THE FINAL WHISTLE  •  MATCHDAY TELEMETRY', width / 2, 42);
 
-  ctx.font = '11px "Segoe UI", Arial, sans-serif';
+  ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = '#94a3b8';
-  ctx.fillText('OFFICIAL MATCHDAY TELEMETRY • FULL TIME', width / 2, 60);
+  ctx.fillText('OFFICIAL FULL TIME SCORECARD & GAZETTE', width / 2, 60);
 
-  // Divider
-  ctx.beginPath();
-  ctx.moveTo(40, 74);
-  ctx.lineTo(width - 40, 74);
-  ctx.strokeStyle = '#1e293b';
+  // ==========================================
+  // SCORELINE STRIP (y: 94..190)
+  // ==========================================
+  const homeTeamClean = cleanCanvasText(data.homeTeam).toUpperCase() || 'HOME';
+  const awayTeamClean = cleanCanvasText(data.awayTeam).toUpperCase() || 'AWAY';
+
+  // Home Team Display (Left box: 48..308)
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 23px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(truncateText(ctx, homeTeamClean, 224), 66, 130);
+
+  roundRect(ctx, 66, 148, 56, 20, 4);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+  ctx.fill();
+  ctx.strokeStyle = colorHome;
   ctx.lineWidth = 1;
   ctx.stroke();
-
-  // ==========================================
-  // SCOREBOARD DISPLAY
-  // ==========================================
-
-  // Home Team Display (Left)
-  ctx.textAlign = 'left';
-  ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(data.homeTeam.toUpperCase(), 50, 132);
-
-  roundRect(ctx, 50, 144, 56, 20, 4);
-  ctx.fillStyle = '#1e293b';
-  ctx.fill();
   ctx.textAlign = 'center';
   ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = colorHome;
-  ctx.fillText('HOME', 50 + 28, 158);
+  ctx.fillText('HOME', 66 + 28, 158);
 
-  // Center Score Glass Badge
-  const scoreBadgeW = 150;
-  const scoreBadgeH = 68;
-  const scoreBadgeX = width / 2 - scoreBadgeW / 2;
-  const scoreBadgeY = 96;
-
-  roundRect(ctx, scoreBadgeX, scoreBadgeY, scoreBadgeW, scoreBadgeH, 12);
-  ctx.fillStyle = '#0f172a';
-  ctx.fill();
-  ctx.strokeStyle = '#334155';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // Glowing Score Text
+  // Center Score Box (318..482)
   ctx.textAlign = 'center';
-  ctx.font = 'bold 38px "Segoe UI", Arial, sans-serif';
+  ctx.font = 'bold 40px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = 'rgba(255, 255, 255, 0.35)';
-  ctx.shadowBlur = 8;
-  ctx.fillText(`${data.homeScore} - ${data.awayScore}`, width / 2, scoreBadgeY + 47);
+  ctx.shadowColor = 'rgba(56, 189, 248, 0.45)';
+  ctx.shadowBlur = 10;
+  ctx.fillText(`${data.homeScore} - ${data.awayScore}`, width / 2, 134);
   ctx.shadowBlur = 0;
 
-  // FT Pill below score
-  roundRect(ctx, width / 2 - 20, scoreBadgeY + scoreBadgeH - 8, 40, 16, 8);
+  roundRect(ctx, width / 2 - 24, 160, 48, 18, 9);
   ctx.fillStyle = '#10b981';
   ctx.fill();
-  ctx.font = 'bold 9px "Segoe UI", Arial, sans-serif';
+  ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText('FT', width / 2, scoreBadgeY + scoreBadgeH + 4);
+  ctx.fillText('FT', width / 2, 169);
 
-  // Away Team Display (Right)
+  // Away Team Display (Right box: 492..752)
   ctx.textAlign = 'right';
-  ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
+  ctx.font = 'bold 23px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(data.awayTeam.toUpperCase(), width - 50, 132);
+  ctx.fillText(truncateText(ctx, awayTeamClean, 224), 734, 130);
 
-  roundRect(ctx, width - 106, 144, 56, 20, 4);
-  ctx.fillStyle = '#1e293b';
+  roundRect(ctx, 734 - 56, 148, 56, 20, 4);
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
   ctx.fill();
+  ctx.strokeStyle = colorAway;
+  ctx.lineWidth = 1;
+  ctx.stroke();
   ctx.textAlign = 'center';
   ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = colorAway;
-  ctx.fillText('AWAY', width - 106 + 28, 158);
+  ctx.fillText('AWAY', 734 - 28, 158);
 
   // ==========================================
-  // POSSESSION TELEMETRY BAR
+  // DUAL POSSESSION TELEMETRY BAR (48, 202, 704x72)
   // ==========================================
-  const barW = 680;
-  const barH = 16;
+  const barW = 660;
+  const barH = 14;
   const barX = (width - barW) / 2;
-  const barY = 200;
+  const barY = 222;
 
   const homePoss = Math.max(5, Math.min(95, data.homePossession));
   const awayPoss = 100 - homePoss;
   const homeLen = Math.round((homePoss / 100) * barW);
   const awayLen = barW - homeLen;
 
-  // Background track
-  roundRect(ctx, barX, barY, barW, barH, 8);
+  roundRect(ctx, barX, barY, barW, barH, 7);
   ctx.fillStyle = '#1e293b';
   ctx.fill();
 
-  // Home Segment (Left Rounded)
   ctx.save();
-  roundRect(ctx, barX, barY, barW, barH, 8);
+  roundRect(ctx, barX, barY, barW, barH, 7);
   ctx.clip();
-
   ctx.fillStyle = colorHome;
   ctx.fillRect(barX, barY, homeLen, barH);
-
-  // Away Segment
   ctx.fillStyle = colorAway;
   ctx.fillRect(barX + homeLen, barY, awayLen, barH);
-
-  // Divider Notch
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(barX + homeLen - 1.5, barY, 3, barH);
   ctx.restore();
 
-  // Possession Text Indicators
+  ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
-  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = colorHome;
-  ctx.fillText(`${homePoss}% POSSESSION`, barX, barY + 34);
+  ctx.fillText(`${homePoss}% POSSESSION`, barX, barY + 32);
 
   ctx.textAlign = 'center';
   ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
-  ctx.fillStyle = '#64748b';
-  ctx.fillText('BALL CONTROL', width / 2, barY + 34);
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('BALL CONTROL', width / 2, barY + 32);
 
   ctx.textAlign = 'right';
-  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = colorAway;
-  ctx.fillText(`${awayPoss}% POSSESSION`, barX + barW, barY + 34);
+  ctx.fillText(`${awayPoss}% POSSESSION`, barX + barW, barY + 32);
 
   // ==========================================
-  // MAN OF THE MATCH SPOTLIGHT
+  // MAN OF THE MATCH SPOTLIGHT (48, 286, 704x78)
   // ==========================================
-  const motmBoxW = 700;
-  const motmBoxH = 68;
-  const motmBoxX = (width - motmBoxW) / 2;
-  const motmBoxY = 265;
-
-  roundRect(ctx, motmBoxX, motmBoxY, motmBoxW, motmBoxH, 12);
-  const motmBg = ctx.createLinearGradient(motmBoxX, 0, motmBoxX + motmBoxW, 0);
-  motmBg.addColorStop(0, 'rgba(30, 41, 59, 0.7)');
-  motmBg.addColorStop(1, 'rgba(15, 23, 42, 0.7)');
-  ctx.fillStyle = motmBg;
-  ctx.fill();
-  ctx.strokeStyle = '#334155';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  // MOTM Info (Left inside box)
   ctx.textAlign = 'left';
   ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
-  ctx.fillStyle = '#f59e0b';
-  ctx.fillText('👑  MAN OF THE MATCH', motmBoxX + 24, motmBoxY + 26);
+  ctx.fillStyle = '#facc15';
+  ctx.fillText('MAN OF THE MATCH SPOTLIGHT', 70, 310);
 
-  ctx.font = 'bold 20px "Segoe UI", Arial, sans-serif';
+  ctx.font = 'bold 21px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText(data.motmName.toUpperCase(), motmBoxX + 24, motmBoxY + 52);
+  ctx.fillText(truncateText(ctx, cleanCanvasText(data.motmName).toUpperCase() || 'MVP', 490), 70, 338);
 
-  // Rating Badge (Right inside box)
-  const ratingBadgeW = 100;
+  const ratingBadgeW = 112;
   const ratingBadgeH = 36;
-  const ratingBadgeX = motmBoxX + motmBoxW - ratingBadgeW - 20;
-  const ratingBadgeY = motmBoxY + (motmBoxH - ratingBadgeH) / 2;
+  const ratingBadgeX = 734 - ratingBadgeW;
+  const ratingBadgeY = 306;
 
   roundRect(ctx, ratingBadgeX, ratingBadgeY, ratingBadgeW, ratingBadgeH, 18);
-  ctx.fillStyle = '#1e293b';
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
   ctx.fill();
-  ctx.strokeStyle = '#f59e0b';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#facc15';
+  ctx.lineWidth = 1.6;
   ctx.stroke();
 
   ctx.textAlign = 'center';
-  ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
-  ctx.fillStyle = '#f59e0b';
-  ctx.fillText(`⭐ ${data.motmRating.toFixed(1)}`, ratingBadgeX + ratingBadgeW / 2, ratingBadgeY + 24);
+  ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#facc15';
+  ctx.fillText(`OVR ${data.motmRating.toFixed(1)}`, ratingBadgeX + ratingBadgeW / 2, ratingBadgeY + 18);
 
   // ==========================================
-  // FOOTER TAGLINE
+  // FOOTER TAGLINE (40, 380, 720x20)
   // ==========================================
   ctx.textAlign = 'center';
-  ctx.font = '10px "Segoe UI", Arial, sans-serif';
-  ctx.fillStyle = '#475569';
-  ctx.fillText('AI SPORTS JOURNALISM ENGINE • OFFICIAL LIVE MATCH TELEMETRY', width / 2, height - 24);
+  ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('AI SPORTS JOURNALISM ENGINE  •  OFFICIAL LIVE MATCH TELEMETRY', width / 2, 390);
 
   return canvas.toBuffer('image/png');
 }
@@ -440,7 +383,6 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
 
-  const theme = PROFILE_THEMES.find(t => t.key === data.themeKey) || PROFILE_THEMES[0];
   const avatarCosmetic = data.equippedAvatar
     ? COSMETIC_CATALOG.find(c => c.key === data.equippedAvatar)
     : undefined;
@@ -448,249 +390,171 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
     ? COSMETIC_CATALOG.find(c => c.key === data.equippedBanner)
     : undefined;
 
+  const theme = await paintThemeBackdrop(ctx, width, height, 'profile_banner', data.themeKey);
   const primaryAccent = bannerCosmetic?.accentHex || avatarCosmetic?.accentHex || theme.accent;
 
-  // 1. Studio Gradient Backdrop
-  const bgGrad = ctx.createLinearGradient(0, 0, width, height);
-  bgGrad.addColorStop(0, theme.bgStart);
-  bgGrad.addColorStop(1, bannerCosmetic ? bannerCosmetic.secondaryHex : theme.bgEnd);
-  ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, width, height);
-
-  // 2. Ambient Floodlights & Radial Glows
-  const glowLeft = ctx.createRadialGradient(90, 60, 10, 90, 60, 260);
-  glowLeft.addColorStop(0, theme.glow);
-  glowLeft.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = glowLeft;
-  ctx.fillRect(0, 0, width, height);
-
-  const glowRight = ctx.createRadialGradient(width - 90, height - 30, 10, width - 90, height - 30, 280);
-  glowRight.addColorStop(0, theme.glow);
-  glowRight.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = glowRight;
-  ctx.fillRect(0, 0, width, height);
-
-  // 3. Tactical Pitch Arcs & Diagonal Legend Sash (if Banner equipped)
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.055)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(width * 0.65, height / 2, 135, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(width * 0.65, 0);
-  ctx.lineTo(width * 0.65, height);
-  ctx.stroke();
-
+  // Optional Diagonal Legend Sash & Jersey Watermark when 3M Legend Banner equipped
   if (bannerCosmetic) {
-    ctx.fillStyle = `${bannerCosmetic.accentHex}1F`; // translucent diagonal sash
+    ctx.save();
+    ctx.fillStyle = `${bannerCosmetic.accentHex}24`;
     ctx.beginPath();
-    ctx.moveTo(430, 0);
-    ctx.lineTo(640, 0);
-    ctx.lineTo(540, height);
-    ctx.lineTo(330, height);
+    ctx.moveTo(410, 28);
+    ctx.lineTo(568, 28);
+    ctx.lineTo(500, 212);
+    ctx.lineTo(342, 212);
     ctx.closePath();
     ctx.fill();
 
-    // Watermark Legend Squad Number
-    ctx.font = 'bold 124px "Segoe UI", Arial, sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
+    ctx.font = 'bold 96px "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.textAlign = 'right';
-    ctx.fillText(`#${bannerCosmetic.jerseyNumber}`, width - 190, height - 32);
+    ctx.fillText(`#${bannerCosmetic.jerseyNumber}`, 558, 196);
+    ctx.restore();
   }
-  ctx.restore();
 
-  // 4. Outer Card Frame & Top Accent Bar
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(4, 4, width - 8, height - 8, 16);
-  ctx.stroke();
-
-  ctx.fillStyle = primaryAccent;
-  ctx.beginPath();
-  ctx.roundRect(14, 10, width - 28, 4, 2);
-  ctx.fill();
-
-  // 5. Left Circular Avatar + Cosmetic Edition Ring
+  // 1. Left Circular Avatar inside Obsidian Marble Frame (cx: 86, cy: 108, r: 48)
   const avX = 86;
-  const avY = 112;
-  const avRadius = 54;
+  const avY = 108;
+  const avRadius = 48;
+  const avatarImg = await fetchRemoteImage(data.avatarUrl, 2500);
+  drawCircularImage(
+    ctx,
+    avatarImg,
+    avX,
+    avY,
+    avRadius,
+    data.username,
+    data.vipTier >= 1 ? '#f59e0b' : primaryAccent,
+    false // metallic marble bezel provided by background plate
+  );
 
-  // Outer VIP / Avatar Ring
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(avX, avY, avRadius + 6, 0, Math.PI * 2);
-  ctx.strokeStyle = data.vipTier >= 1 ? '#f59e0b' : primaryAccent;
-  ctx.lineWidth = 4;
-  ctx.stroke();
-
-  if (avatarCosmetic) {
+  // Cosmetic or VIP Ring highlight + Edition Jersey Tag inside (42, 173, 88, 20)
+  if (avatarCosmetic || data.vipTier >= 1) {
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(avX, avY, avRadius + 11, 0, Math.PI * 2);
-    ctx.strokeStyle = avatarCosmetic.accentHex;
+    ctx.arc(avX, avY, avRadius + 3, 0, Math.PI * 2);
+    ctx.strokeStyle = avatarCosmetic ? avatarCosmetic.accentHex : '#f59e0b';
     ctx.lineWidth = 2;
     ctx.stroke();
+    ctx.restore();
   }
 
-  // Clipped Avatar Image or Monogram Fallback
-  ctx.beginPath();
-  ctx.arc(avX, avY, avRadius, 0, Math.PI * 2);
-  ctx.clip();
-
-  let renderedImage = false;
-  if (data.avatarUrl) {
-    try {
-      const resp = await fetch(data.avatarUrl, { signal: AbortSignal.timeout(3000) });
-      if (resp.ok) {
-        const arrBuf = await resp.arrayBuffer();
-        const img = await loadImage(Buffer.from(arrBuf));
-        ctx.drawImage(img, avX - avRadius, avY - avRadius, avRadius * 2, avRadius * 2);
-        renderedImage = true;
-      }
-    } catch {
-      // Non-fatal network/canvas image fallback to monogram
-    }
-  }
-
-  if (!renderedImage) {
-    ctx.fillStyle = '#0f172a';
-    ctx.fillRect(avX - avRadius, avY - avRadius, avRadius * 2, avRadius * 2);
-    ctx.fillStyle = primaryAccent;
-    ctx.font = 'bold 42px "Segoe UI", Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText((data.username[0] || 'P').toUpperCase(), avX, avY + 2);
-  }
+  const jerseyText = avatarCosmetic
+    ? `#${avatarCosmetic.jerseyNumber} ${avatarCosmetic.subtitle.slice(0, 9)}`
+    : data.vipTier >= 1
+      ? 'VIP PASS'
+      : 'PRO CARD';
+  ctx.save();
+  ctx.fillStyle = avatarCosmetic ? avatarCosmetic.accentHex : data.vipTier >= 1 ? '#fbbf24' : '#cbd5e1';
+  ctx.font = 'bold 9.5px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(cleanCanvasText(jerseyText), 86, 183);
   ctx.restore();
 
-  if (avatarCosmetic) {
-    // Edition Jersey Badge at bottom-right of avatar
-    ctx.fillStyle = '#090d16';
-    ctx.strokeStyle = avatarCosmetic.accentHex;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(avX - 44, avY + avRadius - 10, 88, 22, 11);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`#${avatarCosmetic.jerseyNumber} ${avatarCosmetic.subtitle.slice(0, 10)}`, avX, avY + avRadius + 1);
-  }
-
-  // 6. Identity & Badges Column
-  const textX = 168;
+  // 2. Center Top Identity Glass Box (168, 28, 400x102)
+  const textX = 182;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
 
-  // Top Pill (VIP + Season Rank)
   const rankLabel = data.vipTier >= 1 ? `VIP STAR  •  ${data.seasonRank.toUpperCase()}` : `${data.seasonRank.toUpperCase()} TIER`;
-  ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
-  const pillW = Math.max(130, ctx.measureText(rankLabel).width + 24);
-  ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
-  ctx.strokeStyle = data.vipTier >= 1 ? '#f59e0b' : theme.accent;
-  ctx.lineWidth = 1.5;
+  ctx.font = 'bold 10.5px "Segoe UI", Arial, sans-serif';
+  const pillW = Math.min(360, Math.max(124, ctx.measureText(rankLabel).width + 20));
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+  ctx.strokeStyle = data.vipTier >= 1 ? '#f59e0b' : primaryAccent;
+  ctx.lineWidth = 1.3;
   ctx.beginPath();
-  ctx.roundRect(textX, 34, pillW, 24, 12);
+  ctx.roundRect(textX, 38, pillW, 21, 10.5);
   ctx.fill();
   ctx.stroke();
 
   ctx.fillStyle = data.vipTier >= 1 ? '#fbbf24' : '#e2e8f0';
-  ctx.fillText(rankLabel, textX + 12, 50);
+  ctx.fillText(cleanCanvasText(rankLabel), textX + 10, 52);
 
-  // Player Name
+  // Username
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 30px "Segoe UI", Arial, sans-serif';
-  const cleanName = data.username.length > 18 ? `${data.username.slice(0, 17)}…` : data.username;
-  ctx.fillText(cleanName, textX, 94);
+  ctx.font = 'bold 28px "Segoe UI", Arial, sans-serif';
+  const cleanName = cleanCanvasText(data.username) || 'Player';
+  ctx.fillText(truncateText(ctx, cleanName, 368), textX, 90);
 
   // Club & Nation
   ctx.fillStyle = '#cbd5e1';
-  ctx.font = '14px "Segoe UI", Arial, sans-serif';
-  ctx.fillText(`${data.clubName}  •  ${data.nationName}`, textX, 120);
+  ctx.font = '13.5px "Segoe UI", Arial, sans-serif';
+  const clubNation = `${cleanCanvasText(data.clubName)}  •  ${cleanCanvasText(data.nationName)}`;
+  ctx.fillText(truncateText(ctx, clubNation, 368), textX, 114);
 
-  // Equipped Banner Plaque (if any)
+  // 3. Center Bottom Banner & Milestones Glass Box (168, 134, 400x78)
   if (bannerCosmetic) {
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
     ctx.strokeStyle = bannerCosmetic.accentHex;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.roundRect(textX, 134, 340, 26, 6);
+    ctx.roundRect(textX, 142, 368, 22, 5);
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = bannerCosmetic.accentHex;
-    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(`BANNER: ${bannerCosmetic.name.toUpperCase()} (${bannerCosmetic.subtitle})`, textX + 10, 151);
+    ctx.font = 'bold 10.5px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(
+      truncateText(ctx, `BANNER: ${bannerCosmetic.name.toUpperCase()} (${bannerCosmetic.subtitle})`, 350),
+      textX + 8,
+      157
+    );
   } else {
     ctx.fillStyle = '#94a3b8';
-    ctx.font = '12px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(`Theme: ${theme.name}`, textX, 148);
+    ctx.font = 'bold 11.5px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(`THEME: ${theme.name.toUpperCase()}`, textX, 156);
   }
 
-  // Milestones Row (up to 3 pills)
   let badgeX = textX;
   const shownMilestones = data.milestones.slice(0, 3);
   for (const label of shownMilestones) {
+    const cleanM = cleanCanvasText(label);
     ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
-    const mw = ctx.measureText(label).width + 18;
-    if (badgeX + mw > 565) break;
+    const mw = ctx.measureText(cleanM).width + 16;
+    if (badgeX + mw > 556) break;
 
-    ctx.fillStyle = 'rgba(30, 41, 59, 0.9)';
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.85)';
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(badgeX, 180, mw, 24, 6);
+    ctx.roundRect(badgeX, 174, mw, 22, 5);
     ctx.fill();
     ctx.stroke();
 
     ctx.fillStyle = '#f1f5f9';
-    ctx.fillText(label, badgeX + 9, 196);
-    badgeX += mw + 8;
+    ctx.fillText(cleanM, badgeX + 8, 189);
+    badgeX += mw + 7;
   }
 
   if (shownMilestones.length === 0) {
-    ctx.fillStyle = '#64748b';
+    ctx.fillStyle = '#94a3b8';
     ctx.font = 'italic 11px "Segoe UI", Arial, sans-serif';
-    ctx.fillText('Build milestones on the pitch (Goals, Poss Won, MVPs, Caps)...', textX, 196);
+    ctx.fillText('Build milestones on the pitch (Goals, Poss Won, MVPs, Caps)...', textX, 189);
   }
 
-  // 7. Right OVR & ATK/MID/DEF Telemetry Panel
-  const panelX = 590;
-  ctx.fillStyle = 'rgba(9, 13, 22, 0.84)';
-  ctx.strokeStyle = primaryAccent;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(panelX, 28, 186, 184, 14);
-  ctx.fill();
-  ctx.stroke();
-
-  // OVR Value
+  // 4. Right OVR & ATK/MID/DEF Telemetry Panel (590..776, center X=683)
+  const panelCenterX = 683;
   ctx.textAlign = 'center';
   ctx.fillStyle = '#94a3b8';
   ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('OVERALL RATING', panelX + 93, 52);
+  ctx.fillText('OVERALL RATING', panelCenterX, 54);
 
   ctx.fillStyle = primaryAccent;
-  ctx.font = 'bold 54px "Segoe UI", Arial, sans-serif';
-  ctx.fillText(String(data.ovr), panelX + 93, 108);
+  ctx.font = 'bold 52px "Segoe UI", Arial, sans-serif';
+  ctx.fillText(String(data.ovr), panelCenterX, 108);
 
-  // Divider inside OVR card
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(panelX + 18, 126);
-  ctx.lineTo(panelX + 168, 126);
+  ctx.moveTo(610, 126);
+  ctx.lineTo(756, 126);
   ctx.stroke();
 
-  // ATK / MID / DEF sub-boxes
   const triad = [
-    { label: 'ATK', val: data.atk, x: panelX + 36 },
-    { label: 'MID', val: data.mid, x: panelX + 93 },
-    { label: 'DEF', val: data.def, x: panelX + 150 }
+    { label: 'ATK', val: data.atk, x: 632 },
+    { label: 'MID', val: data.mid, x: 683 },
+    { label: 'DEF', val: data.def, x: 734 }
   ];
   for (const t of triad) {
     ctx.fillStyle = '#94a3b8';
@@ -702,11 +566,11 @@ export async function generatePlayerProfileCard(data: ProfileCardData): Promise<
     ctx.fillText(String(t.val), t.x, 182);
   }
 
-  // Subtle footer watermark
+  // 5. Bottom Studio Watermark Strip (18, 224)
   ctx.textAlign = 'left';
-  ctx.fillStyle = '#64748b';
-  ctx.font = '10px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('BEYOND THE FINAL WHISTLE • PLAYER STUDIO', 18, height - 14);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 9.5px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('BEYOND THE FINAL WHISTLE  •  PLAYER STUDIO', 26, 226);
 
   return canvas.toBuffer('image/png');
 }

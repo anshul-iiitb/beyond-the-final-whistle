@@ -4,6 +4,7 @@ import fs from 'fs';
 import { simulateFullMatch } from '../engines/matchSimulationEngine.js';
 import { runLiveEpisodicMatch, MatchTeam } from '../engines/liveMatchEngine.js';
 import { generateMatchScorecardGraphic } from '../utils/chartHelper.js';
+import { buildPlayerStatCardAttachment } from './playerCommands.js';
 import { prisma } from '../database/prisma.js';
 import { getEmoji } from '../utils/emojiHelper.js';
 import { THEME_COLORS, UI, makeDualProgressBar, subtext } from '../utils/themeHelper.js';
@@ -84,7 +85,7 @@ async function runSimulatedMatchCommand(message: Message, args: string[], isExhi
       .setTimestamp();
 
     // Dynamic Matchday Telemetry Graphic
-    const scorecardBuf = generateMatchScorecardGraphic({
+    const scorecardBuf = await generateMatchScorecardGraphic({
       homeTeam: result.homeTeamName,
       awayTeam: result.awayTeamName,
       homeScore: result.homeScore,
@@ -110,64 +111,62 @@ async function runSimulatedMatchCommand(message: Message, args: string[], isExhi
 
 export async function handleIntStatsCommand(message: Message, args: string[]) {
   const targetUser = message.mentions.users.first() || message.author;
+  const thinkingMsg = await sendThinkingMessage(message, 'Generating International Career Card...');
+
   const player = await prisma.player.findUnique({
     where: { id: targetUser.id },
-    include: { nation: true }
+    include: { nation: true, club: true, inventory: true }
   });
 
   if (!player) {
-    return await message.reply('❌ Player not found.');
+    return await updateLoadingMessage(thinkingMsg, '❌ Player not found.');
   }
 
   const motmEmoji = getEmoji(message.guild, 'motm');
+  const cardAttachment = await buildPlayerStatCardAttachment(player, targetUser, 'int');
 
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.COBALT)
     .setTitle(`🌍 ${player.username}'s International Career Record`)
     .setDescription(
       `Representing: **${player.nation?.flag || '🏴'} ${player.nation?.name || 'Free Agent'}**\n` +
-      `${UI.DIVIDER}\n\n` +
-      `• **International Caps (Matches):** \`${player.matchesPlayed}\` 🎯\n` +
-      `• **International Goals:** \`${player.goalsScored}\` ⚽\n` +
-      `• **International Assists:** \`${player.assists}\` 👟\n` +
-      `• **MOTM Accolades:** \`${player.motmCount}\` ${motmEmoji}\n` +
-      `• **Discipline:** \`${player.yellowCards}\` 🟨 Yellows  •  \`${player.redCards}\` 🟥 Reds\n` +
-      `• **Clean Sheets:** \`${player.cleanSheets}\` 🧤`
+      `• **Caps:** \`${player.matchesPlayed}\` 🎯 • **Goals:** \`${player.goalsScored}\` ⚽ • **Assists:** \`${player.assists}\` 👟 • **MOTM:** \`${player.motmCount}\` ${motmEmoji}`
     )
+    .setImage('attachment://player_stat_card.png')
     .setFooter({ text: 'Beyond The Final Whistle • International Federation' })
     .setTimestamp();
 
-  await message.reply({ embeds: [embed] });
+  await updateLoadingMessage(thinkingMsg, { embeds: [embed], files: [cardAttachment] });
 }
 
 export async function handleClubStatsCommand(message: Message, args: string[]) {
   const targetUser = message.mentions.users.first() || message.author;
+  const thinkingMsg = await sendThinkingMessage(message, 'Generating Club Franchise Career Card...');
+
   const player = await prisma.player.findUnique({
     where: { id: targetUser.id },
-    include: { club: true }
+    include: { nation: true, club: true, inventory: true }
   });
 
   if (!player) {
-    return await message.reply('❌ Player not found.');
+    return await updateLoadingMessage(thinkingMsg, '❌ Player not found.');
   }
 
   const motmEmoji = getEmoji(message.guild, 'motm');
+  const cardAttachment = await buildPlayerStatCardAttachment(player, targetUser, 'club');
 
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.PRIMARY)
     .setTitle(`🏟️ ${player.username}'s Club Franchise Record`)
     .setDescription(
       `Franchise: **${player.club?.name || 'Free Agent'}**\n` +
-      `${UI.DIVIDER}\n\n` +
-      `• **Appearances:** \`${player.matchesPlayed}\` 🎯\n` +
-      `• **Club Goals:** \`${player.goalsScored}\` ⚽\n` +
-      `• **Club Assists:** \`${player.assists}\` 👟\n` +
-      `• **MOTM Awards:** \`${player.motmCount}\` ${motmEmoji}`
+      `• **Apps:** \`${player.matchesPlayed}\` 🎯 • **Goals:** \`${player.goalsScored}\` ⚽ • **Assists:** \`${player.assists}\` 👟 • **MOTM:** \`${player.motmCount}\` ${motmEmoji}`
     )
+    .setImage('attachment://player_stat_card.png')
     .setFooter({ text: 'Beyond The Final Whistle • Club Roster' })
     .setTimestamp();
 
-  await message.reply({ embeds: [embed] });
+  await updateLoadingMessage(thinkingMsg, { embeds: [embed], files: [cardAttachment] });
 }
 
 export async function handleRosterCommand(message: Message, args: string[]) {
