@@ -17,17 +17,19 @@ export function buildGlobalMarketEmbed(guild?: Guild | null) {
     .setColor(THEME_COLORS.EMERALD)
     .setTitle('🛍️ Global Market — Gear, Vehicle Showroom & Avatar Boutique')
     .setDescription(
-      `Your all-in-one commercial hub! Buy matchday gear, shop 16 exotic vehicles, and claim monthly player avatars here.\n\n` +
-      `### 🥤 Matchday Gear & Stamina\n` +
-      `${sd} **SPORTS DRINK** \`[ alias: sd ]\` — \`+50\` ${stamina} Stamina • **\`100k\`** ${coin}\n` +
-      `${strika} **STRIKA BOOTS** \`[ alias: strika ]\` — \`+10 ATK\` next match • **\`500k\`** ${coin}\n` +
-      `${passa} **PASSA BOOTS** \`[ alias: passa ]\` — \`+10 MID\` next match • **\`500k\`** ${coin}\n` +
-      `${bully} **BULLY BOOTS** \`[ alias: bully ]\` — \`+10 DEF\` next match • **\`500k\`** ${coin}\n\n` +
-      `### 🏎️ Dealership & Cosmetics (Located Inside Global Market)\n` +
-      `• **16-Car Dealership:** Inspect with \`-showroom\` • Purchase with \`-vehiclebuy <alias>\`\n` +
-      `• **Avatar & Banner Boutique:** Browse monthly drops with \`-avatar\` • Buy with \`-avatarbuy <alias>\`\n\n` +
-      `${UI.DIVIDER}\n` +
-      subtext('💡 Quick Buy: Run `-buy <alias>` for gear, `-vehiclebuy <alias>` for cars, or `-avatar` for cosmetics.')
+      [
+        'Your all-in-one commercial hub! Buy matchday gear, shop 16 exotic vehicles, and unlock collector banners.',
+        `### 🥤 Matchday Gear & Stamina\n` +
+        `${sd} **SPORTS DRINK** \`[ alias: sd ]\` — \`+50\` ${stamina} Stamina • **\`100k\`** ${coin}\n` +
+        `${strika} **STRIKA BOOTS** \`[ alias: strika ]\` — \`+10 ATK\` next match • **\`500k\`** ${coin}\n` +
+        `${passa} **PASSA BOOTS** \`[ alias: passa ]\` — \`+10 MID\` next match • **\`500k\`** ${coin}\n` +
+        `${bully} **BULLY BOOTS** \`[ alias: bully ]\` — \`+10 DEF\` next match • **\`500k\`** ${coin}`,
+        `### 🏎️ Dealership & Cosmetics (Located Inside Global Market)\n` +
+        `• **16-Car Dealership:** Inspect with \`-showroom\` • Purchase with \`-vehiclebuy <alias>\`\n` +
+        `• **Avatar & Banner Boutique:** Browse collector editions with \`-avatar\` • Buy with \`-avatarbuy <alias>\``,
+        `${UI.DIVIDER}\n` +
+        subtext('💡 Quick Buy: Run `-buy <alias>` for gear, `-vehiclebuy <alias>` for cars, or `-avatar` for cosmetics.')
+      ].join(UI.SPACER)
     )
     .setFooter({
       text: 'Beyond The Final Whistle • Global Market',

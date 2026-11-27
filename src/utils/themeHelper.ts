@@ -22,6 +22,7 @@ export const UI = {
   SUB_DIVIDER: '───────────────────────────',
   DOT_DIVIDER: '• • • • • • • • • • • • • • • • • • • •',
   DOUBLE_DIVIDER: '════════════════════════════',
+  SPACER: '\n\u200b\n',
 };
 
 /**

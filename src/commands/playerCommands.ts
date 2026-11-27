@@ -241,35 +241,36 @@ export function buildProfileEmbed(
     const bootsLabel = player.activeBoots ? `${player.activeBoots.toUpperCase()} (+10)` : 'Standard';
     const intelLabel = player.intelBonus > 0 ? `+${player.intelBonus} ${player.intelStat || 'Boost'}` : 'None';
 
+    const sections = [
+      `*${player.bio || 'Rising football prodigy aiming for the World Cup trophy.'}*`,
+      `### 🛡️ Team Stats\n` +
+      `**National Team :** ${flag} ${player.nation?.name || 'Free Agent'} (\`-joinnation\`)\n` +
+      `**Club Team :** ${player.club?.name || 'Free Agent'}\n` +
+      `**Location :** ${loc.emoji} ${loc.name} (\`-travel ${loc.alias}\`)`,
+      `### 📊 Individual Stats\n` +
+      `**Total Appearances :** ${player.matchesPlayed || 0} 🎯\n` +
+      `**Goals Scored :** ${player.goalsScored || 0} ⚽   •   **Assists :** ${player.assists || 0} 👟\n` +
+      `**Yellow Cards :** ${player.yellowCards || 0} 🟨   •   **Red Cards :** ${player.redCards || 0} 🟥\n` +
+      `**Clean Sheets :** ${player.cleanSheets || 0} 🧤   •   **MOTM Awards :** ${player.motmCount || 0} ${motmEmoji}`,
+      `### 📈 Recent Form\n` +
+      `**Last 5 Match Ratings :** ${recentForm.join(' | ')} ⭐`,
+      `### ⚡ Player Attributes\n` +
+      `**Playstyle :** ${style.emoji} ${style.name} (${style.code}) • ${style.position}\n` +
+      `**Ratings :** ATK **${derived.atk}**  |  MID **${derived.mid}**  |  DEF **${derived.def}**  |  OVR **${ovr}**\n` +
+      `**Stamina :** ${staminaEmoji} ${player.stamina}/100   •   **Training Points :** ${tpEmoji} ${player.trainingPoints}\n` +
+      `**Loadout :** 👟 ${bootsLabel}   •   🛰️ ${intelLabel}`,
+      `### 💰 Followers and Wealth\n` +
+      `**Followers :** ${formatK(player.followers)} ${followersEmoji}   •   **Coins :** ${formatK(player.coins)} ${coinEmoji}`,
+      `### 🎁 Collectables\n` +
+      `${collectablesDisplay}\n\n` +
+      subtext(`🏆 ${seasonRank} Tier • Manage gear via -inv & -equip`)
+    ];
+
     const embed = new EmbedBuilder()
       .setColor(color)
       .setTitle(`⚽ ${player.username} ${flag}'s Profile! ${vipBadge}`.trim())
       .setThumbnail(thumbUrl)
-      .setDescription(
-        `*${player.bio || 'Rising football prodigy aiming for the World Cup trophy.'}*\n\n` +
-        `### 🛡️ Team Stats\n` +
-        `**National Team :** ${flag} ${player.nation?.name || 'Free Agent'} (\`-joinnation\`)\n` +
-        `**Club Team :** ${player.club?.name || 'Free Agent'}\n` +
-        `**Location :** ${loc.emoji} ${loc.name} (\`-travel ${loc.alias}\`)\n\n` +
-        `### 📊 Individual Stats\n` +
-        `**Total Appearances :** ${player.matchesPlayed || 0} 🎯\n` +
-        `**Goals Scored :** ${player.goalsScored || 0} ⚽  •  **Assists :** ${player.assists || 0} 👟\n` +
-        `**Yellow Cards :** ${player.yellowCards || 0} 🟨  •  **Red Cards :** ${player.redCards || 0} 🟥\n` +
-        `**Clean Sheets :** ${player.cleanSheets || 0} 🧤  •  **MOTM Awards :** ${player.motmCount || 0} ${motmEmoji}\n\n` +
-        `### 📈 Recent Form\n` +
-        `**Last 5 Match Ratings :** ${recentForm.join(' | ')} ⭐\n\n` +
-        `### ⚡ Player Attributes\n` +
-        `**Playstyle :** ${style.emoji} ${style.name} (${style.code}) • ${style.position}\n` +
-        `**Ratings :** ATK **${derived.atk}** | MID **${derived.mid}** | DEF **${derived.def}** | OVR **${ovr}**\n` +
-        `**Stamina :** ${staminaEmoji} ${player.stamina}/100  •  **Training Points :** ${tpEmoji} ${player.trainingPoints}\n` +
-        `**Loadout :** 👟 ${bootsLabel}  •  🛰️ ${intelLabel}\n\n` +
-        `### 💰 Followers and Wealth\n` +
-        `**Followers :** ${formatK(player.followers)} ${followersEmoji}\n` +
-        `**Coins :** ${formatK(player.coins)} ${coinEmoji}\n\n` +
-        `### 🎁 Collectables\n` +
-        `${collectablesDisplay}\n` +
-        subtext(`🏆 ${seasonRank} Tier • Manage gear via -inv & -equip`)
-      )
+      .setDescription(sections.join(UI.SPACER) + (hasBannerImage ? '\n\u200b' : ''))
       .setFooter({ text: `Used by ${player.username} • Beyond The Final Whistle • Tab 1/3`, iconURL: botIcon })
       .setTimestamp();
 
@@ -292,25 +293,27 @@ export function buildProfileEmbed(
       ? Math.round((player.passesCompleted / player.passesAttempted) * 100)
       : 0;
 
+    const statSections = [
+      `🏅 **Season Rank:** ${seasonRank}   •   🎖️ **Record (W-D-L):** ${wins}-${draws}-${losses}   •   🔥 **Total G/A:** ${gaTotal}` +
+      (milestones.length > 0 ? `\n🏆 **Milestones:** ${milestones.join(' • ')}` : ''),
+      `### ⚔️ Attacking & Passing\n` +
+      `**Shots :** ${player.shots || 0} (${player.shotsOnTarget || 0} on target)\n` +
+      `**Passes Completed :** ${player.passesCompleted || 0} / ${player.passesAttempted || 0} (${passPct}%)\n` +
+      `**Key Passes :** ${player.keyPasses || 0}   •   **Second Assists :** ${player.secondAssists || 0}\n` +
+      `**Dribbles Won :** ${player.dribblesCompleted || 0} / ${player.dribblesAttempted || 0}`,
+      `### 🛡️ Defending & Discipline\n` +
+      `**Tackles Won :** ${player.tacklesWon || 0} / ${player.tacklesAttempted || 0}   •   **Interceptions :** ${player.interceptions || 0}\n` +
+      `**Clearances :** ${player.clearances || 0}   •   **Possession W/L :** ${player.possessionWon || 0} / ${player.possessionLost || 0}\n` +
+      `**Fouls Comm / Earned :** ${player.foulsCommitted || 0} / ${player.foulsEarned || 0}\n` +
+      `**Saves / Clean Sheets :** ${player.savesMade || 0} / ${player.cleanSheets || 0}\n` +
+      `**Penalties Scored / Saved :** ${player.penaltiesScored || 0} / ${player.penaltiesSaved || 0}`
+    ];
+
     return new EmbedBuilder()
       .setColor(THEME_COLORS.TURF)
       .setTitle(`📊 Detailed Statistics — ${player.username} ${flag}`)
       .setThumbnail(thumbUrl)
-      .setDescription(
-        `🏅 **Season Rank:** ${seasonRank}  •  🎖️ **Record (W-D-L):** ${wins}-${draws}-${losses}  •  🔥 **Total G/A:** ${gaTotal}\n` +
-        (milestones.length > 0 ? `🏆 **Milestones:** ${milestones.join(' • ')}\n` : '') +
-        `\n**⚔️ Attacking & Passing**\n` +
-        `**Shots :** ${player.shots || 0} (${player.shotsOnTarget || 0} on target)\n` +
-        `**Passes Completed :** ${player.passesCompleted || 0} / ${player.passesAttempted || 0} (${passPct}%)\n` +
-        `**Key Passes :** ${player.keyPasses || 0}  •  **Second Assists :** ${player.secondAssists || 0}\n` +
-        `**Dribbles Won :** ${player.dribblesCompleted || 0} / ${player.dribblesAttempted || 0}\n\n` +
-        `**🛡️ Defending & Discipline**\n` +
-        `**Tackles Won :** ${player.tacklesWon || 0} / ${player.tacklesAttempted || 0}  •  **Interceptions :** ${player.interceptions || 0}\n` +
-        `**Clearances :** ${player.clearances || 0}  •  **Possession W/L :** ${player.possessionWon || 0} / ${player.possessionLost || 0}\n` +
-        `**Fouls Comm / Earned :** ${player.foulsCommitted || 0} / ${player.foulsEarned || 0}\n` +
-        `**Saves / Clean Sheets :** ${player.savesMade || 0} / ${player.cleanSheets || 0}\n` +
-        `**Penalties Scored / Saved :** ${player.penaltiesScored || 0} / ${player.penaltiesSaved || 0}`
-      )
+      .setDescription(statSections.join(UI.SPACER) + '\n\u200b')
       .setImage('attachment://player_stat_card.png')
       .setFooter({ text: `Used by ${player.username} • Match Telemetry • Tab 2/3`, iconURL: botIcon })
       .setTimestamp();
@@ -324,37 +327,39 @@ export function buildProfileEmbed(
     return `\`${code.padEnd(3)} ${name.padEnd(13)} ${String(val).padStart(2)} [${bar}]\``;
   };
 
+  const attrSections = [
+    `**Playstyle :** ${style.emoji} ${style.name} (${style.code})\n` +
+    `*${style.description}*\n\n` +
+    `• **Key Stats :** ${style.keyStats.map(s => s.toUpperCase()).join(', ')}\n` +
+    `• **Derived Ratings :** ATK ${derived.atk} | MID ${derived.mid} | DEF ${derived.def} | OVR ${ovr} (${seasonRank})\n` +
+    `• **TP Available :** ${tpEmoji} ${player.trainingPoints} TP`,
+    `🔴 **Attacking**\n` +
+    `${fmtBarRow('FIN', 'Finishing', player.fin)}\n` +
+    `${fmtBarRow('POW', 'Shot Power', player.pow)}\n` +
+    `${fmtBarRow('HEA', 'Heading', player.hea)}`,
+    `🔵 **Technical**\n` +
+    `${fmtBarRow('PAS', 'Passing', player.pas)}\n` +
+    `${fmtBarRow('VIS', 'Vision', player.vis)}\n` +
+    `${fmtBarRow('CRO', 'Crossing', player.cro)}\n` +
+    `${fmtBarRow('DRI', 'Dribbling', player.dri)}`,
+    `🟢 **Defending**\n` +
+    `${fmtBarRow('TCK', 'Tackling', player.tck)}\n` +
+    `${fmtBarRow('INT', 'Interceptions', player.int)}\n` +
+    `${fmtBarRow('MRK', 'Marking', player.mrk)}`,
+    `🟡 **Physical & Mental**\n` +
+    `${fmtBarRow('PAC', 'Pace', player.pac)}\n` +
+    `${fmtBarRow('PHY', 'Physicality', player.phy)}\n` +
+    `${fmtBarRow('CMP', 'Composure', player.cmp)}\n` +
+    `${fmtBarRow('AGI', 'Agility', player.agi)}\n` +
+    `${fmtBarRow('WRK', 'Work Rate', player.wrk)}\n\n` +
+    subtext('🔬 Upgrade stats at Research Facility: `-travel rf` ➔ `-sptrain <attr>`')
+  ];
+
   return new EmbedBuilder()
     .setColor(THEME_COLORS.CYAN)
     .setTitle(`📊 ${player.username} ${flag}'s Player Attributes`)
     .setThumbnail(thumbUrl)
-    .setDescription(
-      `**Playstyle :** ${style.emoji} ${style.name} (${style.code})\n` +
-      `*${style.description}*\n` +
-      `• **Key Stats :** ${style.keyStats.map(s => s.toUpperCase()).join(', ')}\n` +
-      `• **Derived Ratings :** ATK ${derived.atk} | MID ${derived.mid} | DEF ${derived.def} | OVR ${ovr} (${seasonRank})\n` +
-      `• **TP Available :** ${tpEmoji} ${player.trainingPoints} TP\n\n` +
-      `🔴 **Attacking**\n` +
-      `${fmtBarRow('FIN', 'Finishing', player.fin)}\n` +
-      `${fmtBarRow('POW', 'Shot Power', player.pow)}\n` +
-      `${fmtBarRow('HEA', 'Heading', player.hea)}\n\n` +
-      `🔵 **Technical**\n` +
-      `${fmtBarRow('PAS', 'Passing', player.pas)}\n` +
-      `${fmtBarRow('VIS', 'Vision', player.vis)}\n` +
-      `${fmtBarRow('CRO', 'Crossing', player.cro)}\n` +
-      `${fmtBarRow('DRI', 'Dribbling', player.dri)}\n\n` +
-      `🟢 **Defending**\n` +
-      `${fmtBarRow('TCK', 'Tackling', player.tck)}\n` +
-      `${fmtBarRow('INT', 'Interceptions', player.int)}\n` +
-      `${fmtBarRow('MRK', 'Marking', player.mrk)}\n\n` +
-      `🟡 **Physical & Mental**\n` +
-      `${fmtBarRow('PAC', 'Pace', player.pac)}\n` +
-      `${fmtBarRow('PHY', 'Physicality', player.phy)}\n` +
-      `${fmtBarRow('CMP', 'Composure', player.cmp)}\n` +
-      `${fmtBarRow('AGI', 'Agility', player.agi)}\n` +
-      `${fmtBarRow('WRK', 'Work Rate', player.wrk)}\n` +
-      subtext('🔬 Upgrade stats at Research Facility: `-travel rf` ➔ `-sptrain <attr>`')
-    )
+    .setDescription(attrSections.join(UI.SPACER) + '\n\u200b')
     .setImage('attachment://biomechanics_card.png')
     .setFooter({ text: `Used by ${player.username} • Biomechanics Matrix • Tab 3/3`, iconURL: botIcon })
     .setTimestamp();

@@ -20,10 +20,12 @@ export async function handleLocationsCommand(message: Message) {
     .setColor(THEME_COLORS.PRIMARY)
     .setTitle('🏟️ Football Campus Directory & Spatial Facilities')
     .setDescription(
-      `Fast-travel between campus facilities to train, recover, trade, and sign sponsor contracts.\n\n` +
-      lines.join('\n\n') +
-      `\n\n${UI.DIVIDER}\n` +
-      subtext('💡 Travel syntax: `-travel <alias>` (e.g. `-travel ch` for Player Clubhouse, `-travel gm` for Global Market & Showroom).')
+      [
+        'Fast-travel between campus facilities to train, recover, trade, and sign sponsor contracts.',
+        ...lines,
+        `${UI.DIVIDER}\n` +
+        subtext('💡 Travel syntax: `-travel <alias>` (e.g. `-travel ch` for Player Clubhouse, `-travel gm` for Global Market & Showroom).')
+      ].join(UI.SPACER)
     )
     .setFooter({ text: 'Beyond The Final Whistle • Football Campus' })
     .setTimestamp();

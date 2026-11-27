@@ -34,10 +34,12 @@ export function buildAdvertSelectionMenu(followers: bigint, isVip = false, guild
     .setColor(THEME_COLORS.PURPLE)
     .setTitle('📸 Commercial Brand Endorsements — Photoshoot Hall')
     .setDescription(
-      `Sign lucrative brand deals with global sponsors to earn massive coin payouts and build social reach!\n\n` +
-      lines.join('\n\n') +
-      `\n\n${UI.DIVIDER}\n` +
-      subtext('💡 Click a brand button below to sign an endorsement contract and produce campaign media.')
+      [
+        'Sign lucrative brand deals with global sponsors to earn massive coin payouts and build social reach!',
+        ...lines,
+        `${UI.DIVIDER}\n` +
+        subtext('💡 Click a brand button below to sign an endorsement contract and produce campaign media.')
+      ].join(UI.SPACER)
     )
     .setFooter({ text: 'Beyond The Final Whistle • Commercial Endorsement Hub' })
     .setTimestamp();

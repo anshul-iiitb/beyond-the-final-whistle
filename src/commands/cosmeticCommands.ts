@@ -48,25 +48,22 @@ export async function handleAvatarCommand(message: Message) {
       return `\`${owned.cosmeticKey}\` (${def?.name || owned.name})`;
     });
 
-  const avatarBlock = avatars.length > 0
-    ? `### 👤 Custom Profile Avatars (750k Coins)\n${avatars.map(formatLine).join('\n')}\n\n`
-    : '';
-  const bannerBlock = banners.length > 0
-    ? `### 🖼️ Full Collector Banners (3,000k High-Roller Sink)\n${banners.map(formatLine).join('\n')}`
-    : '*No banners currently stocked in this rotation.*';
+  const boutiqueSections = [
+    `Spend surplus wealth inside **🛍️ Global Market (\`-travel gm\`)** on custom Profile Cosmetics!\n` +
+    `👑 **VIP Monthly Pass:** ${vipPassStatus}`,
+    ...(avatars.length > 0 ? [`### 👤 Custom Profile Avatars (750k Coins)\n${avatars.map(formatLine).join('\n')}`] : []),
+    banners.length > 0
+      ? `### 🖼️ Full Collector Banners (3,000k High-Roller Sink)\n${banners.map(formatLine).join('\n')}`
+      : '*No banners currently stocked in this rotation.*',
+    ...(ownedExtras.length > 0 ? [`🎒 **Vaulted Locker Items:** ${ownedExtras.join(', ')}`] : []),
+    `${UI.DIVIDER}\n` +
+    subtext('💡 At Global Market (`-travel gm`): `-avatarbuy <alias>` • VIPs: `-avatarclaim <alias>` • Anywhere: `-equip <alias>`')
+  ];
 
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.PURPLE)
     .setTitle(`🎨 Cosmetic Boutique — ${monthKey}`)
-    .setDescription(
-      `Spend surplus wealth inside **🛍️ Global Market (\`-travel gm\`)** on custom Profile Cosmetics!\n` +
-      `👑 **VIP Monthly Pass:** ${vipPassStatus}\n\n` +
-      avatarBlock +
-      bannerBlock +
-      (ownedExtras.length > 0 ? `\n\n🎒 **Vaulted Locker Items:** ${ownedExtras.join(', ')}` : '') +
-      `\n\n${UI.DIVIDER}\n` +
-      subtext('💡 At Global Market (`-travel gm`): `-avatarbuy <alias>` • VIPs: `-avatarclaim <alias>` • Anywhere: `-equip <alias>`')
-    )
+    .setDescription(boutiqueSections.join(UI.SPACER))
     .setFooter({ text: `Beyond The Final Whistle • ${activeCatalog.length} Active Collector Cosmetics` })
     .setTimestamp();
 
@@ -155,26 +152,28 @@ export async function handleInventoryCommand(message: Message, args: string[] = 
     thumbUrl = `attachment://${fname}`;
   }
 
+  const invSections = [
+    `### ⭐ Currently Equipped\n` +
+    `**Avatar :** ${eqAvatarDef ? `${eqAvatarDef.emoji} ${eqAvatarDef.name} (\`${eqAvatarDef.key}\`)` : 'Discord Default'}\n` +
+    `**Banner :** ${eqBannerDef ? `${eqBannerDef.emoji} ${eqBannerDef.name} (\`${eqBannerDef.key}\`)` : 'None Equipped'}\n` +
+    `**Theme :** 🎨 ${themeObj.name} (\`${themeObj.key}\`)`,
+    `### 🖼️ Owned Avatars (${ownedAvatars.length})\n` +
+    `${formatCosmeticList(ownedAvatars, player.equippedAvatar)}`,
+    `### 🚩 Owned Banners (${ownedBanners.length})\n` +
+    `${formatCosmeticList(ownedBanners, player.equippedBanner)}`,
+    `### 🏎️ Owned Vehicles (${player.vehicles.length})\n` +
+    `${vehicleLines}`,
+    `### 🏆 Trophies, Relics & Gear (${player.inventory.length})\n` +
+    `${relicLines}`,
+    `${UI.DIVIDER}\n` +
+    subtext('💡 Equip anytime: `-equip <alias>` • Clear: `-equip avatar none` / `-equip banner none`')
+  ];
+
   const embed = new EmbedBuilder()
     .setColor(THEME_COLORS.PURPLE)
     .setTitle(`🎒 ${player.username} ${flag}'s Locker & Inventory`)
     .setThumbnail(thumbUrl)
-    .setDescription(
-      `### ⭐ Currently Equipped\n` +
-      `**Avatar :** ${eqAvatarDef ? `${eqAvatarDef.emoji} ${eqAvatarDef.name} (\`${eqAvatarDef.key}\`)` : 'Discord Default'}\n` +
-      `**Banner :** ${eqBannerDef ? `${eqBannerDef.emoji} ${eqBannerDef.name} (\`${eqBannerDef.key}\`)` : 'Stadium Hero Card'}\n` +
-      `**Theme :** 🎨 ${themeObj.name} (\`${themeObj.key}\`)\n\n` +
-      `### 🖼️ Owned Avatars (${ownedAvatars.length})\n` +
-      `${formatCosmeticList(ownedAvatars, player.equippedAvatar)}\n\n` +
-      `### 🚩 Owned Banners (${ownedBanners.length})\n` +
-      `${formatCosmeticList(ownedBanners, player.equippedBanner)}\n\n` +
-      `### 🏎️ Owned Vehicles (${player.vehicles.length})\n` +
-      `${vehicleLines}\n\n` +
-      `### 🏆 Trophies, Relics & Gear (${player.inventory.length})\n` +
-      `${relicLines}\n\n` +
-      `${UI.DIVIDER}\n` +
-      subtext('💡 Equip anytime: `-equip <alias>` • Clear: `-equip avatar none` / `-equip banner none`')
-    )
+    .setDescription(invSections.join(UI.SPACER))
     .setFooter({
       text: 'Beyond The Final Whistle • Player Inventory',
       iconURL: message.client.user?.displayAvatarURL() || undefined
@@ -199,10 +198,11 @@ export async function handleThemeCommand(message: Message, args: string[]) {
       .setColor(THEME_COLORS.PRIMARY)
       .setTitle('🖼️ Generative Profile Visual Themes (20 Stadium Backdrops)')
       .setDescription(
-        'Customize your `-profile` canvas header card with any of 20 generative stadium palettes:\n\n' +
-        list +
-        `\n\n${UI.DIVIDER}\n` +
-        subtext('💡 Switch anytime: `-theme <alias>` (e.g. `-theme champions_gold` or `-theme emerald_pitch`).')
+        [
+          'Customize your `-profile` telemetry & biomechanics cards with any of 20 generative stadium palettes:',
+          list,
+          `${UI.DIVIDER}\n` + subtext('💡 Switch anytime: `-theme <alias>` (e.g. `-theme champions_gold` or `-theme emerald_pitch`).')
+        ].join(UI.SPACER)
       )
       .setFooter({ text: 'Beyond The Final Whistle • Canvas Profile Studio' })
       .setTimestamp();
