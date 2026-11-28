@@ -252,20 +252,20 @@ export const PLAYSTYLES: Record<string, PlaystyleDef> = {
   },
 
   // === 6 MIDFIELDER PLAYSTYLES (MID) ===
-  ENG: {
-    code: 'ENG',
-    name: 'Enganche',
-    position: 'MID',
-    emoji: '🪄',
-    description: 'Classic stationary #10 genius orchestrating the final third with visionary through-balls.',
-    keyStats: ['vis', 'pas', 'cmp']
-  },
   PLM: {
     code: 'PLM',
     name: 'Playmaker',
     position: 'MID',
     emoji: '🪄',
-    description: 'Visionary midfield maestro threading pin-point through balls between compact defensive lines.',
+    description: 'Visionary #10 orchestrating the final third with pinpoint through-balls and defense-splitting vision.',
+    keyStats: ['vis', 'pas', 'cmp']
+  },
+  ENG: {
+    code: 'PLM', // Alias for PLM (Enganche is the classic Argentine #10 playmaker)
+    name: 'Playmaker',
+    position: 'MID',
+    emoji: '🪄',
+    description: 'Visionary #10 orchestrating the final third with pinpoint through-balls and defense-splitting vision.',
     keyStats: ['vis', 'pas', 'cmp']
   },
   B2B: {
@@ -319,11 +319,11 @@ export const PLAYSTYLES: Record<string, PlaystyleDef> = {
     keyStats: ['tck', 'pac', 'cmp']
   },
   SWP: {
-    code: 'SWP',
-    name: 'No-Nonsense Sweeper',
+    code: 'NND', // Alias for NND (Sweeper / No-Nonsense DC)
+    name: 'No-Nonsense DC',
     position: 'DEF',
     emoji: '🧹',
-    description: 'Rapid recovery defender reading long balls and covering behind the defensive line.',
+    description: 'Zero-risk safety-first sweeper; clears danger into the stands and covers behind the defensive line.',
     keyStats: ['tck', 'pac', 'cmp']
   },
   BPD: {

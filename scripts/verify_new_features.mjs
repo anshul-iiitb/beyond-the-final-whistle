@@ -94,6 +94,10 @@ for (const d of defenders) {
   assert.strictEqual(PLAYSTYLES[d].position, 'DEF');
   assert.strictEqual(PLAYSTYLES[d].keyStats.length, 3);
 }
+const uniqueStyles = Array.from(new Map(Object.values(PLAYSTYLES).map(s => [s.code, s])).values());
+assert.strictEqual(uniqueStyles.filter(s => s.position === 'ATT').length, 6, 'Must have exactly 6 unique Striker archetypes');
+assert.strictEqual(uniqueStyles.filter(s => s.position === 'MID').length, 6, 'Must have exactly 6 unique Midfielder archetypes');
+assert.strictEqual(uniqueStyles.filter(s => s.position === 'DEF').length, 6, 'Must have exactly 6 unique Defender archetypes');
 console.log('   ✅ All 18 playstyles (6 Strikers, 6 Midfielders, 6 Defenders) verified with 3 key stats each.');
 
 // 5. In-Match Key Stat Mastery Tiers
