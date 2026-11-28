@@ -45,6 +45,7 @@ export async function executeDailyLifecycle(client: Client) {
           stamina: newStamina,
           followers: newFollowers,
           coins: newCoins,
+          trainingPoints: 0,
           lastTaxDeductedAt: taxDeducted > 0n ? new Date() : player.lastTaxDeductedAt,
           lastRelevancyDecayAt: new Date()
         }
@@ -53,7 +54,7 @@ export async function executeDailyLifecycle(client: Client) {
       // Deliver DM text formatted exactly like WITS bot
       const user = await client.users.fetch(player.id).catch(() => null);
       if (user) {
-        let dmText = `Daily Change\n+${staminaRestored} ⚡ Stamina restored (now ${newStamina}/100)`;
+        let dmText = `Daily Change\n+${staminaRestored} ⚡ Stamina restored (now ${newStamina}/100)\n🏋️ Daily Training Points reset to 0`;
         if (taxDeducted > 0n) {
           dmText += `\n${formatK(taxDeducted)} 🪙 Income Tax collected 👮🏻‍♂️`;
         }

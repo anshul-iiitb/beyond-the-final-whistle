@@ -1,7 +1,7 @@
 import { Message, EmbedBuilder, AttachmentBuilder, Guild } from 'discord.js';
 import path from 'path';
 import fs from 'fs';
-import { buyMarketItem, claimIntelScouting } from '../engines/marketEngine.js';
+import { buyMarketItem, useInventoryItem, claimIntelScouting } from '../engines/marketEngine.js';
 import { getMarketItemPrice, loadConfigCache } from '../services/configService.js';
 import { getEmoji } from '../utils/emojiHelper.js';
 import { formatK } from '../utils/formatHelper.js';
@@ -57,13 +57,26 @@ export function buildGlobalMarketEmbed(guild?: Guild | null) {
 export async function handleBuyCommand(message: Message, args: string[]) {
   await loadConfigCache();
   const itemAlias = args[0];
+  const qtyArg = args[1];
 
   if (!itemAlias) {
     const market = buildGlobalMarketEmbed(message.guild);
     return await message.reply({ embeds: [market.embed], files: market.files });
   }
 
-  const result = await buyMarketItem(message.author.id, itemAlias);
+  const result = await buyMarketItem(message.author.id, itemAlias, qtyArg);
+  await message.reply(result.message);
+}
+
+export async function handleUseCommand(message: Message, args: string[]) {
+  const itemKey = args[0];
+  const qtyArg = args[1];
+
+  if (!itemKey) {
+    return await message.reply('❌ Usage: `-use <item> [qty]` (e.g. `-use sd` or `-use sd 2`). Check items with `-inv`.');
+  }
+
+  const result = await useInventoryItem(message.author.id, itemKey, qtyArg);
   await message.reply(result.message);
 }
 

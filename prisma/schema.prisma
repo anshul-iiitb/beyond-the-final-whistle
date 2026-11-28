@@ -42,6 +42,11 @@ model Player {
   equippedAvatar        String?
   equippedBanner        String?
   lastVipCosmeticMonth  String?
+  capsPlayedOfficial    Int               @default(0)
+  dailyStreak           Int               @default(0)
+  lastDailyAt           DateTime?
+  weeklyFormPoints      Int               @default(0)
+  lastPotwResetAt       DateTime?
 
   // 15 Granular Football Attributes (1 to 99)
   fin                   Int               @default(50) // Finishing
@@ -100,6 +105,7 @@ model Player {
   tweets                PlayerTweet[]
   cosmetics             PlayerCosmetic[]
   auctionBids           AuctionBid[]
+  bets                  MatchBet[]
 
   // Teams & Club
   clubId                String?
@@ -129,8 +135,15 @@ model NationalTeam {
   flag            String
   alias           String    @unique
   captainId       String?
+  viceCaptainId   String?
   lineup          String    @default("[]")
   setPieceTakerId String?
+  fkTakerId       String?
+  cornerTakerId   String?
+  penTakerId      String?
+  stadiumName     String?
+  stadiumLevel    Int       @default(1)
+  stadiumCapacity Int       @default(15000)
   tactics         String    @default("BALANCED") // ATTACKING, DEFENSIVE, COUNTER, BALANCED
   matchesPlayed   Int       @default(0)
   wins            Int       @default(0)
@@ -149,8 +162,15 @@ model FootballClub {
   badge           String
   vault           BigInt    @default(10000000)
   captainId       String?
+  viceCaptainId   String?
   lineup          String    @default("[]")
   setPieceTakerId String?
+  fkTakerId       String?
+  cornerTakerId   String?
+  penTakerId      String?
+  stadiumName     String?
+  stadiumLevel    Int       @default(1)
+  stadiumCapacity Int       @default(15000)
   tactics         String    @default("BALANCED")
   matchesPlayed   Int       @default(0)
   wins            Int       @default(0)
@@ -210,6 +230,7 @@ model InventoryItem {
   itemKey         String
   name            String
   emoji           String
+  quantity        Int       @default(1)
   acquiredAt      DateTime  @default(now())
 
   @@index([playerId])
@@ -266,3 +287,45 @@ model BotSetting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+model MatchFixture {
+  id              String      @id @default(cuid())
+  fixtureNumber   Int         @unique
+  homeTeamKey     String
+  awayTeamKey     String
+  homeTeamName    String
+  awayTeamName    String
+  competition     String      @default("INTERNATIONAL") // INTERNATIONAL, CLUB
+  scheduledAt     DateTime
+  startedAt       DateTime?
+  endedAt         DateTime?
+  status          String      @default("SCHEDULED") // SCHEDULED, LIVE, COMPLETED, CANCELLED
+  homeScore       Int?
+  awayScore       Int?
+  homeOdds        Float       @default(2.00)
+  drawOdds        Float       @default(3.00)
+  awayOdds        Float       @default(2.00)
+  bets            MatchBet[]
+  createdAt       DateTime    @default(now())
+
+  @@index([status, scheduledAt])
+}
+
+model MatchBet {
+  id               String       @id @default(cuid())
+  fixtureId        String
+  fixture          MatchFixture @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  bettorId         String
+  bettor           Player       @relation(fields: [bettorId], references: [id], onDelete: Cascade)
+  pick             String       // HOME, DRAW, AWAY
+  amount           BigInt
+  lockedMultiplier Float
+  status           String       @default("PENDING") // PENDING, WON, LOST, REFUNDED
+  payout           BigInt       @default(0)
+  createdAt        DateTime     @default(now())
+
+  @@index([fixtureId])
+  @@index([bettorId])
+  @@index([status])
+}
+

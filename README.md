@@ -34,25 +34,36 @@
 | Category | Command | Description |
 | :--- | :--- | :--- |
 | **Profile** | `-profile [@user]` | View complete player card, attributes, and garage |
+| | `-theme [alias]` | Browse and apply 20 custom stadium backdrop themes |
+| | `-daily` | Claim daily matchday check-in stipend (streak rewards & 7-day bonus) |
+| | `-cd` / `-cooldowns` | Unified personal countdowns dashboard across all facilities |
 | | `-setdesc <text>` | Set personal profile bio (up to 100 chars) |
-| | `-lb [category]` | Server leaderboards (`goals`, `assists`, `motm`, `coins`, `followers`, `tp`) |
+| | `-lb [category]` | Server leaderboards (`goals`, `wealth`, `followers`, `ovr`) |
 | | `-give @user <amount>` | Wire transfer coins to another player |
-| | `-joinnation <alias>` | Pledge loyalty to national squad (`ger`, `por`, `esp`, `fra`, etc.) |
+| | `-joinnation <alias>` | Pledge loyalty to national squad (locked after 3 official caps) |
 | **Campus** | `-locations` | View campus facilities directory |
 | | `-travel <alias>` | Travel to facility (`tc`, `rf`, `ch`, `gm`, `ph`, `ih`, `ah`) |
 | | `-showroom` | Inspect exotic vehicles catalog (`gm`) |
 | | `-vehiclebuy <alias>` | Buy vehicle to slash travel cooldown (`gm`) |
-| **Training** | `-train [vip/noeffort]` | Run pitch drills at Training Center (`tc`) |
+| **Training** | `-train [vip/noeffort]` | Run pitch drills at Training Center (`tc`, Normal: 1h, +2-4 TP) |
 | | `-sptrain <attr>` | Boost attribute with TP at Research Lab (`rf`, 50 stamina & 3-15 TP) |
 | | `-convert <playstyle>` | Convert tactical role at Research Lab (`rf`, 7-day cooldown) |
 | | `-recovery` | Restore stamina at Player Clubhouse (`ch`, +30/+100, 12h cooldown) |
-| **Market** | `-buy sd` | Buy Sports Drink at Global Market (`gm`, +50 stamina) |
-| | `-buy <strika/passa/bully>` | Matchday boots at Global Market (`gm`, +10 ATK/MID/DEF) |
+| **Market** | `-buy sd [qty]` / `-use sd` | Buy and consume stackable Energy Drinks (+50 stamina) |
+| | `-buy <strika/passa/bully>` | Position-matched boots at Global Market (`gm`, +10 ATK/MID/DEF) |
 | | `-intel` | Opposition tactical scouting dossier at Intel Hub (`ih`, +1 to +6 boost) |
+| **Sportsbook** | `-fixtures` | View upcoming official matches calendar |
+| | `-odds [fixture#]` | Algorithmic multipliers based on OVR, boots, TP, and stadiums |
+| | `-bet <#>` `<pick>` `<amt>` | Place matchday wager (Strict 50k limit, closes 30m prior to match) |
+| | `-bets` | Inspect active and settled betting slips |
+| **Nations & Clubs** | `-intteam [alias]` | National Team starting lineup, specialists & tactical playbook |
+| | `-intset <role> @user` | Designate starting lineup slots and set-piece specialists |
+| | `-stadium [upgrade/name]` | Upgrade club stadium (Levels 1-5, up to 90,000 capacity) |
+| | `-potw` | Player of the Week race tracked from live matchday telemetry |
 | **Socials** | `-advert [brand]` | Sign commercial brand deal at Photoshoot Hall (`ph`) |
 | | `-coaching` | Coach academy youth at Player Clubhouse (`ch`, +50k coins, 2h cooldown) |
 | | `-meetgreet` | Autograph signing session at Player Clubhouse (`ch`, +50k followers, 2h cooldown) |
-| | `-chirp <text>` / `-tweet` | Post from any channel — bot publishes to locked `#twitter` (👍 +100k, 👎 -50k) |
+| | `-chirp <text>` / `-tweet` | Post to locked `#twitter` w/ 👍/👎 votes + 👥 `Voters` inspector |
 | **Auctions** | `-ah` / `-bid <amt> [lot#]` | View or bid on collectible auctions (`ah`) |
 | **Matches** | `-match [@user]` | Simulate 90-minute match with AI commentary & newspaper |
 | | `-intstats [@user]` | International tournament statistics |

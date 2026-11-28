@@ -1,9 +1,11 @@
 import { Message } from 'discord.js';
-import { handleProfileCommand, handleSetDescCommand, handleLeaderboardCommand, handleGiveCommand, handleJoinNationCommand } from '../commands/playerCommands.js';
+import { handleProfileCommand, handleSetDescCommand, handleLeaderboardCommand, handleGiveCommand, handleJoinNationCommand, handleDailyCommand } from '../commands/playerCommands.js';
+import { handleCooldownCommand } from '../commands/cooldownCommand.js';
 import { handleTravelCommand, handleLocationsCommand, handleShowroomCommand, handleVehicleBuyCommand } from '../commands/travelCommands.js';
 import { handleTrainCommand, handleSpTrainCommand, handleRecoveryCommand, handleConvertCommand } from '../commands/trainingCommands.js';
 import { handleAdvertCommand, handleCoachingCommand, handleMeetGreetCommand, handleChirpCommand } from '../commands/socialCommands.js';
-import { handleBuyCommand, handleIntelCommand } from '../commands/marketCommands.js';
+import { handleBuyCommand, handleUseCommand, handleIntelCommand } from '../commands/marketCommands.js';
+import { handleIntTeamCommand, handleIntSetCommand } from '../commands/intTeamCommand.js';
 import { handleAvatarCommand, handleAvatarBuyCommand, handleAvatarClaimCommand, handleEquipCommand, handleThemeCommand, handleInventoryCommand } from '../commands/cosmeticCommands.js';
 import {
   handleAuctionHouseCommand,
@@ -18,6 +20,9 @@ import {
 } from '../commands/auctionCommands.js';
 import { handleMatchCommand, handleFriendlyCommand, handleLiveMatchCommand, handleBatchMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand, handleTestMatchCommand } from '../commands/matchCommands.js';
 import { handleTacticsCommand } from '../commands/tacticsCommand.js';
+import { handleBetCommand, handleOddsCommand, handleFixturesCommand, handleMyBetsCommand, handleFixtureAdminCommand } from '../commands/bettingCommands.js';
+import { handlePotwCommand } from '../commands/potwCommand.js';
+import { handleStadiumCommand } from '../commands/stadiumCommand.js';
 import {
   handleSetupCommand,
   handleVipCommand,
@@ -75,9 +80,24 @@ export async function onMessageCreate(message: Message) {
       case 'pay':
         await handleGiveCommand(message, args);
         break;
+      case 'daily':
+        await handleDailyCommand(message);
+        break;
+      case 'cd':
+      case 'cooldown':
+      case 'cooldowns':
+        await handleCooldownCommand(message);
+        break;
       case 'joinnation':
       case 'nation':
         await handleJoinNationCommand(message, args);
+        break;
+      case 'intteam':
+      case 'team':
+        await handleIntTeamCommand(message, args);
+        break;
+      case 'intset':
+        await handleIntSetCommand(message, args);
         break;
 
       // Spatial Campus & Showroom
@@ -121,6 +141,9 @@ export async function onMessageCreate(message: Message) {
       case 'gm':
       case 'market':
         await handleBuyCommand(message, args);
+        break;
+      case 'use':
+        await handleUseCommand(message, args);
         break;
       case 'intel':
       case 'scout':
@@ -214,6 +237,35 @@ export async function onMessageCreate(message: Message) {
       case 'tactics':
       case 'tactic':
         await handleTacticsCommand(message, args);
+        break;
+
+      // Sportsbook & Fixtures
+      case 'bet':
+        await handleBetCommand(message, args);
+        break;
+      case 'odds':
+        await handleOddsCommand(message, args);
+        break;
+      case 'fixtures':
+      case 'schedule':
+        await handleFixturesCommand(message, args);
+        break;
+      case 'bets':
+      case 'slips':
+        await handleMyBetsCommand(message);
+        break;
+      case 'fixture':
+        await handleFixtureAdminCommand(message, args);
+        break;
+
+      // Player of the Week & Stadiums
+      case 'potw':
+      case 'form':
+        await handlePotwCommand(message);
+        break;
+      case 'stadium':
+      case 'arena':
+        await handleStadiumCommand(message, args);
         break;
 
       // Admin & Server Setup

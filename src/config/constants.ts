@@ -17,7 +17,7 @@ export const CAMPUS_LOCATIONS: Record<string, LocationDef> = {
     emoji: '🏋️',
     description: 'Premier football training ground with state-of-the-art pitch and VIP drills.',
     activities: [
-      '-train (Normal: 30m | VIP: 6h +6 TP | No Effort VIP: 20h +20 TP)'
+      '-train (Normal: 1h +2-4 TP | VIP: 6h +6 TP | No Effort VIP: 20h +20 TP)'
     ]
   },
   rf: {

@@ -31,11 +31,13 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '👤 Player Career & Studio Customization',
         value:
-          '• `-profile [@user]` — Profile Dossier (`Overview` + equipped bottom Banner + custom Avatar thumbnail, `Match Telemetry`, `Biomechanics` Radar).\n' +
+          '• `-profile [@user]` — Profile Dossier (`Overview` + bottom Banner + Avatar, `Match Telemetry`, `Biomechanics` Radar).\n' +
           '• `-theme [alias]` — Browse/apply **20 stadium backdrop themes** for your `-profile` card.\n' +
+          '• `-daily` — Daily matchday check-in streak (earns progressive coins, Day 7 milestone bonus +50k & +2 TP).\n' +
+          '• `-cd` (`-cooldowns`) — Unified personal timer dashboard for travel, drills, recovery, and sponsors.\n' +
           '• `-setdesc <text>` • `-lb [category]` — Interactive visual leaderboard (`goals`, `wealth`, `followers`, `ovr`).\n' +
-          '• `-give @user <amount>` — Transfer coins (`500k`, `2.5m` supported).\n' +
-          `• \`-joinnation <alias>\` — Join a National Team (**100k ${coin} + 100k ${followers}** bonus!).`
+          '• `-give @user <amount>` — Transfer coins (`50k`, `500k`, `2.5m` supported).\n' +
+          `• \`-joinnation <alias>\` — Join National Team (**100k ${coin} + 100k ${followers}**; locked after 3 official caps).`
       },
       {
         name: '🏟️ Streamlined Football Campus (-locations)',
@@ -50,47 +52,57 @@ export async function handleHelpCommand(message: Message) {
         name: '🏋️ Training & Clubhouse Recovery (-ch)',
         value:
           '• `-train` — Interactive pitch drills at `tc`:\n' +
-          `  🟢 \`Normal\` (+1-2 ${tp} TP, 30m, 5 ${stamina}) • 🔵 \`👑 VIP 6h\` (+6 ${tp}, 6h, 5 ${stamina}) • 🔴 \`👑 20h Endurance\` (+20 ${tp}, 20h CD, 50 ${stamina})\n` +
-          `• \`-sptrain [attr]\` / \`-convert [style]\` — Open Research Lab TP/Stamina menu & upgrade stats (` +
-          '`3–15` ' + `${tp}, \`50\` ${stamina}) or swap role at \`rf\`.\n` +
-          `• \`-recovery\` / \`-coaching\` / \`-meetgreet\` — Inside **🏡 Player Clubhouse (\`-travel ch\`)**: recover +30/+100 ${stamina}, earn +50k ${coin}, or +50k ${followers}!`
+          `  🟢 \`Normal\` (+2-4 ${tp} TP, 1h, 5 ${stamina}) • 🔵 \`👑 VIP 6h\` (+6 ${tp}, 6h, 5 ${stamina}) • 🔴 \`👑 20h Endurance\` (+20 ${tp}, 20h CD, 50 ${stamina})\n` +
+          `• \`-sptrain [attr]\` / \`-convert [style]\` — Research Lab attribute upgrades (` +
+          '`3–15` ' + `${tp}, \`50\` ${stamina}) or swap playstyle at \`rf\`.\n` +
+          `• \`-recovery\` / \`-coaching\` / \`-meetgreet\` — Recover +30/+100 ${stamina}, earn +50k ${coin}, or +50k ${followers}!`
       },
       {
-        name: '🛍️ Global Market, Vehicles & Boutiques (-gm)',
+        name: '🛍️ Global Market, Gear & Consumables (-gm)',
         value:
-          `• \`-gm\` / \`-buy <item>\` — **Matchday Gear**: \`sd\` (+50 ${stamina}, 100k ${coin}) & \`strika\`/\`passa\`/\`bully\` (+10 stat boots, 500k ${coin}).\n` +
-          '• `-showroom [1-3]` & `-vehiclebuy <alias>` — **16 Cars** paginated across 3 tiers (5/6/5) inside `gm` (`mini`, `bmwm3`, `corvettec8`, `mustang`, `jaguartype`, `bentley`, `mclarenf1`, + full fleet).\n' +
-          '• `-avatar [1|2]` / `-avatarbuy <alias>` / `-avatarclaim <alias>` — Showroom-style **Cosmetic Boutique** (**5 Avatars @ 750k**, **5 Banners @ 3M**; VIPs get 1 free monthly claim!).\n' +
-          '• `-inv [@user]` (`-inventory`) & `-equip [avatar|banner] <alias|none>` — Inspect your owned Avatars, Banners, Cars & Trophies, and equip them on `-profile`.'
+          `• \`-buy sd [qty]\` & \`-use sd [qty]\` — Stackable Sports Drinks (+50 ${stamina}, 100k ${coin}, drink anywhere!).\n` +
+          `• \`-buy <strika|passa|bully>\` — Matchday Boots (+10 ATK/MID/DEF, matched position bonus only!).\n` +
+          '• `-showroom [1-3]` & `-vehiclebuy <alias>` — **16 Cars** cutting travel cooldowns down to 1m.\n' +
+          '• `-avatar [1|2]` / `-avatarbuy <alias>` / `-avatarclaim <alias>` — Collector Avatars & Banners.\n' +
+          '• `-inv [@user]` & `-equip [avatar|banner] <alias|none>` — Inspect and equip cosmetics.'
       },
       {
-        name: '🏛️ Auction House & Scouting (-ah, -ih)',
+        name: '🎲 Algorithmic Sportsbook & Matchday Calendar',
         value:
-          '• `-ah` / `-auction` — View automated collector relic auctions w/ live Refresh (`+2m` anti-snipe under `60s`).\n' +
-          `• \`-bid <amount> [lot#]\` — Place escrowed bids inside \`ah\` (instant outbid refunds + DM alerts!).\n` +
-          '• `-prices` — Inspect live Market, Vehicle, Cosmetic & Relic pricing.\n' +
-          '• `-intel` — Claim scouting report at **🛰️ Intel Hub (`-travel ih`)** for +1 to +6 match boost.'
+          '• `-fixtures` — Browse scheduled league and international matches.\n' +
+          '• `-odds [fixture#]` — Deep algorithmic odds factoring player OVR, matched boots, TP boosts, intel & stadiums.\n' +
+          '• `-bet <fixture#> <home|draw|away> <amount>` — Place wager (Max 50k strictly enforced, closes 30m prior to kickoff).\n' +
+          '• `-bets` — View active sportsbook slips and settlement history.\n' +
+          '• Matchday Lockout: All economy/training/transfers frozen from T-30m before kickoff until T+15m after full-time.'
+      },
+      {
+        name: '🌍 National Teams, Stadiums & Awards',
+        value:
+          '• `-intteam [alias]` — View National Team Captain, VC, starting lineup, specialists & interactive tactics.\n' +
+          '  *(Rival scouts see lineup and squad; set-piece takers & tactics are secret!)*\n' +
+          '• `-intset <vc|atk|mid|def|fk|corner|pen> @player` — Assign national roles and specialists.\n' +
+          '• `-stadium [upgrade|name]` — Upgrade Club Stadium (Levels 1-5, +15k to 90k capacity, +home advantage).\n' +
+          '• `-potw` — Player of the Week race based on matchday telemetry (Sunday +100k & trophy reward).'
       },
       {
         name: '📸 Sponsorships & TwitFeed (-advert, -tweet)',
         value:
-          '• `-advert` — 6 Brand Endorsements at `ph`:\n' +
-          `  ${heineken} Heineken (100k) • ${adidas} Adidas (1M) • 👑 **VIP Signature** (+300k ${coin} @ 1M fans) • ${cocacola} Coca-Cola (5M) • ${netflix} Netflix (6M) • ${nike} Nike (8M)\n` +
-          `• \`-tweet <text>\` / \`-chirp\` — Run from any channel; bot posts directly to read-only \`#twitter\` w/ 👍/👎 votes (\`+100k\` / \`-50k\` ${followers}, \`+5k\` ${coin}/vote + DMs).`
+          '• `-advert` — 6 Brand Endorsements at `ph` (Heineken, Adidas, VIP 300k, Coca-Cola, Netflix, Nike).\n' +
+          `• \`-tweet <text>\` / \`-chirp\` — Post to read-only \`#twitter\` w/ 👍/👎 votes + 👥 \`Voters\` inspection button.`
       },
       {
         name: '⚽ Match Engines & VIP Exhibitions',
         value:
-          '• `-match [@user]` / `-livematch [full]` / `-batchmatch [N]` — AI 90m matches, live 20–30s commentary (`#live-match`), charts & `#news` Gazette.\n' +
-          '• `-friendly [@user]` / `-match friendly` — 👑 **VIP All-Star Exhibition** (zero stat drops + permanent `+1–2` MOTM boost).\n' +
+          '• `-match [@user]` / `-livematch [full]` / `-batchmatch [N]` — 90m tactical matches w/ halftime box scores, fair MOTM tie-breakers & AI Gazette.\n' +
+          '• `-friendly [@user]` — 👑 **VIP All-Star Exhibition** (zero stat drops + permanent `+1–2` MOTM boost).\n' +
           '• `-tactics [team]` • `-intstats` • `-clubstats` • `-roster <alias>`.'
       },
       {
         name: '👑 Admin, VIP & DevOps',
         value:
-          '• `-setup` • `-setupemojis` • `-vip give @user <days>` / `-vip remove @user` • `-testmatch <o1> <o2> <on|off> <on|off>`\n' +
+          '• `-setup` • `-setupemojis` • `-vip give @user <days>` • `-fixture <add|start> ...`\n' +
           '• `-setprice <item|boots|avatars|banners|cars|reset> <amt>` • `-devfund <amt> [@user]`\n' +
-          '• `-seedauction [n] [hrs]` • `-auctionstart` • `-auctionconfig` • `-auctionhalt`/`-auctionresume [lot#]` • `-auctionend`/`-auctioncancel <lot#>`\n' +
+          '• `-seedauction [n] [hrs]` • `-auctionstart` • `-auctionhalt`/`-auctionresume [lot#]` • `-auctionend`/`-auctioncancel <lot#>`\n' +
           `• \`-additem <symbol> @user\` (${worldcup}) • \`-addvar <var> <val> @user\` • \`-gitpull\` / \`-gitpullback\``
       }
     )

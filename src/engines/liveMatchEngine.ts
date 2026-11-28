@@ -1399,13 +1399,28 @@ export async function runLiveEpisodicMatch(
   // ==========================================
   matchChronology.push(`⏸️ 45' Halftime`);
 
+  const homeShots = homeTeam.players.atk.shots + homeTeam.players.mid.shots + homeTeam.players.def.shots;
+  const awayShots = awayTeam.players.atk.shots + awayTeam.players.mid.shots + awayTeam.players.def.shots;
+  const homeTackles = homeTeam.players.atk.tackles + homeTeam.players.mid.tackles + homeTeam.players.def.tackles;
+  const awayTackles = awayTeam.players.atk.tackles + awayTeam.players.mid.tackles + awayTeam.players.def.tackles;
+  const homePasses = homeTeam.players.atk.passesCompleted + homeTeam.players.mid.passesCompleted + homeTeam.players.def.passesCompleted;
+  const awayPasses = awayTeam.players.atk.passesCompleted + awayTeam.players.mid.passesCompleted + awayTeam.players.def.passesCompleted;
+  const homeFouls = homeTeam.players.atk.fouls + homeTeam.players.mid.fouls + homeTeam.players.def.fouls;
+  const awayFouls = awayTeam.players.atk.fouls + awayTeam.players.mid.fouls + awayTeam.players.def.fouls;
+
   const halfTimeEmbed = new EmbedBuilder()
     .setColor('#1e293b')
     .setAuthor({ name: "HT' 🕒" })
-    .setTitle('⏸️ HALF TIME')
+    .setTitle('⏸️ HALF TIME — MATCHDAY BOX SCORE')
     .setDescription(
       `### ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}\n\n` +
       `The referee blows the whistle for half time! Both squads head to the dressing rooms after a grueling 45 minutes of tactical warfare.\n\n` +
+      `📊 **Halftime Tactical Box Score**\n` +
+      `• **Possession:** \`${homeTeam.name} ${homeTeam.possession}%\` ⚡ \`${awayTeam.possession}% ${awayTeam.name}\`\n` +
+      `• **Total Shots:** \`${homeShots}\` 🎯 \`${awayShots}\`\n` +
+      `• **Tackles Won:** \`${homeTackles}\` 🛡️ \`${awayTackles}\`\n` +
+      `• **Passes Completed:** \`${homePasses}\` 👟 \`${awayPasses}\`\n` +
+      `• **Fouls Committed:** \`${homeFouls}\` ⚠️ \`${awayFouls}\`\n\n` +
       `${formatMention(homeTeam.players.atk)} ${formatMention(awayTeam.players.atk)}`
     );
 
@@ -1471,7 +1486,12 @@ export async function runLiveEpisodicMatch(
     homeTeam.players.atk, homeTeam.players.mid, homeTeam.players.def,
     awayTeam.players.atk, awayTeam.players.mid, awayTeam.players.def
   ];
-  allPlayers.sort((a, b) => b.rating - a.rating);
+  allPlayers.sort((a, b) => {
+    if (b.rating !== a.rating) return b.rating - a.rating;
+    const scoreA = (a.goals * 3) + (a.assists * 2) + ((a.tackles + a.interceptions) * 1.5) + a.dribblesWon + (a.passesCompleted * 0.1);
+    const scoreB = (b.goals * 3) + (b.assists * 2) + ((b.tackles + b.interceptions) * 1.5) + b.dribblesWon + (b.passesCompleted * 0.1);
+    return scoreB - scoreA;
+  });
   const motm = allPlayers[0];
   const motmTeam = (motm.flag === homeTeam.flag) ? homeTeam : awayTeam;
 

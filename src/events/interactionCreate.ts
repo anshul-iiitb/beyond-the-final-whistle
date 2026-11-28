@@ -1,4 +1,4 @@
-import { Interaction, ButtonInteraction, StringSelectMenuInteraction, TextChannel, MessageFlags } from 'discord.js';
+import { Interaction, ButtonInteraction, StringSelectMenuInteraction, TextChannel, MessageFlags, EmbedBuilder } from 'discord.js';
 import { executeTraining, upgradeAttribute } from '../engines/trainingEngine.js';
 import { buildTrainingSuccessEmbed, buildSpTrainLabPayload } from '../commands/trainingCommands.js';
 import { executeSponsorAdvert, applyTweetVote, buildUpdatedTweetEmbed } from '../engines/socialEngine.js';
@@ -250,6 +250,31 @@ export async function onInteractionCreate(interaction: Interaction) {
             : 'You disliked the tweet! (-50k followers to author).') + coinRewardNote,
         ephemeral: true
       });
+    }
+
+    // 2b. Tweet Voters Inspection Button
+    if (interaction.isButton() && customId.startsWith('tweet_voters_')) {
+      const tweetId = customId.replace('tweet_voters_', '');
+      const votes = await prisma.playerTweetVote.findMany({
+        where: { tweetId }
+      });
+
+      const upvoterTags = votes.filter(v => v.isLike).map(v => `<@${v.voterId}>`);
+      const downvoterTags = votes.filter(v => !v.isLike).map(v => `<@${v.voterId}>`);
+
+      const voterEmbed = new EmbedBuilder()
+        .setColor('#1e293b')
+        .setTitle('👥 Tweet Voter Telemetry')
+        .setDescription(
+          `### 👍 Upvoters (${upvoterTags.length})\n` +
+          (upvoterTags.length > 0 ? upvoterTags.join(' ') : '*No upvotes yet.*') +
+          `\n\n### 👎 Downvoters (${downvoterTags.length})\n` +
+          (downvoterTags.length > 0 ? downvoterTags.join(' ') : '*No downvotes yet.*')
+        )
+        .setFooter({ text: 'Beyond The Final Whistle • Social Network' })
+        .setTimestamp();
+
+      return await interaction.reply({ embeds: [voterEmbed], ephemeral: true });
     }
 
     // 3. Profile Tabs: profile_main_<userId>, profile_stats_<userId>, profile_attr_<userId>

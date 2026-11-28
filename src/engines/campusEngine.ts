@@ -1,6 +1,7 @@
 import { Guild, GuildMember, EmbedBuilder } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import { CAMPUS_LOCATIONS, BASE_TRAVEL_COOLDOWN_MINUTES, resolveLocationAlias } from '../config/constants.js';
+import { checkMatchdayLockout } from './fixtureEngine.js';
 
 export interface TravelResult {
   success: boolean;
@@ -128,6 +129,12 @@ export async function validateCommandAccess(options: {
 }): Promise<{ allowed: boolean; message?: string }> {
   const { cmd, userId, guild, channelId } = options;
   const normalizedCmd = cmd.toLowerCase();
+
+  // Matchday Lockout Guard: Freezes non-exempt commands 30m prior to match until 15m after full-time
+  const lockout = await checkMatchdayLockout(normalizedCmd);
+  if (lockout.locked) {
+    return { allowed: false, message: lockout.message };
+  }
 
   const requiredLocId = COMMAND_LOCATION_MAP[normalizedCmd];
   if (!requiredLocId) {

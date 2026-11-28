@@ -7,7 +7,7 @@ import { formatK } from '../utils/formatHelper.js';
 /**
  * Handles purchases at the Global Market
  */
-export async function buyMarketItem(playerId: string, itemAlias: string): Promise<{ success: boolean; message: string }> {
+export async function buyMarketItem(playerId: string, itemAlias: string, quantityStr?: string): Promise<{ success: boolean; message: string }> {
   await loadConfigCache();
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) return { success: false, message: '❌ Player not found.' };
@@ -19,28 +19,49 @@ export async function buyMarketItem(playerId: string, itemAlias: string): Promis
   const alias = itemAlias.toLowerCase();
 
   if (alias === 'sd' || alias === 'drink' || alias === 'sportsdrink') {
-    const cost = getMarketItemPrice('sd');
-    if (player.coins < cost) {
-      return { success: false, message: `🪙 Insufficient funds! Sports Drink costs **${formatK(cost)} coins** (Your balance: ${formatK(player.coins)} coins).` };
+    const qty = Math.max(1, Math.min(50, parseInt(quantityStr || '1', 10) || 1));
+    const singleCost = getMarketItemPrice('sd');
+    const totalCost = singleCost * BigInt(qty);
+    if (player.coins < totalCost) {
+      return {
+        success: false,
+        message: `🪙 Insufficient funds! Buying **${qty}x Sports Drink(s)** costs **${formatK(totalCost)} coins** (Your balance: ${formatK(player.coins)} coins).`
+      };
     }
 
-    const previousStamina = player.stamina;
-    const newStamina = Math.min(100, player.stamina + 50);
-    const actualGained = newStamina - previousStamina;
-
-    const updated = await prisma.player.update({
+    await prisma.player.update({
       where: { id: playerId },
-      data: {
-        coins: { decrement: cost },
-        stamina: newStamina
-      }
+      data: { coins: { decrement: totalCost } }
     });
+
+    const existing = await prisma.inventoryItem.findFirst({
+      where: { playerId, itemKey: 'sd' }
+    });
+
+    let currentQty = qty;
+    if (existing) {
+      const updatedItem = await prisma.inventoryItem.update({
+        where: { id: existing.id },
+        data: { quantity: { increment: qty } }
+      });
+      currentQty = updatedItem.quantity;
+    } else {
+      await prisma.inventoryItem.create({
+        data: {
+          playerId,
+          itemKey: 'sd',
+          name: 'Sports Drink',
+          emoji: '🥤',
+          quantity: qty
+        }
+      });
+    }
 
     return {
       success: true,
-      message: `🥤 **Guzzled Energy Sports Drink!** (-${formatK(cost)} coins)\n` +
-        `Restored **+${actualGained} Stamina** (Capped at 100)!\n` +
-        `Current Stamina: \`${updated.stamina}/100\` | Balance: \`${formatK(updated.coins)} coins\``
+      message: `🥤 **Purchased ${qty}x Sports Drink(s)!** (-${formatK(totalCost)} coins)\n` +
+        `Added to your inventory bag (Now holding **${currentQty}x**).\n` +
+        `💡 *Drink anytime with \`-use sd [qty]\` to restore +50 stamina per drink (capped at 100)!*`
     };
   }
 
@@ -52,6 +73,17 @@ export async function buyMarketItem(playerId: string, itemAlias: string): Promis
 
     if (player.activeBoots === alias) {
       return { success: false, message: `⚠️ You already have **${alias.toUpperCase()} boots** equipped! Boot bonuses do not stack.` };
+    }
+
+    const bootTargetPos = alias === 'strika' ? 'ATK' : alias === 'passa' ? 'MID' : 'DEF';
+    const playerPos = (player.position || 'ATT').toUpperCase();
+    const isMismatched = (bootTargetPos === 'ATK' && playerPos !== 'ATT' && playerPos !== 'ATK') ||
+                         (bootTargetPos === 'MID' && playerPos !== 'MID') ||
+                         (bootTargetPos === 'DEF' && playerPos !== 'DEF');
+
+    let mismatchWarning = '';
+    if (isMismatched) {
+      mismatchWarning = `\n⚠️ **Position Mismatch Warning:** You are registered as **${playerPos}**! **${alias.toUpperCase()}** boots only boost **${bootTargetPos}** during matches. If you do not play in ${bootTargetPos}, this boot bonus will not apply!`;
     }
 
     const boostLabel = alias === 'strika' ? '+10 Attack (ATK)' : alias === 'passa' ? '+10 Midfield (MID)' : '+10 Defence (DEF)';
@@ -67,15 +99,69 @@ export async function buyMarketItem(playerId: string, itemAlias: string): Promis
     return {
       success: true,
       message: `👟 **Equipped Elite ${alias.toUpperCase()} Boots!** (-${formatK(cost)} coins)\n` +
-        `Active Matchday Boost: **${boostLabel}** for your next match!\n` +
+        `Active Matchday Boost: **${boostLabel}** for your next match!${mismatchWarning}\n` +
         `Balance: \`${formatK(updated.coins)} coins\`\n*(Note: Resets after matchday)*`
     };
   }
 
   return {
     success: false,
-    message: `❌ Invalid item alias. Available: \`-buy sd\` (${formatK(getMarketItemPrice('sd'))}), \`-buy strika\` (${formatK(getMarketItemPrice('strika'))}), \`-buy passa\` (${formatK(getMarketItemPrice('passa'))}), \`-buy bully\` (${formatK(getMarketItemPrice('bully'))}).`
+    message: `❌ Invalid item alias. Available: \`-buy sd [qty]\` (${formatK(getMarketItemPrice('sd'))}), \`-buy strika\` (${formatK(getMarketItemPrice('strika'))}), \`-buy passa\` (${formatK(getMarketItemPrice('passa'))}), \`-buy bully\` (${formatK(getMarketItemPrice('bully'))}).`
   };
+}
+
+export async function useInventoryItem(playerId: string, itemKey: string, quantityStr?: string): Promise<{ success: boolean; message: string }> {
+  const player = await prisma.player.findUnique({ where: { id: playerId } });
+  if (!player) return { success: false, message: '❌ Player not found.' };
+
+  const key = itemKey.toLowerCase();
+  if (key === 'sd' || key === 'drink' || key === 'sportsdrink') {
+    if (player.stamina >= 100) {
+      return { success: false, message: '⚡ Your stamina is already full (`100/100`)!' };
+    }
+
+    const item = await prisma.inventoryItem.findFirst({
+      where: { playerId, itemKey: 'sd' }
+    });
+
+    if (!item || item.quantity <= 0) {
+      return {
+        success: false,
+        message: '🎒 You do not have any Sports Drinks in your inventory! Buy some at the Global Market (`-travel gm` ➔ `-buy sd [qty]`).'
+      };
+    }
+
+    const reqQty = Math.max(1, parseInt(quantityStr || '1', 10) || 1);
+    const toConsume = Math.min(reqQty, item.quantity);
+
+    const oldStamina = player.stamina;
+    const restored = Math.min(100, oldStamina + (toConsume * 50));
+    const gained = restored - oldStamina;
+
+    const remainingQty = item.quantity - toConsume;
+    if (remainingQty <= 0) {
+      await prisma.inventoryItem.delete({ where: { id: item.id } });
+    } else {
+      await prisma.inventoryItem.update({
+        where: { id: item.id },
+        data: { quantity: remainingQty }
+      });
+    }
+
+    await prisma.player.update({
+      where: { id: playerId },
+      data: { stamina: restored }
+    });
+
+    return {
+      success: true,
+      message: `🥤 **Guzzled ${toConsume}x Energy Sports Drink(s)!**\n` +
+        `Restored **+${gained} Stamina** (Now \`${restored}/100\`)!\n` +
+        `Remaining in bag: \`${Math.max(0, remainingQty)}x\``
+    };
+  }
+
+  return { success: false, message: `❌ Cannot consume \`${itemKey}\`. Only consumables like \`sd\` can be used.` };
 }
 
 /**

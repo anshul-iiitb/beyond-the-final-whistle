@@ -60,11 +60,11 @@ export async function executeTraining(playerId: string, type: 'normal' | 'vip' |
     normal: {
       requiresVip: false,
       staminaCost: 5,
-      cooldownMs: 30 * 60 * 1000,
-      cooldownMinutes: 30,
+      cooldownMs: 60 * 60 * 1000,
+      cooldownMinutes: 60,
       timestampField: 'lastTrainedAt' as const,
       label: 'Pitch Drills',
-      getTp: () => (Math.random() < 0.65 ? 1 : 2),
+      getTp: () => Math.floor(Math.random() * 3) + 2,
       header: '⚽ **Pitch Drills Completed!**'
     }
   };

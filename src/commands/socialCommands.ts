@@ -148,7 +148,12 @@ export async function handleChirpCommand(message: Message, args: string[]) {
       .setCustomId(`tweet_dislike_${tweet.id}`)
       .setLabel('Dislike (-50k)')
       .setEmoji('👎')
-      .setStyle(ButtonStyle.Danger)
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`tweet_voters_${tweet.id}`)
+      .setLabel('Voters')
+      .setEmoji('👥')
+      .setStyle(ButtonStyle.Secondary)
   );
 
   const twitterCh = message.guild?.channels.cache.find(
