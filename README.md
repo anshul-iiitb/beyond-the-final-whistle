@@ -16,7 +16,7 @@
   - *Physical & Mental*: Pace (`PAC`), Physicality (`PHY`), Composure (`CMP`), Agility (`AGI`), Work Rate (`WRK`)
   - *Derived Ratings*: `ATK`, `MID`, `DEF`
 - **2-Step Mandatory Rookie Onboarding**:
-  - Step 1: `-playstyle <choice>` chooses tactical role, sets position (`ATT`, `MID`, `DEF`), and unlocks `#training-center` (`tc`).
+  - Step 1: `-playstyle [choice|list]` chooses tactical role, sets position (`ATT`, `MID`, `DEF`), and unlocks `#training-center` (`tc`).
   - Step 2: `-joinnation <alias>` signs for a National Team, awards **+100,000 coins** and **+100,000 followers**, and unlocks all campus facilities.
 - **18 Balanced Tactical Playstyles (6 Strikers, 6 Midfielders, 6 Defenders)**:
   - *Strikers (ATT)*: Poacher (`PCH`), False Nine (`F9`), Target Man (`TGT`), Speedster (`SPD`), Inside Forward (`INF`), Pressing Forward (`PFW`)

@@ -31,14 +31,14 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '🔰 Mandatory Rookie Induction (2 Steps)',
         value:
-          '• **Step 1:** `-playstyle <choice>` — Choose starting playstyle (**18 roles**, 6 Strikers, 6 Midfielders, 6 Defenders) to unlock the Training Center (`tc`).\n' +
+          '• **Step 1:** `-playstyle [choice|list]` — Choose starting playstyle (or view **18 roles** directory & tactical counters) to unlock the Training Center (`tc`).\n' +
           `• **Step 2:** \`-joinnation <alias>\` — Sign for a National Team to claim **100k ${coin} + 100k ${followers}** and unlock full campus access.`
       },
       {
         name: '👤 Player Career & Studio Customization',
         value:
           '• `-profile [@user]` — Profile Dossier (`Overview` + bottom Banner + Avatar, `Match Telemetry`, `Biomechanics` Radar).\n' +
-          '• `-playstyle` (`-styles`) — Directory of 18 tactical roles & Key Stat biometrics (15% TP training discount).\n' +
+          '• `-playstyle [choice|list]` (`-styles`) — Directory of 18 tactical roles, Key Stats & Tactical Matrix infographic (15% TP discount).\n' +
           '• `-theme [alias]` — Browse/apply **20 stadium backdrop themes** for your `-profile` card.\n' +
           '• `-daily` — Daily matchday check-in streak (earns progressive coins, Day 7 milestone bonus +50k & +2 TP).\n' +
           '• `-cd` (`-cooldowns`) — Unified personal timer dashboard for travel, drills, recovery, and sponsors.\n' +
