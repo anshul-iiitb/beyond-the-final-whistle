@@ -74,12 +74,36 @@ export async function handleFriendlyCommand(message: Message, args: string[]) {
 
   // If two team arguments are passed (e.g. -friendly por esp or -friendly portugal spain)
   if (!opponent && args.length >= 2) {
-    const homeTeamResolved = await resolveTeam(args[0]);
-    const awayTeamResolved = await resolveTeam(args[1]);
+    const isQuickSim = args.some(a => ['sim', 'quick', 'fast'].includes(a.toLowerCase()));
+    const cleanArgs = args.filter(a => !['sim', 'quick', 'fast'].includes(a.toLowerCase()));
+    const homeTeamResolved = await resolveTeam(cleanArgs[0]);
+    const awayTeamResolved = await resolveTeam(cleanArgs[1]);
+
     if (homeTeamResolved && awayTeamResolved) {
-      return await runSimulatedMatchCommand(message, args, true, {
-        homeTeamKey: homeTeamResolved.team.alias,
-        awayTeamKey: awayTeamResolved.team.alias
+      if (isQuickSim) {
+        return await runSimulatedMatchCommand(message, args, true, {
+          homeTeamKey: homeTeamResolved.team.alias,
+          awayTeamKey: awayTeamResolved.team.alias
+        });
+      }
+
+      // Default: RUN SIGNATURE 20–30s LIVE EPISODIC MATCH IN THIS CHANNEL!
+      const homeMatchTeam = await buildLiveMatchTeam(homeTeamResolved.team.alias, true);
+      const awayMatchTeam = await buildLiveMatchTeam(awayTeamResolved.team.alias, false);
+      const channel = message.channel as TextChannel;
+
+      await message.reply(
+        `🏟️ **LIVE EXHIBITION FRIENDLY KICKOFF!**\n` +
+        `⚔️ **${homeMatchTeam.flag} ${homeMatchTeam.name}** vs **${awayMatchTeam.flag} ${awayMatchTeam.name}**\n` +
+        `👑 **VIP Exhibition Match:** Real-time 20–30s match scenarios, zero stat loss, permanent +1 to +2 MOTM boost guarantee!\n` +
+        subtext('📡 Grab your seats! Starting whistle blows in seconds...')
+      );
+
+      return await runLiveEpisodicMatch(message.client, channel, homeMatchTeam, awayMatchTeam, {
+        tickDelayMs: 20000,
+        halfTimePauseMs: 25000,
+        isExhibition: true,
+        newsChannelId: '1574439119227064402'
       });
     }
   }
@@ -197,6 +221,20 @@ export async function handleFriendlyCommand(message: Message, args: string[]) {
         content: `🎉 **Challenge Accepted!** Kickoff between ${message.author} and ${opponent} in progress...`,
         components: []
       }).catch(() => {});
+
+      const isQuickSim = args.some(a => ['sim', 'quick', 'fast'].includes(a.toLowerCase()));
+      if (!isQuickSim && player?.nation && oppPlayer?.nation && player.nationId !== oppPlayer.nationId) {
+        const homeMatchTeam = await buildLiveMatchTeam(player.nation.alias, true);
+        const awayMatchTeam = await buildLiveMatchTeam(oppPlayer.nation.alias, false);
+        const channel = message.channel as TextChannel;
+        return await runLiveEpisodicMatch(message.client, channel, homeMatchTeam, awayMatchTeam, {
+          tickDelayMs: 20000,
+          halfTimePauseMs: 25000,
+          isExhibition: true,
+          newsChannelId: '1574439119227064402'
+        });
+      }
+
       return await runSimulatedMatchCommand(message, args, true);
     } else if (i.customId.startsWith('friendly_decline')) {
       await i.deferUpdate();

@@ -252,6 +252,14 @@ export async function simulateFullMatch(
     if (nation || club) awayTeam = nation || club;
   }
 
+  // Verify if homePlayer or awayPlayer actually belong to homeTeam / awayTeam
+  const homePlayerBelongsToHome = Boolean(homePlayer && homeTeam && (homePlayer.nationId === homeTeam.id || homePlayer.clubId === homeTeam.id));
+  const awayPlayerBelongsToAway = Boolean(awayPlayer && awayTeam && (awayPlayer.nationId === awayTeam.id || awayPlayer.clubId === awayTeam.id));
+
+  // If explicit team keys were provided and author doesn't play for homeTeam, don't force author into homeTeam
+  const effectiveHomePlayer = (options.homeTeamKey && !homePlayerBelongsToHome) ? null : homePlayer;
+  const effectiveAwayPlayer = (options.awayTeamKey && !awayPlayerBelongsToAway) ? null : awayPlayer;
+
   const homeTactics = parseTeamTactics(homeTeam?.tactics);
   const awayTactics = parseTeamTactics(awayTeam?.tactics);
 
@@ -335,7 +343,7 @@ export async function simulateFullMatch(
   };
 
   // 0' Kickoff
-  const kickoffActor = homePlayer?.username || (homeSquad.length > 0 ? homeSquad[0].username : 'Captain');
+  const kickoffActor = effectiveHomePlayer?.username || (homeSquad.length > 0 ? homeSquad[0].username : 'Captain');
   const kickoffText = await generateAiMinuteCommentary({
     minute: 0,
     type: 'KICKOFF',
@@ -369,18 +377,18 @@ export async function simulateFullMatch(
     const attackingTactics = isHomeAttack ? homeTactics : awayTactics;
     const defendingTactics = isHomeAttack ? awayTactics : homeTactics;
     const activeAttacker = isHomeAttack
-      ? pickActor(homeSquad, `${homeTeam?.name || 'Home'} Striker`, homePlayer?.username)
-      : pickActor(awaySquad, `${awayTeam?.name || 'Away'} Striker`, awayPlayer?.username);
+      ? pickActor(homeSquad, `${homeTeam?.name || 'Home'} Striker`, effectiveHomePlayer?.username)
+      : pickActor(awaySquad, `${awayTeam?.name || 'Away'} Striker`, effectiveAwayPlayer?.username);
     const activeDefender = isHomeAttack
-      ? pickActor(awaySquad, `${awayTeam?.name || 'Away'} Defender`, awayPlayer?.username)
-      : pickActor(homeSquad, `${homeTeam?.name || 'Home'} Defender`, homePlayer?.username);
+      ? pickActor(awaySquad, `${awayTeam?.name || 'Away'} Defender`, effectiveAwayPlayer?.username)
+      : pickActor(homeSquad, `${homeTeam?.name || 'Home'} Defender`, effectiveHomePlayer?.username);
 
     const roll = Math.random() * 100;
 
     // 1. Offside Trap Check (if defending team has Offside Trap On)
     if (defendingTactics.offsideTrap === 'On' && roll < 38) {
-      const attackerPace = isHomeAttack ? (homePlayer?.pac || 50) : (awayPlayer?.pac || 50);
-      const attackerVision = isHomeAttack ? (homePlayer?.vis || 50) : (awayPlayer?.vis || 50);
+      const attackerPace = isHomeAttack ? (effectiveHomePlayer?.pac || 65) : (effectiveAwayPlayer?.pac || 65);
+      const attackerVision = isHomeAttack ? (effectiveHomePlayer?.vis || 65) : (effectiveAwayPlayer?.vis || 65);
 
       // If attacker is fast/smart, offside trap is breached!
       if (attackerPace > 75 || attackerVision > 75 || Math.random() < 0.35) {
@@ -605,14 +613,14 @@ export async function simulateFullMatch(
     : null;
 
   const motmOwner = (isHomeWinner || isDraw)
-    ? (homePlayer || candidateFromSquad)
-    : (awayPlayer || candidateFromSquad || homePlayer);
+    ? (effectiveHomePlayer || candidateFromSquad)
+    : (effectiveAwayPlayer || candidateFromSquad || effectiveHomePlayer);
 
   const motmPlayer = isHomeWinner
-    ? (homePlayer?.username || candidateFromSquad?.username || `${homeTeamName} Star`)
+    ? (effectiveHomePlayer?.username || candidateFromSquad?.username || `${homeTeamName} Star`)
     : isDraw
-      ? (homePlayer?.username || candidateFromSquad?.username || 'Midfield Maestro')
-      : (awayPlayer?.username || candidateFromSquad?.username || `${awayTeamName} Star`);
+      ? (effectiveHomePlayer?.username || candidateFromSquad?.username || 'Midfield Maestro')
+      : (effectiveAwayPlayer?.username || candidateFromSquad?.username || `${awayTeamName} Star`);
   const motmTeam = (isHomeWinner || isDraw) ? homeTeamName : awayTeamName;
   const motmRating = +Math.min(10.0, 7.5 + (homePlayerGoals * 0.7) + (homePlayerAssists * 0.4) + Math.random() * 0.6).toFixed(1);
   const motmStats = `${homePlayerGoals} Goal(s), ${homePlayerAssists} Assist(s), ${homePlayerTackles} Tackle(s)`;

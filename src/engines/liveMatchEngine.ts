@@ -67,6 +67,7 @@ export interface LiveMatchOptions {
   tickDelayMs?: number;        // Delay between incident messages (default 3200ms)
   halfTimePauseMs?: number;    // Half-time pause (default 8000ms for fast broadcast, 180000ms for official)
   newsChannelId?: string;      // Destination for AI Gazette (#news)
+  isExhibition?: boolean;      // Whether this is a zero-risk VIP Exhibition friendly with MOTM boost
 }
 
 /**
@@ -1585,10 +1586,37 @@ export async function runLiveEpisodicMatch(
   const motm = allPlayers[0];
   const motmTeam = (motm.flag === homeTeam.flag) ? homeTeam : awayTeam;
 
+  let motmBoostText = '';
+  if (options.isExhibition && motm.discordId) {
+    try {
+      const p = await prisma.player.findUnique({ where: { id: motm.discordId } });
+      if (p) {
+        const eligibleAttrs = ['fin', 'pow', 'hea', 'pas', 'vis', 'cro', 'dri', 'tck', 'int', 'mrk', 'pac', 'phy', 'cmp', 'agi', 'wrk'];
+        const pickedKey = eligibleAttrs[Math.floor(Math.random() * eligibleAttrs.length)];
+        const oldVal = (p as any)[pickedKey] as number;
+        if (oldVal < 99) {
+          const delta = Math.min(99 - oldVal, Math.random() < 0.45 ? 2 : 1);
+          const newVal = oldVal + delta;
+          await prisma.player.update({
+            where: { id: p.id },
+            data: {
+              [pickedKey]: newVal,
+              motmCount: { increment: 1 }
+            }
+          });
+          motmBoostText = `\n🌟 **VIP All-Star Exhibition MOTM Boost:** <@${p.id}> gained **+${delta} ${pickedKey.toUpperCase()}** (\`${oldVal}\` ➔ **\`${newVal}\`**) — *Zero stat deduction guarantee!*`;
+        }
+      }
+    } catch (err) {
+      logger.error({ err }, 'Error granting live exhibition MOTM boost');
+    }
+  }
+
   await channel.send({
     content:
       `@${homeTeam.name.toLowerCase()} @${awayTeam.name.toLowerCase()}\n` +
-      `🏁 **Full time: ${homeTeam.name} ${homeTeam.score} - ${awayTeam.score} ${awayTeam.name}**`
+      `🏁 **Full time: ${homeTeam.name} ${homeTeam.score} - ${awayTeam.score} ${awayTeam.name}**` +
+      (motmBoostText ? `\n${motmBoostText}` : '')
   });
 
   const scoreboardEmbed = new EmbedBuilder()
