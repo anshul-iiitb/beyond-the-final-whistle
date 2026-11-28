@@ -83,6 +83,7 @@
 | **Admin & VIP** | `-vip [perks]` | View full VIP Privileges & Super-Perks or manage duration |
 | | `-setup` | Automatically build campus channels, friendly ground & VIP lounge |
 | | `-setlimit <nation\|club> <alias\|all> <limit>` | Set maximum squad roster player limits |
+| | `-locknation <alias>` / `-unlocknation <alias>` | Lock or unlock nations from player registration |
 | | `-teamlimits` | View squad roster counts and capacity limits across all teams |
 | | `-vip give @user <days>` | Grant timed VIP status |
 | | `-auctionhalt` / `-auctionresume` | Pause active auctions (freezing time left) and resume later |

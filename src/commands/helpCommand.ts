@@ -109,6 +109,7 @@ export async function handleHelpCommand(message: Message) {
         value:
           '• `-setup` • `-setupemojis` • `-vip [perks]` • `-vip give @user <days>`\n' +
           '• `-setlimit <nation|club> <alias|all> <limit>` • `-teamlimits` — Squad roster limits.\n' +
+          '• `-locknation <alias>` • `-unlocknation <alias>` — Lock/unlock nations from player registration.\n' +
           '• `-friendly [@user|setup]` — 👑 **VIP All-Star Exhibition** (zero stat loss, +1-2 MOTM boost, challenge button).\n' +
           '• `-setprice <item|boots|avatars|banners|cars|reset> <amt>` • `-devfund <amt> [@user]`\n' +
           '• `-seedauction [n] [hrs]` • `-auctionstart` • `-auctionhalt`/`-auctionresume [lot#]` • `-auctionend`/`-auctioncancel <lot#>`\n' +

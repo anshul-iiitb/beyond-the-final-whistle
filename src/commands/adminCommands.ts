@@ -652,7 +652,7 @@ export async function displayTeamLimitsOverview(message: Message) {
     const cap = n.maxPlayers || 23;
     const count = n._count.players;
     const isFull = count >= cap;
-    const status = isFull ? '🔴 `[FULL]`' : '🟢 `[OPEN]`';
+    const status = n.isLocked ? '🔒 `[LOCKED]`' : isFull ? '🔴 `[FULL]`' : '🟢 `[OPEN]`';
     return `• **${n.name}** ${n.flag} (\`${n.alias.toUpperCase()}\`): **${count}/${cap}** ${status}`;
   });
 
@@ -661,7 +661,7 @@ export async function displayTeamLimitsOverview(message: Message) {
         const cap = c.maxPlayers || 23;
         const count = c._count.players;
         const isFull = count >= cap;
-        const status = isFull ? '🔴 `[FULL]`' : '🟢 `[OPEN]`';
+        const status = c.isLocked ? '🔒 `[LOCKED]`' : isFull ? '🔴 `[FULL]`' : '🟢 `[OPEN]`';
         return `• **${c.name}** ${c.badge} (\`${c.alias.toUpperCase()}\`): **${count}/${cap}** ${status}`;
       })
     : ['*No registered football clubs yet.*'];
@@ -675,7 +675,7 @@ export async function displayTeamLimitsOverview(message: Message) {
         `### 🌍 National Teams (${nations.length})\n` + (nationLines.length ? nationLines.join('\n') : '*None*'),
         `### 🛡️ Football Clubs (${clubs.length})\n` + clubLines.join('\n'),
         `${UI.DIVIDER}\n` +
-        subtext('⚙️ **Admin Commands:**\n• `-setlimit nation <alias|all> <limit>`\n• `-setlimit club <alias|all> <limit>`\n• `-teamlimits` to refresh this list')
+        subtext('⚙️ **Admin Commands:**\n• `-setlimit <nation|club> <alias|all> <limit>`\n• `-locknation <alias>` / `-unlocknation <alias>`\n• `-teamlimits` to refresh this list')
       ].join(UI.SPACER)
     )
     .setFooter({ text: 'Beyond The Final Whistle • Squad Governance' })
@@ -782,6 +782,140 @@ export async function handleSetLimitCommand(message: Message, args: string[]) {
 
     return await message.reply(
       `✅ Updated squad roster capacity for **${club.name}** ${club.badge} (\`${club.alias.toUpperCase()}\`) to **${limit} players** (Current: ${club._count.players}/${limit})!`
+    );
+  }
+}
+
+/**
+ * Admin command to lock a National Team or Football Club from new registrations
+ * Usage:
+ * -locknation <alias>
+ * -lockclub <alias>
+ * -lock <nation|club> <alias>
+ */
+export async function handleLockTeamCommand(message: Message, args: string[], defaultType?: 'nation' | 'club') {
+  if (!isAuthorized(message)) {
+    return await message.reply('❌ Unauthorized: Administrator permissions required.');
+  }
+
+  let type = defaultType;
+  let alias = args[0]?.toLowerCase().trim();
+
+  if (!defaultType) {
+    if (alias === 'nation' || alias === 'club') {
+      type = alias;
+      alias = args[1]?.toLowerCase().trim();
+    } else {
+      type = 'nation';
+    }
+  }
+
+  if (!alias) {
+    return await message.reply(
+      `❌ **Usage:** \`-locknation <alias>\` or \`-lock <nation|club> <alias>\`\n*Example:* \`-locknation ita\`, \`-locknation bel\``
+    );
+  }
+
+  if (type === 'nation') {
+    const nation = await prisma.nationalTeam.findUnique({ where: { alias } });
+    if (!nation) {
+      return await message.reply(`❌ National team with alias \`${alias}\` not found.`);
+    }
+    if (nation.isLocked) {
+      return await message.reply(`ℹ️ **${nation.name}** ${nation.flag} is already locked!`);
+    }
+
+    await prisma.nationalTeam.update({
+      where: { id: nation.id },
+      data: { isLocked: true }
+    });
+
+    return await message.reply(
+      `🔒 **National Team Locked:** **${nation.name}** ${nation.flag} (\`${nation.alias.toUpperCase()}\`) is now **LOCKED**. Players cannot join until unlocked (\`-unlocknation ${nation.alias}\`).`
+    );
+  } else {
+    const club = await prisma.footballClub.findUnique({ where: { alias } });
+    if (!club) {
+      return await message.reply(`❌ Football club with alias \`${alias}\` not found.`);
+    }
+    if (club.isLocked) {
+      return await message.reply(`ℹ️ **${club.name}** ${club.badge} is already locked!`);
+    }
+
+    await prisma.footballClub.update({
+      where: { id: club.id },
+      data: { isLocked: true }
+    });
+
+    return await message.reply(
+      `🔒 **Football Club Locked:** **${club.name}** ${club.badge} (\`${club.alias.toUpperCase()}\`) is now **LOCKED**. Players cannot join until unlocked (\`-unlockclub ${club.alias}\`).`
+    );
+  }
+}
+
+/**
+ * Admin command to unlock a National Team or Football Club for player registrations
+ * Usage:
+ * -unlocknation <alias>
+ * -unlockclub <alias>
+ * -unlock <nation|club> <alias>
+ */
+export async function handleUnlockTeamCommand(message: Message, args: string[], defaultType?: 'nation' | 'club') {
+  if (!isAuthorized(message)) {
+    return await message.reply('❌ Unauthorized: Administrator permissions required.');
+  }
+
+  let type = defaultType;
+  let alias = args[0]?.toLowerCase().trim();
+
+  if (!defaultType) {
+    if (alias === 'nation' || alias === 'club') {
+      type = alias;
+      alias = args[1]?.toLowerCase().trim();
+    } else {
+      type = 'nation';
+    }
+  }
+
+  if (!alias) {
+    return await message.reply(
+      `❌ **Usage:** \`-unlocknation <alias>\` or \`-unlock <nation|club> <alias>\`\n*Example:* \`-unlocknation ita\`, \`-unlocknation bel\``
+    );
+  }
+
+  if (type === 'nation') {
+    const nation = await prisma.nationalTeam.findUnique({ where: { alias } });
+    if (!nation) {
+      return await message.reply(`❌ National team with alias \`${alias}\` not found.`);
+    }
+    if (!nation.isLocked) {
+      return await message.reply(`ℹ️ **${nation.name}** ${nation.flag} is already unlocked!`);
+    }
+
+    await prisma.nationalTeam.update({
+      where: { id: nation.id },
+      data: { isLocked: false }
+    });
+
+    return await message.reply(
+      `🔓 **National Team Unlocked:** **${nation.name}** ${nation.flag} (\`${nation.alias.toUpperCase()}\`) is now **UNLOCKED**! Players may now join using \`-joinnation ${nation.alias}\`.`
+    );
+  } else {
+    const club = await prisma.footballClub.findUnique({ where: { alias } });
+    if (!club) {
+      return await message.reply(`❌ Football club with alias \`${alias}\` not found.`);
+    }
+    if (!club.isLocked) {
+      return await message.reply(`ℹ️ **${club.name}** ${club.badge} is already unlocked!`);
+    }
+
+    await prisma.footballClub.update({
+      where: { id: club.id },
+      data: { isLocked: false }
+    });
+
+    return await message.reply(
+      `🔓 **Football Club Unlocked:** **${club.name}** ${club.badge} (\`${club.alias.toUpperCase()}\`) is now **UNLOCKED**! Players may now join using \`-joinclub ${club.alias}\`.`
     );
   }
 }

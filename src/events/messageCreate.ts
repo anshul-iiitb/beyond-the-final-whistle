@@ -34,7 +34,9 @@ import {
   handlePricesCommand,
   handleSetPriceCommand,
   handleSetLimitCommand,
-  displayTeamLimitsOverview
+  displayTeamLimitsOverview,
+  handleLockTeamCommand,
+  handleUnlockTeamCommand
 } from '../commands/adminCommands.js';
 import { handleHelpCommand } from '../commands/helpCommand.js';
 import { handleBTFWGitPull, handleBTFWGitPullBack } from '../services/gitService.js';
@@ -352,6 +354,26 @@ export async function onMessageCreate(message: Message) {
       case 'teamlimits':
       case 'squadlimits':
         await displayTeamLimitsOverview(message);
+        break;
+      case 'locknation':
+        await handleLockTeamCommand(message, args, 'nation');
+        break;
+      case 'unlocknation':
+        await handleUnlockTeamCommand(message, args, 'nation');
+        break;
+      case 'lockclub':
+        await handleLockTeamCommand(message, args, 'club');
+        break;
+      case 'unlockclub':
+        await handleUnlockTeamCommand(message, args, 'club');
+        break;
+      case 'lockteam':
+      case 'lock':
+        await handleLockTeamCommand(message, args);
+        break;
+      case 'unlockteam':
+      case 'unlock':
+        await handleUnlockTeamCommand(message, args);
         break;
       case 'additem':
         await handleAddItemCommand(message, args);

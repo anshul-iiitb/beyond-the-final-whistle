@@ -153,6 +153,7 @@ model NationalTeam {
   goalsAgainst    Int       @default(0)
   points          Int       @default(0)
   maxPlayers      Int?      @default(23)
+  isLocked        Boolean   @default(false)
   players         Player[]
 }
 
@@ -181,6 +182,7 @@ model FootballClub {
   goalsAgainst    Int       @default(0)
   points          Int       @default(0)
   maxPlayers      Int?      @default(23)
+  isLocked        Boolean   @default(false)
   players         Player[]
 }
 

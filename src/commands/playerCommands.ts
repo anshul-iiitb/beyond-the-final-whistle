@@ -758,14 +758,18 @@ export async function handleJoinNationCommand(message: Message, args: string[]) 
       include: { _count: { select: { players: true } } },
       orderBy: { name: 'asc' }
     });
+    const openNations = nations.filter(n => !n.isLocked);
     const list = nations.map(n => {
+      if (n.isLocked) {
+        return `• **${n.name}** ${n.flag} 🔒 \`[LOCKED]\``;
+      }
       const cap = n.maxPlayers || 23;
       const isFull = n._count.players >= cap;
       const badge = isFull ? ' `[FULL]`' : ` \`(${n._count.players}/${cap})\``;
       return `• **${n.name}** ${n.flag}${badge} (\`-joinnation ${n.alias}\`)`;
     }).join('\n');
     return await message.reply(
-      `🌍 **Available National Teams:**\n\n${list || 'No nations created yet.'}\n\n*Usage:* \`-joinnation <alias>\``
+      `🌍 **Available National Teams (${openNations.length} Open):**\n\n${list || 'No nations created yet.'}\n\n*Usage:* \`-joinnation <alias>\``
     );
   }
 
@@ -775,6 +779,13 @@ export async function handleJoinNationCommand(message: Message, args: string[]) 
   });
   if (!nation) {
     return await message.reply(`❌ National team \`${nationAlias}\` not found.`);
+  }
+
+  // Check if nation is locked
+  if (nation.isLocked) {
+    return await message.reply(
+      `🔒 **Nation Locked:** **${nation.name}** ${nation.flag} is currently locked by tournament officials. Registration is closed!`
+    );
   }
 
   const player = await prisma.player.findUnique({ where: { id: message.author.id } });
@@ -848,14 +859,18 @@ export async function handleJoinClubCommand(message: Message, args: string[]) {
       include: { _count: { select: { players: true } } },
       orderBy: { name: 'asc' }
     });
+    const openClubs = clubs.filter(c => !c.isLocked);
     const list = clubs.map(c => {
+      if (c.isLocked) {
+        return `• **${c.name}** ${c.badge} 🔒 \`[LOCKED]\``;
+      }
       const cap = c.maxPlayers || 23;
       const isFull = c._count.players >= cap;
       const badge = isFull ? ' `[FULL]`' : ` \`(${c._count.players}/${cap})\``;
       return `• **${c.name}** ${c.badge}${badge} (\`-joinclub ${c.alias}\`)`;
     }).join('\n');
     return await message.reply(
-      `🛡️ **Available Football Clubs:**\n\n${list || 'No football clubs registered yet.'}\n\n*Usage:* \`-joinclub <alias>\``
+      `🛡️ **Available Football Clubs (${openClubs.length} Open):**\n\n${list || 'No football clubs registered yet.'}\n\n*Usage:* \`-joinclub <alias>\``
     );
   }
 
@@ -865,6 +880,13 @@ export async function handleJoinClubCommand(message: Message, args: string[]) {
   });
   if (!club) {
     return await message.reply(`❌ Football club \`${clubAlias}\` not found.`);
+  }
+
+  // Check if club is locked
+  if (club.isLocked) {
+    return await message.reply(
+      `🔒 **Club Locked:** **${club.name}** ${club.badge} is currently locked by club executives. Transfer registrations are closed!`
+    );
   }
 
   const player = await prisma.player.findUnique({ where: { id: message.author.id } });
