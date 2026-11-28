@@ -1,4 +1,4 @@
-import { TextChannel, EmbedBuilder, AttachmentBuilder, Client } from 'discord.js';
+import { TextChannel, EmbedBuilder, AttachmentBuilder, Client, ActionRowBuilder, ButtonBuilder, ButtonStyle, Guild, PermissionFlagsBits } from 'discord.js';
 import path from 'path';
 import fs from 'fs';
 import { generatePossessionPieChart, generateMatchScorecardGraphic } from '../utils/chartHelper.js';
@@ -53,6 +53,9 @@ export interface MatchTeam {
   freeKickTakerName: string;
   cornerTakerName: string;
   captainName?: string;
+  captainId?: string;
+  viceCaptainId?: string;
+  registeredPlayerIds?: string[];
   players: {
     atk: MatchPlayer;
     mid: MatchPlayer;
@@ -61,6 +64,29 @@ export interface MatchTeam {
   score: number;
   possession: number;
   color: [number, number, number];
+}
+
+export function getTeamPings(guild: Guild | null | undefined, team: MatchTeam): { roleMention: string; playerMentions: string } {
+  let roleMention = `**${team.name}**`;
+  if (guild) {
+    const target = team.name.toLowerCase();
+    const aliasTarget = team.alias.toLowerCase();
+    const role = guild.roles.cache.find(r => {
+      const rn = r.name.toLowerCase();
+      return rn === target || rn.includes(target) || rn === aliasTarget || rn.includes(aliasTarget);
+    });
+    if (role) {
+      roleMention = `<@&${role.id}>`;
+    }
+  }
+
+  // Active players on the pitch
+  const activePitchPlayers = [team.players.atk, team.players.mid, team.players.def]
+    .filter(p => p.discordId)
+    .map(p => `<@${p.discordId}>`);
+
+  const playerMentions = activePitchPlayers.length > 0 ? activePitchPlayers.join(' ') : '';
+  return { roleMention, playerMentions };
 }
 
 export interface LiveMatchOptions {
@@ -168,6 +194,9 @@ export async function buildLiveMatchTeam(teamKey: string, isHome: boolean): Prom
     cornerTakerName: specialistName('corner'),
     penaltyTakerName: specialistName('pen'),
     captainName: team?.players?.find((pl: any) => pl.id === team?.captainId)?.username,
+    captainId: team?.captainId || undefined,
+    viceCaptainId: team?.viceCaptainId || undefined,
+    registeredPlayerIds: team?.players?.map((pl: any) => pl.id) || [],
     players: {
       atk: getP(0, 'ATK'),
       mid: getP(1, 'MID'),
@@ -329,6 +358,22 @@ export async function runLiveEpisodicMatch(
       return scoreB - scoreA;
     })[0];
   };
+
+  // Announce Match Kickoff with actual nation role pings and pitch player mentions
+  const homePings = getTeamPings(channel.guild, homeTeam);
+  const awayPings = getTeamPings(channel.guild, awayTeam);
+
+  await channel.send({
+    content:
+      `📢 **MATCH COMMENCING!**\n` +
+      `⚔️ ${homePings.roleMention} vs ${awayPings.roleMention}\n` +
+      (homePings.playerMentions || awayPings.playerMentions
+        ? `👥 **Squad Lineups:** ${[homePings.playerMentions, awayPings.playerMentions].filter(Boolean).join(' | ')}\n`
+        : '') +
+      `🏟️ The match is officially underway in <#${channel.id}>!`,
+    allowedMentions: { parse: ['roles', 'users'] }
+  });
+  await sleep(1500);
 
   // 0' Kickoff event
   const kickoffNarrative = await generateAiMinuteCommentary({
@@ -1956,19 +2001,136 @@ export async function runLiveEpisodicMatch(
 
   await channel.send({ embeds: [halfTimeEmbed] });
 
-  await channel.send({
+  const htDuration = Math.max(options.halfTimePauseMs ?? 180000, 5000);
+
+  const htRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`ht_ready_home_${Date.now()}`)
+      .setLabel(`${homeTeam.name} Captain Ready`)
+      .setEmoji('⏱️')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`ht_ready_away_${Date.now()}`)
+      .setLabel(`${awayTeam.name} Captain Ready`)
+      .setEmoji('⏱️')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  const htMsg = await channel.send({
     content:
-      `@${homeTeam.name} @${awayTeam.name}\n` +
-      `⏸️ **Half time. Tactics, substitutions, lineup position shuffling, and set pieces are available for 3 minutes.**`
+      `${homePings.roleMention} ${awayPings.roleMention}\n` +
+      `⏸️ **HALF TIME! (3-Minute Dressing Room Break)**\n` +
+      `Tactics (\`-tactics\`), substitutions (\`-sub\`), and lineup adjustments are open.\n` +
+      `👑 **Captains Fast-Resume:** Both captains can click **"Ready"** below to skip the remaining wait once agreed!`,
+    components: [htRow],
+    allowedMentions: { parse: ['roles', 'users'] }
   });
 
-  logger.info(`⏸️ Half time reached (${homeTeam.score}-${awayTeam.score}). Pausing for ${halfTimePause / 1000}s...`);
-  await sleep(halfTimePause);
+  let homeReady = false;
+  let awayReady = false;
+
+  logger.info(`⏸️ Half time reached (${homeTeam.score}-${awayTeam.score}). 3-minute interactive dressing room break active...`);
+
+  await new Promise<void>((resolve) => {
+    const collector = channel.createMessageComponentCollector({
+      filter: (i) => i.message.id === htMsg.id,
+      time: htDuration,
+    });
+
+    collector.on('collect', async (interaction) => {
+      const isHomeEligible =
+        (homeTeam.captainId && interaction.user.id === homeTeam.captainId) ||
+        (homeTeam.viceCaptainId && interaction.user.id === homeTeam.viceCaptainId) ||
+        (!homeTeam.captainId && [homeTeam.players.atk.discordId, homeTeam.players.mid.discordId, homeTeam.players.def.discordId].includes(interaction.user.id)) ||
+        Boolean(interaction.memberPermissions?.has(PermissionFlagsBits.Administrator));
+
+      const isAwayEligible =
+        (awayTeam.captainId && interaction.user.id === awayTeam.captainId) ||
+        (awayTeam.viceCaptainId && interaction.user.id === awayTeam.viceCaptainId) ||
+        (!awayTeam.captainId && [awayTeam.players.atk.discordId, awayTeam.players.mid.discordId, awayTeam.players.def.discordId].includes(interaction.user.id)) ||
+        Boolean(interaction.memberPermissions?.has(PermissionFlagsBits.Administrator));
+
+      if (interaction.customId.startsWith('ht_ready_home_')) {
+        if (!isHomeEligible) {
+          return await interaction.reply({
+            content: `❌ Only the **${homeTeam.name} Captain** (or server Admin) can confirm readiness!`,
+            ephemeral: true
+          });
+        }
+        homeReady = true;
+        await interaction.deferUpdate();
+      } else if (interaction.customId.startsWith('ht_ready_away_')) {
+        if (!isAwayEligible) {
+          return await interaction.reply({
+            content: `❌ Only the **${awayTeam.name} Captain** (or server Admin) can confirm readiness!`,
+            ephemeral: true
+          });
+        }
+        awayReady = true;
+        await interaction.deferUpdate();
+      }
+
+      const updatedRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`ht_ready_home_${Date.now()}`)
+          .setLabel(homeReady ? `✅ ${homeTeam.name} Ready` : `${homeTeam.name} Captain Ready`)
+          .setEmoji(homeReady ? '✅' : '⏱️')
+          .setStyle(homeReady ? ButtonStyle.Success : ButtonStyle.Secondary)
+          .setDisabled(homeReady),
+        new ButtonBuilder()
+          .setCustomId(`ht_ready_away_${Date.now()}`)
+          .setLabel(awayReady ? `✅ ${awayTeam.name} Ready` : `${awayTeam.name} Captain Ready`)
+          .setEmoji(awayReady ? '✅' : '⏱️')
+          .setStyle(awayReady ? ButtonStyle.Success : ButtonStyle.Secondary)
+          .setDisabled(awayReady)
+      );
+
+      await htMsg.edit({ components: [updatedRow] }).catch(() => {});
+
+      if (homeReady && awayReady) {
+        await channel.send('🤝 **Both captains have agreed! Halftime concluded early — resuming match!**');
+        collector.stop('both_agreed');
+      }
+    });
+
+    collector.on('end', async () => {
+      const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId('ht_done_1')
+          .setLabel(`${homeTeam.name} Ready`)
+          .setEmoji('✅')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(true),
+        new ButtonBuilder()
+          .setCustomId('ht_done_2')
+          .setLabel(`${awayTeam.name} Ready`)
+          .setEmoji('✅')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(true)
+      );
+      await htMsg.edit({ components: [disabledRow] }).catch(() => {});
+      resolve();
+    });
+  });
+
+  // Reload tactics in case captains adjusted them during half time!
+  try {
+    const updatedHome = (await prisma.nationalTeam.findFirst({ where: { alias: homeTeam.alias } })) ||
+                        (await prisma.footballClub.findFirst({ where: { alias: homeTeam.alias } }));
+    if (updatedHome?.tactics) homeTeam.tactics = parseTeamTactics(updatedHome.tactics);
+
+    const updatedAway = (await prisma.nationalTeam.findFirst({ where: { alias: awayTeam.alias } })) ||
+                        (await prisma.footballClub.findFirst({ where: { alias: awayTeam.alias } }));
+    if (updatedAway?.tactics) awayTeam.tactics = parseTeamTactics(updatedAway.tactics);
+  } catch (err) {
+    // Non-fatal if tactics reload fails
+  }
 
   await channel.send({
     content:
-      `@${homeTeam.name} @${awayTeam.name}\n` +
-      `▶️ **Second half is underway!**`
+      `${homePings.roleMention} ${awayPings.roleMention}\n` +
+      `▶️ **Second half is underway!**`,
+    allowedMentions: { parse: ['roles', 'users'] }
   });
   await subPause(2500);
 

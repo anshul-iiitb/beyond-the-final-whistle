@@ -267,13 +267,22 @@ export async function handleTournamentCommand(message: Message, args: string[]) 
 
       await message.reply({ embeds: [embed] });
 
-      // Automatically broadcast tournament kickoff to announcement channel pinging @everyone
+      // Automatically broadcast tournament kickoff to announcement channel pinging @everyone and enrolled nations
       if (message.guild) {
         const announceChannel = findAnnouncementChannel(message.guild);
         if (announceChannel) {
           const liveChannel = message.guild.channels.cache.find(
             (c) => c.isTextBased() && c.name.includes('live-match')
           );
+
+          const teamPings = tourney.teams.map((t) => {
+            const role = message.guild?.roles.cache.find((r) => {
+              const rn = r.name.toLowerCase();
+              return rn.includes(t.name.toLowerCase()) || rn.includes(t.alias.toLowerCase());
+            });
+            return role ? `<@&${role.id}>` : `**${t.name}**`;
+          });
+
           const announceEmbed = new EmbedBuilder()
             .setColor('#f59e0b')
             .setTitle(`🏆 TOURNAMENT COMMENCED: ${tourney.name.toUpperCase()}! 🏆`)
@@ -281,7 +290,7 @@ export async function handleTournamentCommand(message: Message, args: string[]) 
               `@everyone The whistle has blown and the competition is officially underway!\n\n` +
               `🏆 **Tournament:** **${tourney.name}**\n` +
               `⚔️ **Initial Stage:** \`${tourney.currentPhase}\`\n` +
-              `👥 **Enrolled Teams:** **${tourney.teams.length}** teams (${tourney.type === 'NATION' ? 'National Teams 🌍' : 'Football Clubs 🛡️'})\n` +
+              `👥 **Enrolled Nations:** ${teamPings.length > 0 ? teamPings.join(' ') : `**${tourney.teams.length}** teams`}\n` +
               `📅 **Scheduled Fixtures:** **${fixtures.length}** match(es)\n\n` +
               `### 📌 How to Follow the Action\n` +
               `• Standings & Table: \`-tourney table "${tourney.name}"\`\n` +
@@ -294,7 +303,7 @@ export async function handleTournamentCommand(message: Message, args: string[]) 
           await announceChannel.send({
             content: `@everyone 📢 **${tourney.name}** has officially commenced! Fixtures and groups are now live:`,
             embeds: [announceEmbed],
-            allowedMentions: { parse: ['everyone'] }
+            allowedMentions: { parse: ['everyone', 'roles'] }
           }).catch((err) => logger.warn({ err: err.message }, 'Failed to broadcast tournament start announcement'));
         }
       }

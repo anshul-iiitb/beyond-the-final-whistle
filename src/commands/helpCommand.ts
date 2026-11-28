@@ -210,6 +210,8 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
           name: '⚽ Match Engines & VIP Exhibitions',
           value:
             '• `-match [@user|team1 team2]` / `-match live [team1 team2]` — 90m tactical simulation or live broadcast (e.g. `-match por esp` or `-match live por esp`).\n' +
+            '• ⏸️ **Tactical Halftime:** 3-minute dressing room break to adjust `-tactics` or `-sub`. Both captains can click **"Ready"** to resume early without waiting!\n' +
+            '• 📢 **Nation Mentions:** Official nation role & squad pings sent at kickoff & halftime in `#live-match` and `#announcements`.\n' +
             '• `-friendly [@user|team1 team2]` — 👑 **VIP Exhibition** (zero stat loss, +1-2 MOTM boost). Kick off direct Nation/Club clash (e.g. `-friendly por esp`) or challenge rival players in `#friendly-matches`!\n' +
             '• `-intel` (`-scout`) — Tactical scouting report on upcoming opponents (+1 to +6 roll boost).\n' +
             '• `-intstats [@user]` / `-clubstats [@user]` — Tournament and club career telemetry.\n' +

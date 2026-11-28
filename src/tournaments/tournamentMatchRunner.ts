@@ -82,10 +82,15 @@ export async function playTournamentFixture(params: {
           !c.name.includes('bot-cmd')
       ) as TextChannel | null;
 
+      const homeRole = params.channel.guild.roles.cache.find(r => r.name.toLowerCase().includes(homeTeam.name.toLowerCase()) || r.name.toLowerCase().includes(homeTeam.alias.toLowerCase()));
+      const awayRole = params.channel.guild.roles.cache.find(r => r.name.toLowerCase().includes(awayTeam.name.toLowerCase()) || r.name.toLowerCase().includes(awayTeam.alias.toLowerCase()));
+      const homeMention = homeRole ? `<@&${homeRole.id}>` : `**${homeTeam.name}**`;
+      const awayMention = awayRole ? `<@&${awayRole.id}>` : `**${awayTeam.name}**`;
+
       if (announceChannel && announceChannel.id !== params.channel.id) {
         await announceChannel.send({
-          content: `@everyone ⚽ **${tourney.name} OPENING KICKOFF!** Match #1 (**${homeTeam.name} vs ${awayTeam.name}**) is now LIVE in <#${params.channel.id}>! Tune in to watch!`,
-          allowedMentions: { parse: ['everyone'] }
+          content: `@everyone ⚽ **${tourney.name} OPENING KICKOFF!** Match #1 (${homeMention} vs ${awayMention}) is now LIVE in <#${params.channel.id}>! Tune in to watch!`,
+          allowedMentions: { parse: ['everyone', 'roles'] }
         }).catch(() => {});
       }
     }
@@ -98,7 +103,7 @@ export async function playTournamentFixture(params: {
       params.channel,
       homeMatchTeam,
       awayMatchTeam,
-      { isExhibition: false }
+      { isExhibition: false, halfTimePauseMs: 180000 }
     );
 
     homeScore = liveRes.homeScore;
