@@ -102,10 +102,42 @@ export async function buildLiveMatchTeam(teamKey: string, isHome: boolean): Prom
   let lineupIds: string[] = [];
   try { lineupIds = JSON.parse(team?.lineup || '[]'); } catch { lineupIds = []; }
 
+  const isPosMatch = (playerPos: string | undefined, targetPos: 'ATK' | 'MID' | 'DEF') => {
+    const p = (playerPos || '').toUpperCase();
+    if (targetPos === 'ATK') return ['ATK', 'ATT', 'FWD', 'ST', 'CF', 'LW', 'RW'].includes(p);
+    if (targetPos === 'MID') return ['MID', 'MF', 'CM', 'CAM', 'CDM', 'LM', 'RM'].includes(p);
+    if (targetPos === 'DEF') return ['DEF', 'DF', 'CB', 'LB', 'RB', 'LWB', 'RWB', 'GK'].includes(p);
+    return false;
+  };
+
+  const usedPlayerIds = new Set<string>();
+
   const getP = (idx: number, pos: 'ATK' | 'MID' | 'DEF'): MatchPlayer => {
-    const p = (lineupIds[idx] ? team?.players?.find((pl: any) => pl.id === lineupIds[idx]) : null) ||
-              team?.players?.find((pl: any) => pl.position === pos) ||
-              team?.players?.[idx];
+    // 1. Try lineup ID
+    let p = lineupIds[idx] ? team?.players?.find((pl: any) => pl.id === lineupIds[idx]) : null;
+
+    // 2. Try unused player matching position
+    if (!p) {
+      p = team?.players?.find((pl: any) => !usedPlayerIds.has(pl.id) && isPosMatch(pl.position, pos));
+    }
+
+    // 3. Try any player matching position
+    if (!p) {
+      p = team?.players?.find((pl: any) => isPosMatch(pl.position, pos));
+    }
+
+    // 4. Try any unused player on team
+    if (!p) {
+      p = team?.players?.find((pl: any) => !usedPlayerIds.has(pl.id));
+    }
+
+    // 5. Fallback to index
+    if (!p) {
+      p = team?.players?.[idx];
+    }
+
+    if (p?.id) usedPlayerIds.add(p.id);
+
     return {
       id: p?.id || `bot_${teamKey}_${pos}`,
       name: p?.username || `${team?.name || teamKey.toUpperCase()} ${pos}`,
