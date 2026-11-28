@@ -68,7 +68,32 @@ export async function executeDailyLifecycle(client: Client) {
     }
   }
 
+  // Database hygiene: prune match simulation logs exceeding 100 entries to prevent memory/storage bloat
+  await pruneOldMatchSimulations();
+
   logger.info(`Daily Lifecycle Reset completed for ${players.length} players.`);
+}
+
+async function pruneOldMatchSimulations() {
+  try {
+    const totalSims = await prisma.matchSimulation.count();
+    if (totalSims > 100) {
+      const excess = totalSims - 100;
+      const oldest = await prisma.matchSimulation.findMany({
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+        take: excess
+      });
+      if (oldest.length > 0) {
+        await prisma.matchSimulation.deleteMany({
+          where: { id: { in: oldest.map(o => o.id) } }
+        });
+        logger.info(`Pruned ${oldest.length} old match simulation logs for database health.`);
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Failed to prune old match simulations');
+  }
 }
 
 async function expireElapsedVips(client: Client) {

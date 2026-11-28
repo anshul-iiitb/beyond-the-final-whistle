@@ -120,6 +120,11 @@ model Player {
 
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
+
+  @@index([nationId])
+  @@index([clubId])
+  @@index([currentLocation])
+  @@index([vipTier, vipExpiresAt])
 }
 
 model PlayerVehicle {
@@ -230,6 +235,8 @@ model MatchSimulation {
   commentaryLogs  String    // JSON serialized play-by-play
   aiNewsArticle   String?   // AI sports report
   createdAt       DateTime  @default(now())
+
+  @@index([createdAt])
 }
 
 model InventoryItem {
