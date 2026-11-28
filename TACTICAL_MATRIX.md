@@ -2,6 +2,8 @@
 
 > **Core Balance Philosophy:** Every tactic and every playstyle has a natural predator and a natural prey. No single role, formation, or setting is universally overpowered. Victory requires reading your opponent's playbook and adapting.
 
+![Tactical Synergy & Counter Matrix](/C:/Users/darkh/.gemini/antigravity/brain/73951f75-602c-4d1a-b51a-743f374d3ffe/tactical_matrix.png)
+
 ---
 
 ## 🧭 The Grand Tactical Rock-Paper-Scissors

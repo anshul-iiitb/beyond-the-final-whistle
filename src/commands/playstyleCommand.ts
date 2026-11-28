@@ -1,4 +1,6 @@
-import { Message, EmbedBuilder } from 'discord.js';
+import { Message, EmbedBuilder, AttachmentBuilder } from 'discord.js';
+import fs from 'fs';
+import path from 'path';
 import { prisma } from '../database/prisma.js';
 import { PLAYSTYLES } from '../config/constants.js';
 import { syncMemberLocationVisibility } from '../engines/campusEngine.js';
@@ -75,10 +77,17 @@ export async function handlePlaystyleCommand(message: Message, args: string[]) {
           `*Examples:* \`-playstyle pch\`, \`-playstyle b2b\`, \`-playstyle nnd\`, \`-playstyle f9\``
         ].join(UI.SPACER)
       )
-      .setFooter({ text: 'Beyond The Final Whistle • Rookie Induction' })
+      .setFooter({ text: 'Beyond The Final Whistle • Rookie Induction & Tactical Balance' })
       .setTimestamp();
 
-    return await message.reply({ embeds: [embed] });
+    const files: AttachmentBuilder[] = [];
+    const matrixImgPath = path.resolve(process.cwd(), 'assets/tactical_matrix.png');
+    if (fs.existsSync(matrixImgPath)) {
+      files.push(new AttachmentBuilder(matrixImgPath, { name: 'tactical_matrix.png' }));
+      embed.setImage('attachment://tactical_matrix.png');
+    }
+
+    return await message.reply({ embeds: [embed], files });
   }
 
   // Validate choice
