@@ -106,7 +106,8 @@ export async function handleHelpCommand(message: Message) {
       {
         name: '👑 Admin, VIP & DevOps',
         value:
-          '• `-setup` • `-setupemojis` • `-vip give @user <days>` • `-fixture <add|start> ...`\n' +
+          '• `-setup` • `-setupemojis` • `-vip [perks]` • `-vip give @user <days>`\n' +
+          '• `-friendly [@user|setup]` — 👑 **VIP All-Star Exhibition** (zero stat loss, +1-2 MOTM boost, challenge button).\n' +
           '• `-setprice <item|boots|avatars|banners|cars|reset> <amt>` • `-devfund <amt> [@user]`\n' +
           '• `-seedauction [n] [hrs]` • `-auctionstart` • `-auctionhalt`/`-auctionresume [lot#]` • `-auctionend`/`-auctioncancel <lot#>`\n' +
           `• \`-additem <symbol> @user\` (${worldcup}) • \`-addvar <var> <val> @user\` • \`-gitpull\` / \`-gitpullback\``

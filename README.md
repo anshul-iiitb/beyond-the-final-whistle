@@ -73,10 +73,12 @@
 | | `-chirp <text>` / `-tweet` | Post to locked `#twitter` w/ 👍/👎 votes + 👥 `Voters` inspector |
 | **Auctions** | `-ah` / `-bid <amt> [lot#]` | View or bid on collectible auctions (`ah`) |
 | **Matches** | `-match [@user]` | Simulate 90-minute match with AI commentary & newspaper |
+| | `-friendly [@user]` | 👑 VIP All-Star Exhibition (zero stat loss, +1-2 MOTM boost, challenge button) |
 | | `-intstats [@user]` | International tournament statistics |
 | | `-clubstats [@user]` | Franchise club career stats |
 | | `-roster <alias>` | View national team squad lineup |
-| **Admin** | `-setup` | Automatically build 7 campus channels & VIP lounge |
+| **Admin & VIP** | `-vip [perks]` | View full VIP Privileges & Super-Perks or manage duration |
+| | `-setup` | Automatically build campus channels, friendly ground & VIP lounge |
 | | `-vip give @user <days>` | Grant timed VIP status |
 | | `-auctionhalt` / `-auctionresume` | Pause active auctions (freezing time left) and resume later |
 | | `-testmatch <o1> <o2> <on\|off> <on\|off>` | Simulate a controlled OVR/boot test match in `#live-match` |

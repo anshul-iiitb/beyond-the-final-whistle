@@ -1,7 +1,7 @@
-import { Message, EmbedBuilder, AttachmentBuilder, TextChannel } from 'discord.js';
+import { Message, EmbedBuilder, AttachmentBuilder, TextChannel, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import path from 'path';
 import fs from 'fs';
-import { simulateFullMatch } from '../engines/matchSimulationEngine.js';
+import { simulateFullMatch, calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { runLiveEpisodicMatch, MatchTeam } from '../engines/liveMatchEngine.js';
 import { generateMatchScorecardGraphic } from '../utils/chartHelper.js';
 import { buildPlayerStatCardAttachment } from './playerCommands.js';
@@ -12,7 +12,153 @@ import { logger } from '../utils/logger.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 
 export async function handleFriendlyCommand(message: Message, args: string[]) {
-  return await runSimulatedMatchCommand(message, args, true);
+  const player = await prisma.player.findUnique({
+    where: { id: message.author.id },
+    include: { nation: true, club: true }
+  });
+
+  if (!player || player.vipTier < 1) {
+    const embed = new EmbedBuilder()
+      .setColor(THEME_COLORS.GOLD)
+      .setTitle('👑 VIP Status Required for Friendly Exhibitions')
+      .setDescription(
+        `> *All-Star Exhibition matches are an exclusive perk reserved for VIP Footballers!*\n\n` +
+        `### ✨ What are Friendly Exhibitions?\n` +
+        `• 🛡️ **Zero Stat Loss Guarantee:** No negative attribute drops on loss.\n` +
+        `• 🌟 **Permanent MOTM Stat Boost:** Man of the Match gains a permanent **+1 to +2 attribute point**.\n` +
+        `• ⚡ **Halved Stamina Drain:** Only drains 50% matchday stamina.\n\n` +
+        `${UI.DIVIDER}\n` +
+        `👉 Run **\`-vip perks\`** to view all VIP privileges and how to unlock VIP status!`
+      )
+      .setFooter({ text: 'Beyond The Final Whistle • VIP Exhibitions' })
+      .setTimestamp();
+    return await message.reply({ embeds: [embed] });
+  }
+
+  const opponent = message.mentions.users.first();
+
+  // If no opponent mentioned or args[0] is 'setup' / 'menu', display interactive Friendly Matchmaker
+  if (!opponent || args[0]?.toLowerCase() === 'setup') {
+    const derived = calculateDerivedRatings(player);
+    const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
+    const hostTeamName = `${player.username} All-Stars`;
+
+    const embed = new EmbedBuilder()
+      .setColor(THEME_COLORS.GOLD)
+      .setTitle('🤝 VIP Exhibition Matchmaker & Setup Hub')
+      .setDescription(
+        `> Welcome to the VIP Exhibition Pitch! Host zero-risk exhibition friendlies where the Man of the Match earns **+1 to +2 permanent stat points** and defeats suffer zero attribute loss.\n\n` +
+        `👑 **Host:** ${message.author} • **Team:** \`${hostTeamName}\` (OVR: \`${ovr}\`)\n` +
+        `⚡ **Stamina Available:** \`${player.stamina}/100\` (Exhibition drains ~15-20 stamina)\n\n` +
+        `${UI.DIVIDER}\n` +
+        `### 🎮 How to Kickoff:\n` +
+        `• Click **"⚽ Play vs Legends XI"** below to start an instant solo match against the AI All-Stars.\n` +
+        `• Or run **\`-friendly @player\`** to challenge any member in the server to a head-to-head friendly!\n`
+      )
+      .setFooter({ text: 'Beyond The Final Whistle • VIP Friendly Hub' })
+      .setTimestamp();
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`friendly_ai_${message.author.id}`)
+        .setLabel('⚽ Play vs Legends XI (AI)')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId('friendly_rules')
+        .setLabel('📖 Exhibition Rules')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    const replyMsg = await message.reply({ embeds: [embed], components: [row] });
+
+    const collector = replyMsg.createMessageComponentCollector({
+      filter: i => i.user.id === message.author.id,
+      time: 60000
+    });
+
+    collector.on('collect', async i => {
+      if (i.customId === `friendly_ai_${message.author.id}`) {
+        await i.deferUpdate();
+        await replyMsg.edit({ components: [] }).catch(() => {});
+        return await runSimulatedMatchCommand(message, [], true);
+      } else if (i.customId === 'friendly_rules') {
+        return await i.reply({
+          content: '📜 **VIP Exhibition Match Rules:**\n1. Both teams field their active player ratings & tactics.\n2. No negative stat drops occur on defeat.\n3. The Man of the Match (MOTM) gains a permanent +1 or +2 attribute boost up to 99.\n4. Boots and intel bonuses are preserved and not consumed.',
+          ephemeral: true
+        });
+      }
+    });
+
+    collector.on('end', () => {
+      replyMsg.edit({ components: [] }).catch(() => {});
+    });
+
+    return;
+  }
+
+  // If opponent is self or a bot
+  if (opponent.id === message.author.id || opponent.bot) {
+    return await runSimulatedMatchCommand(message, args, true);
+  }
+
+  // If opponent is another human player: Send Challenge Card with Accept/Decline buttons!
+  const challengeEmbed = new EmbedBuilder()
+    .setColor(THEME_COLORS.GOLD)
+    .setTitle('🤝 VIP ALL-STAR EXHIBITION CHALLENGE')
+    .setDescription(
+      `👑 ${message.author} has challenged ${opponent} to an **All-Star Exhibition Match**!\n\n` +
+      `🛡️ **Zero-Risk Guarantee:** Neither player will lose attributes on defeat.\n` +
+      `🌟 **MOTM Reward:** The Man of the Match wins a permanent **+1 to +2 stat boost**!\n` +
+      `⚡ **Stamina:** Only drains 50% standard match stamina.\n\n` +
+      `${UI.DIVIDER}\n` +
+      `👉 ${opponent}, click **"⚔️ Accept Friendly"** within 60 seconds to kickoff!`
+    )
+    .setFooter({ text: 'Beyond The Final Whistle • VIP Exhibition Challenge' })
+    .setTimestamp();
+
+  const challengeRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`friendly_accept_${message.author.id}_${opponent.id}`)
+      .setLabel('⚔️ Accept Friendly')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId(`friendly_decline_${message.author.id}_${opponent.id}`)
+      .setLabel('❌ Decline')
+      .setStyle(ButtonStyle.Danger)
+  );
+
+  const challengeMsg = await message.reply({ embeds: [challengeEmbed], components: [challengeRow] });
+
+  const challengeCollector = challengeMsg.createMessageComponentCollector({
+    filter: i => i.user.id === opponent.id,
+    time: 60000
+  });
+
+  challengeCollector.on('collect', async i => {
+    if (i.customId.startsWith('friendly_accept')) {
+      await i.deferUpdate();
+      await challengeMsg.edit({
+        content: `🎉 **Challenge Accepted!** Kickoff between ${message.author} and ${opponent} in progress...`,
+        components: []
+      }).catch(() => {});
+      return await runSimulatedMatchCommand(message, args, true);
+    } else if (i.customId.startsWith('friendly_decline')) {
+      await i.deferUpdate();
+      await challengeMsg.edit({
+        content: `❌ ${opponent} declined the friendly exhibition challenge.`,
+        components: []
+      }).catch(() => {});
+    }
+  });
+
+  challengeCollector.on('end', (collected, reason) => {
+    if (reason === 'time' && collected.size === 0) {
+      challengeMsg.edit({
+        content: `⏳ Friendly challenge to ${opponent} timed out.`,
+        components: []
+      }).catch(() => {});
+    }
+  });
 }
 
 export async function handleMatchCommand(message: Message, args: string[]) {

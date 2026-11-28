@@ -132,6 +132,20 @@ export async function handleSetupCommand(message: Message) {
     }
     createdList.push(`• **VIP Council Lounge:** <#${vipChannel.id}>`);
 
+    // Friendly Matches Channel (Open to all members for exhibitions)
+    let friendlyChannel = guild.channels.cache.find(c =>
+      c.type === ChannelType.GuildText && (c.name.toLowerCase().includes('friendly') || c.name.toLowerCase().includes('exhibition'))
+    );
+    if (!friendlyChannel) {
+      friendlyChannel = await guild.channels.create({
+        name: '๑•🤝│friendly-matches',
+        type: ChannelType.GuildText,
+        parent: category.id,
+        topic: '🤝 All-Star Exhibition Matches! Run -friendly [@user] to host zero-risk friendlies with permanent MOTM stat boosts!'
+      });
+    }
+    createdList.push(`• **Friendly Matches:** <#${friendlyChannel.id}>`);
+
     // Lock #twitter read-only for members (bot posts tweet embeds directly there)
     const lockedTwitterId = await lockTwitterFeedChannel(guild);
     if (lockedTwitterId) {
@@ -157,12 +171,72 @@ export async function handleSetupCommand(message: Message) {
   }
 }
 
-export async function handleVipCommand(message: Message, args: string[]) {
-  if (!isAuthorized(message)) {
-    return await message.reply('❌ Unauthorized.');
+const VIP_AD_GIF = 'https://images-ext-1.discordapp.net/external/WbUdmHYz0aJoSn0OIHn7HlCzc9I9OKdCUO1DZ1_9wn4/https/static.klipy.com/ii/2711dd8a75a85be822d136ec94899b3f/3b/5d/lgwAfIbEGD9B.mp4';
+
+export async function displayVipPerksEmbed(message: Message) {
+  const player = await prisma.player.findUnique({
+    where: { id: message.author.id }
+  });
+
+  const isVip = Boolean(player && player.vipTier >= 1);
+  let statusText = '⚪ **Regular Member** *(Non-VIP)*';
+  if (isVip && player?.vipExpiresAt) {
+    const unixExpiry = Math.floor(player.vipExpiresAt.getTime() / 1000);
+    statusText = `👑 **ACTIVE VIP FOOTBALLER** • *Expires:* <t:${unixExpiry}:D> (<t:${unixExpiry}:R>)`;
+  } else if (isVip) {
+    statusText = '👑 **ACTIVE VIP FOOTBALLER** • *Lifetime Access*';
   }
 
+  const embed = new EmbedBuilder()
+    .setColor(THEME_COLORS.GOLD)
+    .setTitle('👑 VIP FOOTBALLER CLUB — PRIVILEGES & SUPER-PERKS')
+    .setDescription(
+      `> *VIP status accelerates your football career with enhanced training regimens, complete stamina recovery, risk-free exhibition matches, and lucrative commercial deals.*\n\n` +
+      `👤 **Your Status:** ${statusText}\n\n` +
+      `${UI.DIVIDER}\n` +
+      `### 🌟 THE 6 VIP SUPER-PERKS\n\n` +
+      `**1️⃣ 🏋️ Bespoke VIP Training Drills (\`-train\`)**\n` +
+      `• **VIP 6h Masterclass:** Yields **+6 TP** (6h cooldown, only 5 stamina).\n` +
+      `• **VIP 20h Endurance Prep:** Yields **+20 TP** (20h cooldown, 50 stamina).\n\n` +
+      `**2️⃣ 🧖 Cryo Sauna Full Recharge (\`-recovery\`)**\n` +
+      `• Instantly restores **100% full stamina (100/100)** to maximum capacity (Standard is only +30)!\n\n` +
+      `**3️⃣ 🤝 VIP All-Star Exhibitions (\`-friendly\`)**\n` +
+      `• Host exhibition friendlies with **Zero Stat Loss Guarantee** on defeat.\n` +
+      `• Man of the Match (MOTM) earns a permanent **+1 to +2 attribute boost**!\n` +
+      `• Halved match stamina drain (only drains 50% standard match stamina).\n\n` +
+      `**4️⃣ 📸 300k Commercial Sponsorship (\`-advert\`)**\n` +
+      `• Unlocks the exclusive **VIP 300,000 Coin** signature contract at the Photoshoot Hall.\n\n` +
+      `**5️⃣ 🎨 Luxury Gold Dossier & Collector Boutique**\n` +
+      `• Golden VIP badge and metallic frame on your \`-profile\` card and neon radar.\n` +
+      `• Access to claim and buy monthly VIP Collector Avatars & Banners (\`-avatar\`).\n\n` +
+      `**6️⃣ 🏛️ Private VIP Council Lounge (\`#vip-lounge\`)**\n` +
+      `• Unlocks access to the private **#vip-lounge** with direct developer suggestions, feature sneak-peeks, and community votes.\n\n` +
+      `${UI.DIVIDER}\n` +
+      `🎟️ **How to Acquire VIP Status:**\n` +
+      `• **Server Booster:** Boost our Discord server for automatic VIP tier.\n` +
+      `• **Tournament Rewards & Admin Grants:** Won in official tournaments and granted via \`-vip give @user <days>\`.`
+    )
+    .setImage(VIP_AD_GIF)
+    .setFooter({ text: 'Beyond The Final Whistle • VIP Programme' })
+    .setTimestamp();
+
+  await message.reply({ embeds: [embed] });
+}
+
+export async function handleVipCommand(message: Message, args: string[]) {
   const rawAction = (args[0] || '').toLowerCase();
+  const adminActions = new Set(['give', 'add', 'grant', 'remove', 'revoke', 'del']);
+
+  // If action is perks/info or no admin management action specified, display the VIP Perks Showcase
+  if (!adminActions.has(rawAction)) {
+    return await displayVipPerksEmbed(message);
+  }
+
+  // Admin VIP duration management
+  if (!isAuthorized(message)) {
+    return await message.reply('❌ Unauthorized: Only the Bot Owner or Head Administrator can grant/revoke VIP duration.');
+  }
+
   const isRemove = rawAction === 'remove' || rawAction === 'revoke' || rawAction === 'del';
   const targets = [...message.mentions.users.values()];
 

@@ -287,6 +287,8 @@ export async function onMessageCreate(message: Message) {
         await handleSetupEmojisCommand(message);
         break;
       case 'vip':
+      case 'vipperks':
+      case 'perks':
         await handleVipCommand(message, args);
         break;
       case 'devfund':
