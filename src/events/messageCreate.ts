@@ -22,6 +22,8 @@ import {
 } from '../commands/auctionCommands.js';
 import { handleMatchCommand, handleFriendlyCommand, handleLiveMatchCommand, handleBatchMatchCommand, handleIntStatsCommand, handleClubStatsCommand, handleRosterCommand, handleTestMatchCommand } from '../commands/matchCommands.js';
 import { handleTacticsCommand } from '../commands/tacticsCommand.js';
+import { handleTournamentCommand } from '../commands/tournamentCommand.js';
+import { handleBlueprintCommand } from '../commands/blueprintCommand.js';
 import { handleBetCommand, handleOddsCommand, handleFixturesCommand, handleMyBetsCommand, handleFixtureAdminCommand } from '../commands/bettingCommands.js';
 import { handlePotwCommand } from '../commands/potwCommand.js';
 import { handleStadiumCommand } from '../commands/stadiumCommand.js';
@@ -267,6 +269,17 @@ export async function onMessageCreate(message: Message) {
       case 'tactics':
       case 'tactic':
         await handleTacticsCommand(message, args);
+        break;
+
+      // Tournament & AI Blueprint Engine
+      case 'tournament':
+      case 'tourney':
+      case 'cup':
+        await handleTournamentCommand(message, args);
+        break;
+      case 'blueprint':
+      case 'bp':
+        await handleBlueprintCommand(message, args);
         break;
 
       // Sportsbook & Fixtures

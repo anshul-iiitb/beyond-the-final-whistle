@@ -165,6 +165,7 @@ model NationalTeam {
   maxPlayers      Int?      @default(23)
   isLocked        Boolean   @default(false)
   players         Player[]
+  tournamentTeams TournamentTeam[]
 }
 
 model FootballClub {
@@ -194,6 +195,7 @@ model FootballClub {
   maxPlayers      Int?      @default(23)
   isLocked        Boolean   @default(false)
   players         Player[]
+  tournamentTeams TournamentTeam[]
 }
 
 model PlayerTweet {
@@ -344,4 +346,91 @@ model MatchBet {
   @@index([bettorId])
   @@index([status])
 }
+
+model TournamentBlueprint {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  stagesJson  String   // JSON serialized array of BlueprintStage
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([slug])
+}
+
+model Tournament {
+  id              String              @id @default(cuid())
+  name            String
+  type            String              @default("NATION") // "NATION" or "CLUB"
+  status          String              @default("REGISTRATION") // "REGISTRATION", "ACTIVE", "COMPLETED"
+  blueprintId     String?
+  blueprintStages String?             // JSON array of BlueprintStage
+  currentStageIdx Int                 @default(0)
+  currentPhase    String              @default("STAGE_1")
+  stageHistory    String?             // JSON snapshots of completed stages
+  teams           TournamentTeam[]
+  fixtures        TournamentFixture[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([status])
+  @@index([type])
+}
+
+model TournamentTeam {
+  id           String              @id @default(cuid())
+  tournamentId String
+  tournament   Tournament          @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  name         String
+  alias        String
+  group        String?             // "A", "B", "WINNERS", etc.
+  seed         Int?
+  isEliminated Boolean             @default(false)
+  nationId     String?
+  nation       NationalTeam?       @relation(fields: [nationId], references: [id], onDelete: SetNull)
+  clubId       String?
+  club         FootballClub?       @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  played       Int                 @default(0)
+  won          Int                 @default(0)
+  drawn        Int                 @default(0)
+  lost         Int                 @default(0)
+  goalsFor     Int                 @default(0)
+  goalsAgainst Int                 @default(0)
+  goalDifference Int               @default(0)
+  points       Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  homeFixtures TournamentFixture[] @relation("TourneyHomeFixtures")
+  awayFixtures TournamentFixture[] @relation("TourneyAwayFixtures")
+
+  @@unique([tournamentId, alias])
+  @@index([tournamentId])
+  @@index([tournamentId, group])
+}
+
+model TournamentFixture {
+  id           String         @id @default(cuid())
+  tournamentId String
+  tournament   Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matchday     Int            @default(1)
+  matchNumber  Int            @default(1)
+  stage        String         // "GROUP" or "QUARTER_FINAL", "SEMI_FINAL", "FINAL", etc.
+  group        String?
+  leg          Int            @default(1)
+  homeTeamId   String
+  homeTeam     TournamentTeam @relation("TourneyHomeFixtures", fields: [homeTeamId], references: [id], onDelete: Cascade)
+  awayTeamId   String
+  awayTeam     TournamentTeam @relation("TourneyAwayFixtures", fields: [awayTeamId], references: [id], onDelete: Cascade)
+  status       String         @default("SCHEDULED") // "SCHEDULED", "LIVE", "PLAYED"
+  homeScore    Int?
+  awayScore    Int?
+  simulationId String?
+  playedAt     DateTime?
+  createdAt    DateTime       @default(now())
+
+  @@index([tournamentId, status])
+  @@index([tournamentId, matchday])
+}
+
 

@@ -1,8 +1,8 @@
 import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Guild } from 'discord.js';
 import { getEmoji } from '../utils/emojiHelper.js';
-import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
+import { THEME_COLORS, UI } from '../utils/themeHelper.js';
 
-export const TOTAL_HELP_PAGES = 6;
+export const TOTAL_HELP_PAGES = 7;
 
 export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?: any) {
   const safePage = Math.max(1, Math.min(TOTAL_HELP_PAGES, page));
@@ -20,11 +20,11 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
 
   switch (safePage) {
     case 1:
-      title = '📖 Master Guide (1/6) — 🔰 Induction & Career Hub';
+      title = '📖 Master Guide (1/7) — 🔰 Induction & Career Hub';
       color = THEME_COLORS.PRIMARY;
       description =
         `> *Welcome to Beyond The Final Whistle! Start your career, level up your player card, and climb the world rankings.*\n\n` +
-        `**Prefix:** \`-\` • **Quick Page Jump:** \`-help <1-6>\` (e.g. \`-help 3\`, \`-help 6\`)\n` +
+        `**Prefix:** \`-\` • **Quick Page Jump:** \`-help <1-7>\` (e.g. \`-help 3\`, \`-help 5\`, \`-help 7\`)\n` +
         `${UI.DIVIDER}`;
       fields.push(
         {
@@ -48,7 +48,7 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
       break;
 
     case 2:
-      title = '📖 Master Guide (2/6) — 🏟️ Campus, Training & Recovery';
+      title = '📖 Master Guide (2/7) — 🏟️ Campus, Training & Recovery';
       color = THEME_COLORS.EMERALD;
       description =
         `> *The spatial campus connects 7 football facilities. Commands are strictly locked to their respective facility channels!*\n\n` +
@@ -88,7 +88,7 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
       break;
 
     case 3:
-      title = '📖 Master Guide (3/6) — 🛍️ Market, Vehicles & Boutique';
+      title = '📖 Master Guide (3/7) — 🛍️ Market, Vehicles & Boutique';
       color = THEME_COLORS.GOLD;
       description =
         `> *Equip professional gear, collect luxury supercars, and customize your footballer's studio presentation.*\n\n` +
@@ -121,8 +121,8 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
       break;
 
     case 4:
-      title = '📖 Master Guide (4/6) — 🌍 Nations, Clubs & Tactics';
-      color = THEME_COLORS.GOLD;
+      title = '📖 Master Guide (4/7) — 🌍 Nations, Clubs & Tactics';
+      color = THEME_COLORS.COBALT;
       description =
         `> *Lead your International Federation or Club Franchise to tournament glory through tactical masterclasses.*\n\n` +
         `**Squad Governance:** Captains and Vice-Captains set starting lineups and set-piece specialists.\n` +
@@ -154,7 +154,39 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
       break;
 
     case 5:
-      title = '📖 Master Guide (5/6) — ⚽ Matches, Friendlies & Sportsbook';
+      title = '📖 Master Guide (5/7) — 🏆 Tournaments & AI Blueprints';
+      color = THEME_COLORS.PURPLE;
+      description =
+        `> *Design multi-stage tournaments with OpenRouter AI and compete for international or club glory!*\n\n` +
+        `**Dynamic Linking:** Seamlessly host tournaments for either **Nations** or **Clubs**.\n` +
+        `${UI.DIVIDER}`;
+      fields.push(
+        {
+          name: '🧩 AI Blueprint Engine (-blueprint / -bp)',
+          value:
+            '• `-blueprint create <slug> <natural language rules>` — AI compiles rules into multi-stage JSON!\n' +
+            '  *Example:* `-blueprint create world-cup 4 Groups of 4 -> Top 2 each to Quarters -> Semis -> Final`\n' +
+            '• `-blueprint view <slug>` — Inspect stages, routing rules, and pairing modes.\n' +
+            '• `-blueprint list` — Browse all custom saved tournament formats.\n' +
+            '• `-blueprint delete <slug>` — Remove a tournament blueprint.'
+        },
+        {
+          name: '🏆 Tournament Operations (-tourney / -cup)',
+          value:
+            '• `-tourney create "<name>" [NATION|CLUB] [blueprintSlug]` — Create a new tournament.\n' +
+            '• `-tourney enroll "<name>" <alias | all>` — Enroll nations or clubs (or all teams at once).\n' +
+            '• `-tourney blueprint "<name>" <slug>` — Apply blueprint format and assign group seeds.\n' +
+            '• `-tourney schedule "<name>"` — Generate stage round-robin or knockout fixtures.\n' +
+            '• `-tourney table "<name>" [group]` — Live group standings (PTS, GD, GF, W/D/L).\n' +
+            '• `-tourney fixtures "<name>" [matchday]` — Inspect matchday fixtures and results.\n' +
+            '• `-tourney play "<name>" [next | match#] [fast]` — Broadcast (20s pulse) or simulate fixture.\n' +
+            '• `-tourney advance "<name>" [force]` — Advance to next stage or crown Champion 👑!'
+        }
+      );
+      break;
+
+    case 6:
+      title = '📖 Master Guide (6/7) — ⚽ Matches, Friendlies & Sportsbook';
       color = THEME_COLORS.SCARLET;
       description =
         `> *Experience 90-minute AI-simulated matches, place sportsbook wagers, and grow your social influence.*\n\n` +
@@ -187,8 +219,8 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
       );
       break;
 
-    case 6:
-      title = '📖 Master Guide (6/6) — 👑 VIP Privileges, Auctions & Admin';
+    case 7:
+      title = '📖 Master Guide (7/7) — 👑 VIP Privileges, Auctions & Admin';
       color = THEME_COLORS.PURPLE;
       description =
         `> *VIP perks, live collectible auctions, and complete server administration commands.*\n\n` +
@@ -234,7 +266,7 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
     .setDescription(description)
     .addFields(fields)
     .setFooter({
-      text: `Page ${safePage} of ${TOTAL_HELP_PAGES} • Tip: Run -help <1-6> to jump directly to any page • BTFW Guide`,
+      text: `Page ${safePage} of ${TOTAL_HELP_PAGES} • Tip: Run -help <1-${TOTAL_HELP_PAGES}> to jump directly to any page • BTFW Guide`,
       iconURL: client?.user?.displayAvatarURL?.() || undefined
     })
     .setTimestamp();
