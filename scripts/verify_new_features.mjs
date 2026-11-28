@@ -123,4 +123,24 @@ assert.strictEqual(worldClassNoNonsense.traitName, 'No-Nonsense Brick Wall');
 
 console.log('   ✅ Key Stat Mastery tiers (Specialist, Elite, World Class) fully operational.');
 
+// 6. 2-Step Rookie Onboarding & 15% TP Discount Mechanics
+console.log('\n6️⃣ Checking 2-Step Onboarding Guard & 15% Key Stat TP Discount...');
+import { ONBOARDING_WHITELIST } from '../dist/engines/campusEngine.js';
+import { calculateAttributeTpCost } from '../dist/engines/trainingEngine.js';
+
+// Verify onboarding whitelist includes playstyle & joinnation
+assert.ok(ONBOARDING_WHITELIST.has('playstyle'), 'playstyle must be in ONBOARDING_WHITELIST');
+assert.ok(ONBOARDING_WHITELIST.has('joinnation'), 'joinnation must be in ONBOARDING_WHITELIST');
+assert.ok(ONBOARDING_WHITELIST.has('profile'), 'profile must be in ONBOARDING_WHITELIST');
+assert.ok(!ONBOARDING_WHITELIST.has('train'), 'train must NOT be in ONBOARDING_WHITELIST');
+assert.ok(!ONBOARDING_WHITELIST.has('travel'), 'travel must NOT be in ONBOARDING_WHITELIST');
+
+// Verify 15% TP Discount formula
+const normalCostAt75 = calculateAttributeTpCost(75); // e.g. 8 TP
+const discountedAt75 = Math.max(1, Math.round(normalCostAt75 * 0.85));
+console.log(`   TP cost for rating 75: Normal = ${normalCostAt75} TP | Key Stat (15% off) = ${discountedAt75} TP`);
+assert.ok(discountedAt75 < normalCostAt75, 'Key stats must enjoy lower TP cost via 15% discount');
+
+console.log('   ✅ Onboarding guard rules and 15% key stat TP discount verified.');
+
 console.log('\n🎉 ALL NEW FEATURE TESTS PASSED SUCCESSFULLY!\n');

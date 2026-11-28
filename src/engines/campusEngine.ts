@@ -117,6 +117,13 @@ export function findLocationChannel(guild: Guild, locId: string) {
   return undefined;
 }
 
+export const ONBOARDING_WHITELIST = new Set([
+  'playstyle', 'setplaystyle', 'pickplaystyle', 'chooseplaystyle', 'styles', 'roles',
+  'joinnation', 'nation', 'nations',
+  'profile', 'p', 'bio', 'setdesc',
+  'help', 'setup', 'setupemojis', 'gitpull'
+]);
+
 /**
  * Validates that a command or facility interaction is executed from its designated
  * campus location (DB `currentLocation`) and corresponding Discord channel.
@@ -136,6 +143,38 @@ export async function validateCommandAccess(options: {
     return { allowed: false, message: lockout.message };
   }
 
+  // Commands whitelisted during onboarding
+  if (ONBOARDING_WHITELIST.has(normalizedCmd)) {
+    return { allowed: true };
+  }
+
+  // 2-Step Rookie Onboarding Guard
+  const player = await prisma.player.findUnique({
+    where: { id: userId },
+    select: { currentLocation: true, playstyle: true, nationId: true }
+  });
+
+  if (!player || !player.playstyle || player.playstyle === 'NONE') {
+    return {
+      allowed: false,
+      message:
+        `⚠️ **Onboarding Step 1/2 Required:**\n` +
+        `You have no tactical playstyle and no campus location!\n` +
+        `Please choose your starting playstyle to enter the Training Ground:\n` +
+        `👉 **Run:** \`-playstyle <choice>\` (e.g. \`-playstyle pch\`, \`-playstyle b2b\`, \`-playstyle nnd\`)`
+    };
+  }
+
+  if (!player.nationId) {
+    return {
+      allowed: false,
+      message:
+        `⚠️ **Onboarding Step 2/2 Required:**\n` +
+        `You must pledge allegiance to a National Team before using campus facilities!\n` +
+        `👉 **Run:** \`-joinnation <alias>\` (e.g. \`-joinnation eng\`, \`-joinnation bra\`) to claim your **+100k coins** bonus and unlock full campus access!`
+    };
+  }
+
   const requiredLocId = COMMAND_LOCATION_MAP[normalizedCmd];
   if (!requiredLocId) {
     return { allowed: true };
@@ -144,11 +183,6 @@ export async function validateCommandAccess(options: {
   const loc = CAMPUS_LOCATIONS[requiredLocId];
   const targetChannel = guild ? findLocationChannel(guild, requiredLocId) : undefined;
   const wrongChannel = Boolean(guild && targetChannel && channelId !== targetChannel.id);
-
-  const player = await prisma.player.findUnique({
-    where: { id: userId },
-    select: { currentLocation: true }
-  });
 
   if (!player) {
     const channelHint = targetChannel ? ` (<#${targetChannel.id}>)` : '';
@@ -235,10 +269,19 @@ export async function travelToLocation(
         username: member.user.username,
         discriminator: member.user.discriminator !== '0' ? member.user.discriminator : null,
         avatar: member.user.displayAvatarURL(),
-        currentLocation: 'tc'
+        currentLocation: 'none',
+        playstyle: 'NONE',
+        position: 'ATT'
       },
       include: { vehicles: true }
     });
+  }
+
+  if (!player.playstyle || player.playstyle === 'NONE') {
+    return {
+      success: false,
+      message: '❌ You must choose a playstyle before traveling! Run `-playstyle <choice>` to enter the Training Ground.'
+    };
   }
 
   if (player.currentLocation === targetLoc.id) {

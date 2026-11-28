@@ -200,9 +200,15 @@ export function buildProfileEmbed(
   hasBannerImage = false
 ): EmbedBuilder {
   const derived = calculateDerivedRatings(player);
-  const loc = CAMPUS_LOCATIONS[player.currentLocation] || CAMPUS_LOCATIONS.tc;
-  const style = PLAYSTYLES[player.playstyle] || PLAYSTYLES.PCH;
+  const hasPlaystyle = player.playstyle && player.playstyle !== 'NONE';
+  const style = hasPlaystyle ? (PLAYSTYLES[player.playstyle] || PLAYSTYLES.PCH) : null;
+  const playstyleDisplay = style ? `${style.emoji} ${style.name} (${style.code})` : '❓ *Unselected (`-playstyle`)*';
+  const posDisplay = style ? style.position : '*Pending*';
+  const hasLoc = player.currentLocation && player.currentLocation !== 'none';
+  const loc = hasLoc ? (CAMPUS_LOCATIONS[player.currentLocation] || CAMPUS_LOCATIONS.tc) : null;
+  const locDisplay = loc ? `${loc.emoji} ${loc.name} (\`-travel ${loc.alias}\`)` : '❓ *No Location (`-playstyle` to enter Training Ground)*';
   const flag = getNationFlag(player.nation);
+  const nationDisplay = player.nation ? `${flag} ${player.nation.name}` : '❓ *None (`-joinnation`)*';
   const isVip = player.vipTier >= 1;
   const vipBadge = isVip ? '👑 `[ VIP ]`' : '';
   const staminaEmoji = getEmoji(guild, 'stamina');
@@ -245,12 +251,19 @@ export function buildProfileEmbed(
       ? `${recentForm.join(' | ')} ⭐`
       : '*No matches played yet*';
 
+    let onboardingNotice = '';
+    if (!hasPlaystyle) {
+      onboardingNotice = `⚠️ **Rookie Onboarding (Step 1/2):** Run \`-playstyle\` to choose your role and enter the Training Center!\n\n`;
+    } else if (!player.nationId) {
+      onboardingNotice = `⚠️ **Rookie Onboarding (Step 2/2):** Run \`-joinnation\` to join a country and claim your **+100k bonus**!\n\n`;
+    }
+
     const sections = [
-      `*${player.bio || 'Rising football prodigy aiming for the World Cup trophy.'}*`,
+      onboardingNotice + `*${player.bio || 'Rising football prodigy aiming for the World Cup trophy.'}*`,
       `### 🛡️ Team Stats\n` +
-      `**Nation :** ${flag} ${player.nation?.name || 'Free Agent'} (\`-joinnation\`)\n` +
+      `**Nation :** ${nationDisplay}\n` +
       `**Club :** ${player.club?.name || 'Free Agent'}\n` +
-      `**Location :** ${loc.emoji} ${loc.name} (\`-travel ${loc.alias}\`)`,
+      `**Location :** ${locDisplay}`,
       `### 📊 Individual Stats\n` +
       `**Appearances :** ${player.matchesPlayed || 0} 🎯\n` +
       `**Goals :** ${player.goalsScored || 0} ⚽\n` +
@@ -262,8 +275,8 @@ export function buildProfileEmbed(
       `### 📈 Recent Form\n` +
       `**Last 5 Ratings :** ${recentFormText}`,
       `### ⚡ Player Attributes\n` +
-      `**Playstyle :** ${style.emoji} ${style.name} (${style.code})\n` +
-      `**Position :** ${style.position}  •  **OVR :** ${ovr}\n` +
+      `**Playstyle :** ${playstyleDisplay}\n` +
+      `**Position :** ${posDisplay}  •  **OVR :** ${ovr}\n` +
       `**Ratings :** ATK **${derived.atk}** | MID **${derived.mid}** | DEF **${derived.def}**\n` +
       `**Stamina :** ${staminaEmoji} ${player.stamina}/100\n` +
       `**Training Pts :** ${tpEmoji} ${player.trainingPoints}\n` +
@@ -341,10 +354,14 @@ export function buildProfileEmbed(
     return `\`${code.padEnd(3)} ${name.padEnd(13)} ${String(val).padStart(2)} [${bar}]\``;
   };
 
+  const playstyleHeader = style
+    ? `**Playstyle :** ${style.emoji} ${style.name} (${style.code})\n` +
+      `*${style.description}*\n\n` +
+      `• **Key Stats :** ${style.keyStats.map(s => s.toUpperCase()).join(', ')}\n`
+    : `**Playstyle :** ❓ *Unselected (Run \`-playstyle <choice>\`)*\n\n`;
+
   const attrSections = [
-    `**Playstyle :** ${style.emoji} ${style.name} (${style.code})\n` +
-    `*${style.description}*\n\n` +
-    `• **Key Stats :** ${style.keyStats.map(s => s.toUpperCase()).join(', ')}\n` +
+    `${playstyleHeader}` +
     `• **Derived Ratings :** ATK ${derived.atk} | MID ${derived.mid} | DEF ${derived.def} | OVR ${ovr} (${seasonRank})\n` +
     `• **TP Available :** ${tpEmoji} ${player.trainingPoints} TP`,
     `🔴 **Attacking**\n` +
@@ -438,7 +455,9 @@ export async function handleProfileCommand(message: Message, args: string[]) {
           username: message.author.username,
           discriminator: message.author.discriminator !== '0' ? message.author.discriminator : null,
           avatar: message.author.displayAvatarURL(),
-          currentLocation: 'tc'
+          currentLocation: 'none',
+          playstyle: 'NONE',
+          position: 'ATT'
         },
         include: { vehicles: true, nation: true, club: true, inventory: true }
       });

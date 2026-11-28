@@ -15,10 +15,16 @@
   - *Defending*: Tackling (`TCK`), Interceptions (`INT`), Marking (`MRK`)
   - *Physical & Mental*: Pace (`PAC`), Physicality (`PHY`), Composure (`CMP`), Agility (`AGI`), Work Rate (`WRK`)
   - *Derived Ratings*: `ATK`, `MID`, `DEF`
-- **9 Tactical Playstyles**:
-  - Attacker: Poacher (`PCH`), Speedster (`SPD`), Target Man (`TGT`)
-  - Midfielder: Playmaker (`PLM`), Box-to-Box (`B2B`), Anchor (`ANC`)
-  - Defender: Stopper (`STP`), Sweeper (`SWP`), Ball-Playing Defender (`BPD`)
+- **2-Step Mandatory Rookie Onboarding**:
+  - Step 1: `-playstyle <choice>` chooses tactical role, sets position (`ATT`, `MID`, `DEF`), and unlocks `#training-center` (`tc`).
+  - Step 2: `-joinnation <alias>` signs for a National Team, awards **+100,000 coins** and **+100,000 followers**, and unlocks all campus facilities.
+- **18 Balanced Tactical Playstyles (6 Strikers, 6 Midfielders, 6 Defenders)**:
+  - *Strikers (ATT)*: Poacher (`PCH`), False Nine (`F9`), Target Man (`TGT`), Speedster (`SPD`), Inside Forward (`INF`), Pressing Forward (`PFW`)
+  - *Midfielders (MID)*: Enganche (`ENG`), Box-to-Box (`B2B`), Mezzala (`MEZ`), Regista (`REG`), Ball Winner (`BWM`), Anchor Man (`ANC`)
+  - *Defenders (DEF)*: No-Nonsense DC (`NND`), Ball Playing DC (`BPD`), Stopper (`STP`), Covering Defender (`COV`), Aerial Titan (`AER`), Wide Centre-Back (`WCB`)
+- **Key Stat Mastery & 15% TP Discount**:
+  - Each playstyle has 3 Key Stats granting a **15% TP discount** when upgraded at the Biomechanics Lab (`-sptrain`).
+  - In-match Key Stat Mastery tiers (`Specialist` 70+, `Elite` 80+, `World Class` 90+) drive duel victory rates, rating floors, and signature traits.
 - **AI-Powered Match Engine**:
   - 90-minute narrative tactical commentary with goals, assists, saves, tackles, and cards.
   - Generates sensational newspaper articles with headlines, MOTM, and post-match player quotes.
@@ -33,6 +39,8 @@
 
 | Category | Command | Description |
 | :--- | :--- | :--- |
+| **Onboarding** | `-playstyle [choice]` | Step 1/2: Choose tactical role & unlock Training Center (`tc`) |
+| | `-joinnation <alias>` | Step 2/2: Sign for national squad (+100k coins & followers) & unlock campus |
 | **Profile** | `-profile [@user]` | View complete player card, attributes, and garage |
 | | `-theme [alias]` | Browse and apply 20 custom stadium backdrop themes |
 | | `-daily` | Claim daily matchday check-in stipend (streak rewards & 7-day bonus) |
@@ -40,7 +48,6 @@
 | | `-setdesc <text>` | Set personal profile bio (up to 100 chars) |
 | | `-lb [category]` | Server leaderboards (`goals`, `wealth`, `followers`, `ovr`) |
 | | `-give @user <amount>` | Wire transfer coins to another player |
-| | `-joinnation <alias>` | Pledge loyalty to national squad (locked after 3 official caps) |
 | **Campus** | `-locations` | View campus facilities directory |
 | | `-travel <alias>` | Travel to facility (`tc`, `rf`, `ch`, `gm`, `ph`, `ih`, `ah`) |
 | | `-showroom` | Inspect exotic vehicles catalog (`gm`) |

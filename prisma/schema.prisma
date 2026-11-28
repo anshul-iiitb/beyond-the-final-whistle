@@ -13,9 +13,9 @@ model Player {
   discriminator         String?
   avatar                String?
   bio                   String?           @default("Rookie footballer aiming for the World Cup.")
-  playstyle             String            @default("PCH") // PCH, SPD, TGT, PLM, B2B, ANC, STP, SWP, BPD
+  playstyle             String            @default("NONE") // PCH, F9, TGT, SPD, INF, PFW, ENG, B2B, MEZ, REG, BWM, ANC, NND, BPD, STP, COV, AER, WCB
   position              String            @default("ATT") // ATT, MID, DEF
-  currentLocation       String            @default("tc") // tc, rf, ch, gm, ph, ih, ah
+  currentLocation       String            @default("none") // tc, rf, ch, gm, ph, ih, ah, none
   travelUntil           DateTime?
   stamina               Int               @default(100)
   maxStamina            Int               @default(100)
