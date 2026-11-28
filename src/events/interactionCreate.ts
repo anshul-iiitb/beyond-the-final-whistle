@@ -1,4 +1,4 @@
-import { Interaction, ButtonInteraction, StringSelectMenuInteraction, TextChannel, MessageFlags, EmbedBuilder } from 'discord.js';
+import { Interaction, ButtonInteraction, StringSelectMenuInteraction, ModalSubmitInteraction, TextChannel, MessageFlags, EmbedBuilder } from 'discord.js';
 import { executeTraining, upgradeAttribute } from '../engines/trainingEngine.js';
 import { buildTrainingSuccessEmbed, buildSpTrainLabPayload } from '../commands/trainingCommands.js';
 import { executeSponsorAdvert, applyTweetVote, buildUpdatedTweetEmbed } from '../engines/socialEngine.js';
@@ -17,6 +17,7 @@ import { logger } from '../utils/logger.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { validateCommandAccess } from '../engines/campusEngine.js';
 import { buildHelpMenuPayload } from '../commands/helpCommand.js';
+import { handleBlueprintButton, handleBlueprintModalSubmit } from '../tournaments/blueprintInteractions.js';
 
 const INTERACTION_CMD_PREFIX_MAP: Array<{ prefix: string; exact?: boolean; cmd: string }> = [
   { prefix: 'sptrain_select_', cmd: 'sptrain' },
@@ -28,10 +29,18 @@ const INTERACTION_CMD_PREFIX_MAP: Array<{ prefix: string; exact?: boolean; cmd: 
 ];
 
 export async function onInteractionCreate(interaction: Interaction) {
-  if (!interaction.isButton() && !interaction.isStringSelectMenu()) return;
+  if (!interaction.isButton() && !interaction.isStringSelectMenu() && !interaction.isModalSubmit()) return;
 
   try {
     const customId = interaction.customId;
+
+    // Blueprint builder buttons & modals
+    if (interaction.isButton() && customId.startsWith('bp_')) {
+      return await handleBlueprintButton(interaction);
+    }
+    if (interaction.isModalSubmit() && customId.startsWith('bp_modal_')) {
+      return await handleBlueprintModalSubmit(interaction);
+    }
 
     const matchedRule = INTERACTION_CMD_PREFIX_MAP.find(r =>
       r.exact ? customId === r.prefix : customId.startsWith(r.prefix)

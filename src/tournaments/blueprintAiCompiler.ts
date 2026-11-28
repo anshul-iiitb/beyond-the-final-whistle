@@ -62,6 +62,9 @@ function stripJsonFences(raw: string): string {
   return trimmed;
 }
 
+/**
+ * Parses compact offline DSL lines into a BlueprintDefinition.
+ */
 export function parseCompactDslToBlueprint(rawText: string, defaultName: string = 'Custom Tournament'): BlueprintDefinition | null {
   const lines = rawText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   let name = defaultName;
@@ -139,20 +142,200 @@ export function parseCompactDslToBlueprint(rawText: string, defaultName: string 
   return BlueprintDefinitionSchema.parse({ name, description, stages });
 }
 
+/**
+ * Smart offline heuristic parser for popular natural language tournament rules.
+ */
+export function parseNaturalLanguageHeuristics(
+  input: string,
+  preferredName?: string
+): BlueprintDefinition | null {
+  const text = input.toLowerCase();
+
+  // Pattern A: Round-robin league -> 2nd vs 3rd qualifier -> Grand Final (User's specific case)
+  if (
+    (text.includes('round-robin') || text.includes('round robin') || text.includes('league stage')) &&
+    (text.includes('qualifier') || text.includes('playoff')) &&
+    (text.includes('grand final') || text.includes('final'))
+  ) {
+    const has2ndVs3rd = text.includes('2nd') || text.includes('second');
+    const stages: BlueprintStage[] = [
+      {
+        kind: 'GROUPS',
+        name: 'Stage 1: Round-Robin League',
+        groups: ['A'],
+        legs: text.includes('two legs') || text.includes('2 legs') || text.includes('home and away') ? 2 : 1,
+        resetStandings: false,
+      },
+    ];
+
+    if (has2ndVs3rd) {
+      stages.push({
+        kind: 'KNOCKOUT',
+        name: 'Stage 2: Playoff Qualifier (2nd vs 3rd)',
+        roundTag: 'PLAY_IN',
+        pairingMode: 'SEEDED',
+        qualifiers: ['A:2-3'],
+        matchups: [
+          { homeSelector: 'A:2', awaySelector: 'A:3', label: 'Playoff Qualifier' },
+        ],
+        legs: 1,
+      });
+
+      stages.push({
+        kind: 'KNOCKOUT',
+        name: 'Stage 3: Grand Final',
+        roundTag: 'FINAL',
+        pairingMode: 'SEEDED',
+        qualifiers: ['A:1', 'PREV_WIN:1'],
+        matchups: [
+          { homeSelector: 'A:1', awaySelector: 'PREV_WIN:1', label: 'Grand Final (1st vs Qualifier Winner)' },
+        ],
+        legs: 1,
+      });
+    } else {
+      // Top 2 to final directly
+      stages.push({
+        kind: 'KNOCKOUT',
+        name: 'Stage 2: Grand Final',
+        roundTag: 'FINAL',
+        pairingMode: 'SEEDED',
+        qualifiers: ['A:1-2'],
+        matchups: [
+          { homeSelector: 'A:1', awaySelector: 'A:2', label: 'Grand Final' },
+        ],
+        legs: 1,
+      });
+    }
+
+    return BlueprintDefinitionSchema.parse({
+      name: preferredName || 'Single Round-Robin with Playoffs',
+      description: input.trim(),
+      stages,
+    });
+  }
+
+  // Pattern B: 2 Groups -> Top 2 advance to Semi-Finals -> Grand Final
+  if (
+    (text.includes('2 groups') || text.includes('two groups')) &&
+    (text.includes('semi') || text.includes('semis')) &&
+    (text.includes('final') || text.includes('finals'))
+  ) {
+    const legs = text.includes('two legs') || text.includes('2 legs') ? 2 : 1;
+    const stages: BlueprintStage[] = [
+      {
+        kind: 'GROUPS',
+        name: 'Stage 1: Group Stage (Groups A & B)',
+        groups: ['A', 'B'],
+        legs,
+      },
+      {
+        kind: 'KNOCKOUT',
+        name: 'Stage 2: Semi-Finals',
+        roundTag: 'SEMI_FINAL',
+        pairingMode: 'CROSS_GROUP',
+        qualifiers: ['A:1-2', 'B:1-2'],
+        matchups: [
+          { homeSelector: 'A:1', awaySelector: 'B:2', label: 'Semi-Final 1' },
+          { homeSelector: 'B:1', awaySelector: 'A:2', label: 'Semi-Final 2' },
+        ],
+        legs: 1,
+      },
+      {
+        kind: 'KNOCKOUT',
+        name: 'Stage 3: Grand Final',
+        roundTag: 'FINAL',
+        pairingMode: 'SEEDED',
+        qualifiers: ['PREV_WIN:ALL'],
+        matchups: [
+          { homeSelector: 'PREV_WIN:1', awaySelector: 'PREV_WIN:2', label: 'Grand Final' },
+        ],
+        legs: 1,
+      },
+    ];
+
+    return BlueprintDefinitionSchema.parse({
+      name: preferredName || '2-Group Champions Cup',
+      description: input.trim(),
+      stages,
+    });
+  }
+
+  // Pattern C: 4 Groups -> Top 2 to Quarter-Finals -> Semi-Finals -> Final (World Cup style)
+  if (
+    (text.includes('4 groups') || text.includes('four groups')) &&
+    (text.includes('quarter') || text.includes('quarters')) &&
+    text.includes('final')
+  ) {
+    const stages: BlueprintStage[] = [
+      {
+        kind: 'GROUPS',
+        name: 'Stage 1: Group Stage (A, B, C, D)',
+        groups: ['A', 'B', 'C', 'D'],
+        legs: 1,
+      },
+      {
+        kind: 'KNOCKOUT',
+        name: 'Stage 2: Quarter-Finals',
+        roundTag: 'QUARTER_FINAL',
+        pairingMode: 'CROSS_GROUP',
+        qualifiers: ['A:1-2', 'B:1-2', 'C:1-2', 'D:1-2'],
+        matchups: [
+          { homeSelector: 'A:1', awaySelector: 'B:2', label: 'QF 1' },
+          { homeSelector: 'C:1', awaySelector: 'D:2', label: 'QF 2' },
+          { homeSelector: 'B:1', awaySelector: 'A:2', label: 'QF 3' },
+          { homeSelector: 'D:1', awaySelector: 'C:2', label: 'QF 4' },
+        ],
+        legs: 1,
+      },
+      {
+        kind: 'KNOCKOUT',
+        name: 'Stage 3: Semi-Finals',
+        roundTag: 'SEMI_FINAL',
+        pairingMode: 'SEEDED',
+        qualifiers: ['PREV_WIN:ALL'],
+        legs: 1,
+      },
+      {
+        kind: 'KNOCKOUT',
+        name: 'Stage 4: Grand Final',
+        roundTag: 'FINAL',
+        pairingMode: 'SEEDED',
+        qualifiers: ['PREV_WIN:ALL'],
+        legs: 1,
+      },
+    ];
+
+    return BlueprintDefinitionSchema.parse({
+      name: preferredName || '4-Group World Cup Format',
+      description: input.trim(),
+      stages,
+    });
+  }
+
+  return null;
+}
+
 export async function compileTextToBlueprint(
   rawInput: string,
   preferredName?: string
-): Promise<{ blueprint: BlueprintDefinition; compiler: 'DSL' | 'AI' }> {
-  // First attempt fast offline DSL parsing
+): Promise<{ blueprint: BlueprintDefinition; compiler: 'DSL' | 'HEURISTIC' | 'AI' }> {
+  // 1. Fast offline compact DSL parser
   const dslAttempt = parseCompactDslToBlueprint(rawInput, preferredName || 'Custom Tournament');
   if (dslAttempt) {
     return { blueprint: dslAttempt, compiler: 'DSL' };
   }
 
+  // 2. High-speed offline natural language heuristic matcher
+  const heuristicAttempt = parseNaturalLanguageHeuristics(rawInput, preferredName);
+  if (heuristicAttempt) {
+    return { blueprint: heuristicAttempt, compiler: 'HEURISTIC' };
+  }
+
+  // 3. OpenRouter AI Compiler
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey?.trim()) {
     throw new Error(
-      'AI Blueprint Compiler requires `OPENROUTER_API_KEY` set in .env. Alternatively, provide compact DSL lines (`GROUPS ...` / `KO ...`).'
+      'AI Blueprint Compiler requires `OPENROUTER_API_KEY` in .env. Alternatively, provide compact DSL lines (`GROUPS ...` / `KO ...`).'
     );
   }
 
@@ -160,11 +343,14 @@ export async function compileTextToBlueprint(
     (preferredName ? `Tournament Format Name: ${preferredName}\n\n` : '') +
     `Convert this tournament structure and rules into valid JSON Blueprint:\n\n${rawInput.trim()}`;
 
+  // Use active working free & low-cost models on OpenRouter
   const models = [
-    'openai/gpt-4o-mini',
+    'openrouter/free',
     'nvidia/nemotron-3.5-lightning:free',
+    'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+    'google/gemma-4-31b-it:free',
     'google/gemma-4-26b-a4b-it:free',
-    'meta-llama/llama-3.1-8b-instruct:free'
+    'openai/gpt-4o-mini',
   ];
 
   let rawJsonText: string | null = null;
@@ -186,10 +372,10 @@ export async function compileTextToBlueprint(
             { role: 'system', content: COMPILER_SYSTEM_PROMPT },
             { role: 'user', content: prompt },
           ],
-          temperature: 0.15,
-          max_tokens: 2000,
+          temperature: 0.1,
+          max_tokens: 1200,
         }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(20000),
       });
 
       if (response.ok) {
@@ -218,7 +404,7 @@ export async function compileTextToBlueprint(
     rawParsed = JSON.parse(clean);
   } catch (err: any) {
     logger.error({ clean, err: err.message }, 'Failed to parse AI JSON response');
-    throw new Error('AI output could not be parsed as valid JSON. Try describing the stages more clearly or use DSL lines.');
+    throw new Error('AI output could not be parsed as valid JSON. Try describing the stages more clearly or use the interactive Stage Builder.');
   }
 
   if (preferredName?.trim()) {

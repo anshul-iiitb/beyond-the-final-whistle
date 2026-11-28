@@ -165,13 +165,15 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
         `${UI.DIVIDER}`;
       fields.push(
         {
-          name: '🧩 AI Blueprint Engine (-blueprint / -bp)',
+          name: '🧩 Tournament Blueprint Engine (-blueprint / -bp)',
           value:
-            '• `-blueprint create <slug> <natural language rules>` — AI compiles rules into multi-stage JSON!\n' +
-            '  *Example:* `-blueprint create world-cup 4 Groups of 4 -> Top 2 each to Quarters -> Semis -> Final`\n' +
+            '• `-blueprint create [name]` — Open interactive step-by-step Builder UI with buttons & modals!\n' +
+            '• `-blueprint create <slug> <rules>` — Compile natural language or compact DSL into multi-stage format.\n' +
+            '  *Example:* `-blueprint create champions-cup 2 Groups of 4 -> Top 2 advance to Semi-Finals -> Grand Final`\n' +
+            '• `-blueprint presets` / `-blueprint list` — Browse built-in presets (`round-robin`, `meridian`, `champions-cup`, `classic-knockout`) & custom formats.\n' +
             '• `-blueprint view <slug>` — Inspect stages, routing rules, and pairing modes.\n' +
-            '• `-blueprint list` — Browse all custom saved tournament formats.\n' +
-            '• `-blueprint delete <slug>` — Remove a tournament blueprint.'
+            '• `-blueprint export <slug>` / `-blueprint import <json>` — Export/import tournament blueprints as JSON.\n' +
+            '• `-blueprint delete <slug>` — Remove a custom tournament blueprint.'
         },
         {
           name: '🏆 Tournament Operations (-tourney / -cup)',

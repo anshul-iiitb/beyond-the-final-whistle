@@ -6,6 +6,7 @@ import {
   RoundTag,
   formatBlueprintStagesLines,
 } from './blueprintTypes.js';
+import { getBlueprintBySlugOrName } from './blueprintStoreService.js';
 import { StandingTeamLike, compareStandings, evaluateSelector, KnockoutFixtureLike } from './selectorEvaluator.js';
 import { logger } from '../utils/logger.js';
 
@@ -284,15 +285,12 @@ export async function applyBlueprintToTournament(tournamentId: string, blueprint
     throw new Error(`Cannot change blueprint: ${played} match(es) have already been played.`);
   }
 
-  const bp = await prisma.tournamentBlueprint.findUnique({
-    where: { slug: blueprintSlug },
-  });
+  const bp = await getBlueprintBySlugOrName(blueprintSlug);
   if (!bp) {
-    throw new Error(`Blueprint "${blueprintSlug}" not found. Create one with \`-blueprint create\`.`);
+    throw new Error(`Blueprint "${blueprintSlug}" not found. Check \`-blueprint list\` or create one with \`-blueprint create\`.`);
   }
 
-  const stagesRaw = typeof bp.stagesJson === 'string' ? JSON.parse(bp.stagesJson) : bp.stagesJson;
-  const stages: BlueprintStage[] = BlueprintDefinitionSchema.shape.stages.parse(stagesRaw);
+  const stages = bp.stages;
   const stage0 = stages[0];
 
   if (tourney.fixtures.length > 0) {
