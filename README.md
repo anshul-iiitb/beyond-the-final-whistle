@@ -83,6 +83,7 @@
 | | `-roster <alias>` | View national team squad lineup |
 | **Admin & VIP** | `-vip [perks]` | View full VIP Privileges & Super-Perks or manage duration |
 | | `-setup` | Automatically build campus channels, friendly ground & VIP lounge |
+| | `-setupmod` | Configure Match Moderator permissions (locks rival rooms, grants admin chat) |
 | | `-setlimit <nation\|club> <alias\|all> <limit>` | Set maximum squad roster player limits |
 | | `-locknation <alias>` / `-unlocknation <alias>` | Lock or unlock nations from player registration |
 | | `-teamlimits` | View squad roster counts and capacity limits across all teams |

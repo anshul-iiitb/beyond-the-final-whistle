@@ -37,7 +37,8 @@ import {
   handleSetLimitCommand,
   displayTeamLimitsOverview,
   handleLockTeamCommand,
-  handleUnlockTeamCommand
+  handleUnlockTeamCommand,
+  handleSetupModRoleCommand
 } from '../commands/adminCommands.js';
 import { handleHelpCommand } from '../commands/helpCommand.js';
 import { handleBTFWGitPull, handleBTFWGitPullBack } from '../services/gitService.js';
@@ -299,7 +300,13 @@ export async function onMessageCreate(message: Message) {
       // Admin & Server Setup
       case 'setup':
       case 'setupcampus':
-        await handleSetupCommand(message);
+        await handleSetupCommand(message, args);
+        break;
+      case 'setupmod':
+      case 'setupmatchmod':
+      case 'setupmoderator':
+      case 'modsetup':
+        await handleSetupModRoleCommand(message);
         break;
       case 'setupemojis':
       case 'emojis':

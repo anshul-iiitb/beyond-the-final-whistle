@@ -16,6 +16,7 @@ import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { installCustomServerEmojis, getEmoji } from '../utils/emojiHelper.js';
 import { parseCoinAmount, formatK } from '../utils/formatHelper.js';
 import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
+import { logger } from '../utils/logger.js';
 
 const MASTER_ADMIN = '478599245276905495';
 
@@ -25,7 +26,11 @@ function isAuthorized(message: Message): boolean {
   return false;
 }
 
-export async function handleSetupCommand(message: Message) {
+export async function handleSetupCommand(message: Message, args?: string[]) {
+  if (args && (args[0]?.toLowerCase() === 'mod' || args[0]?.toLowerCase() === 'matchmod')) {
+    return await handleSetupModRoleCommand(message);
+  }
+
   if (!isAuthorized(message)) {
     return await message.reply('❌ Unauthorized: Administrator permissions required.');
   }
@@ -168,6 +173,186 @@ export async function handleSetupCommand(message: Message) {
     );
   } catch (err: any) {
     await statusMsg.edit(`❌ Setup failed: ${err.message}`);
+  }
+}
+
+/**
+ * Automated setup command to configure Match Moderator role permissions:
+ * - Strips Administrator flag (so hidden channels are respected)
+ * - Denies ViewChannel on all rival National Team and Club channels
+ * - Grants ViewChannel only to joined nation/club via player role
+ * - Grants ViewChannel & SendMessages to Admin / Staff Chat
+ */
+export async function handleSetupModRoleCommand(message: Message) {
+  if (!isAuthorized(message)) {
+    return await message.reply('❌ Unauthorized: Administrator permissions required.');
+  }
+
+  const guild = message.guild;
+  if (!guild) return;
+
+  const statusMsg = await message.reply('⚙️ **Configuring Match Moderator Role & Channel Overwrites...**');
+
+  try {
+    // 1. Locate or create Match Moderator role
+    let modRole = guild.roles.cache.find(r =>
+      r.name.toLowerCase().includes('match moderator') ||
+      r.name.toLowerCase().includes('match mod')
+    ) || guild.roles.cache.find(r =>
+      r.name.toLowerCase() === 'moderator' ||
+      (r.name.toLowerCase().includes('mod') && !r.name.toLowerCase().includes('model'))
+    );
+
+    let createdRole = false;
+    if (!modRole) {
+      modRole = await guild.roles.create({
+        name: 'Match Moderator',
+        color: 0x3498db,
+        reason: 'Automated Match Moderator role setup by Beyond The Final Whistle'
+      });
+      createdRole = true;
+    }
+
+    // 2. Adjust role permissions
+    // Standard moderation permissions without Administrator or ManageChannels
+    const targetPermissions = [
+      PermissionFlagsBits.ViewChannel,
+      PermissionFlagsBits.SendMessages,
+      PermissionFlagsBits.ReadMessageHistory,
+      PermissionFlagsBits.ManageMessages,
+      PermissionFlagsBits.ModerateMembers,
+      PermissionFlagsBits.EmbedLinks,
+      PermissionFlagsBits.AttachFiles,
+      PermissionFlagsBits.AddReactions,
+      PermissionFlagsBits.UseExternalEmojis
+    ];
+
+    let permWarning = '';
+    const botMember = guild.members.me;
+    if (botMember && botMember.roles.highest.position > modRole.position) {
+      await modRole.setPermissions(targetPermissions, 'Scoping Match Moderator permissions (disable Administrator)').catch((err: any) => {
+        permWarning = `*(Could not update role flags: ${err.message})*`;
+      });
+    } else {
+      permWarning = `⚠️ *Bot role is below or equal to <@&${modRole.id}> in role hierarchy. Please drag the bot's role above <@&${modRole.id}> in Server Settings > Roles to allow automatic permission adjustment.*`;
+    }
+
+    // 3. Find National Teams & Club channels to lock out
+    const [nations, clubs] = await Promise.all([
+      prisma.nationalTeam.findMany(),
+      prisma.footballClub.findMany()
+    ]);
+
+    const nationKeywords = [
+      'netherlands', 'germany', 'portugal', 'spain', 'france',
+      'england', 'brazil', 'argentina', 'italy', 'belgium',
+      ...nations.map(n => n.name.toLowerCase()),
+      ...nations.map(n => n.alias.toLowerCase())
+    ];
+
+    const lockedNationChannels: string[] = [];
+    const lockedClubChannels: string[] = [];
+
+    // Scan text channels and categories
+    for (const channel of guild.channels.cache.values()) {
+      if (!('permissionOverwrites' in channel)) continue;
+
+      const name = channel.name.toLowerCase();
+      const parentName = channel.parent ? channel.parent.name.toLowerCase() : '';
+
+      const isNationCategory = channel.type === ChannelType.GuildCategory && (
+        name.includes('nation') || name.includes('federation') || name.includes('international')
+      );
+      const isNationChannel = (
+        parentName.includes('nation') ||
+        parentName.includes('federation') ||
+        parentName.includes('international') ||
+        nationKeywords.some(k => name.includes(k))
+      ) && !name.includes('friendly') && !name.includes('live-match') && !name.includes('locations');
+
+      if (isNationCategory || isNationChannel) {
+        await channel.permissionOverwrites.create(modRole.id, {
+          ViewChannel: false
+        }, { reason: 'Match Moderators cannot spy on rival nations (only see joined nation)' }).catch(() => {});
+
+        if (channel.type === ChannelType.GuildText) {
+          lockedNationChannels.push(`<#${channel.id}>`);
+        }
+      }
+
+      // Club channels
+      const isClubCategory = channel.type === ChannelType.GuildCategory && (
+        name.includes('club') || name.includes('franchise')
+      );
+      const isClubChannel = (
+        parentName.includes('club') ||
+        parentName.includes('franchise') ||
+        clubs.some(c => name.includes(c.alias.toLowerCase()) || name.includes(c.name.toLowerCase()))
+      ) && !name.includes('friendly') && !name.includes('clubhouse') && !name.includes('locations');
+
+      if (isClubCategory || isClubChannel) {
+        await channel.permissionOverwrites.create(modRole.id, {
+          ViewChannel: false
+        }, { reason: 'Match Moderators cannot spy on rival clubs (only see joined club)' }).catch(() => {});
+
+        if (channel.type === ChannelType.GuildText) {
+          lockedClubChannels.push(`<#${channel.id}>`);
+        }
+      }
+    }
+
+    // 4. Find Admin Chat / Staff Chat channels and grant View + Send permissions
+    const adminChannels = guild.channels.cache.filter(c =>
+      c.isTextBased() && (
+        c.name.toLowerCase().includes('admin-chat') ||
+        c.name.toLowerCase().includes('staff-chat') ||
+        c.name.toLowerCase().includes('mod-chat') ||
+        c.name.toLowerCase().includes('admin') ||
+        c.name.toLowerCase().includes('staff')
+      )
+    );
+
+    const unlockedAdminChannels: string[] = [];
+    for (const ac of adminChannels.values()) {
+      if ('permissionOverwrites' in ac) {
+        await ac.permissionOverwrites.create(modRole.id, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true,
+          EmbedLinks: true,
+          AttachFiles: true
+        }, { reason: 'Grant Match Moderator access to admin/staff chat' }).catch(() => {});
+        unlockedAdminChannels.push(`<#${ac.id}>`);
+      }
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(THEME_COLORS.PRIMARY)
+      .setTitle('🛡️ MATCH MODERATOR PERMISSIONS CONFIGURED')
+      .setDescription(
+        [
+          `Successfully configured security, channel lockouts, and admin access for the **Match Moderator** role.\n`,
+          `### 📋 Setup Summary`,
+          `• **Role Configured:** <@&${modRole.id}> (\`${modRole.name}\`) ${createdRole ? '*(New Role Created)*' : ''}`,
+          `• **Administrator Bypass:** **DISABLED ❌** *(Prevents bypassing hidden channels)*`,
+          `• **Moderation Powers:** ✅ Manage Messages, Timeout/Moderate Members, Embeds, Attachments`,
+          `• **Admin Chat Access:** ${unlockedAdminChannels.length > 0 ? unlockedAdminChannels.join(', ') : '*(No #admin-chat found; please create one if needed)*'}\n`,
+          `${UI.DIVIDER}\n`,
+          `### 🔒 Team Scoping & Anti-Spy Security`,
+          `• **National Channels Locked Out:** **${lockedNationChannels.length} channels** (Rival locker rooms hidden)`,
+          `• **Club Channels Locked Out:** **${lockedClubChannels.length} channels** (Rival club rooms hidden)`,
+          `• **How They View Their Team:** When a Match Moderator joins a nation/club (\`-joinnation\` / \`-joinclub\`), the bot assigns that team's specific role, unlocking **only their own** team channel!\n`,
+          permWarning ? `${permWarning}\n` : '',
+          subtext('💡 Make sure the role does not have "Administrator" checked in Discord Server Settings.')
+        ].join('\n')
+      )
+      .setFooter({ text: 'Beyond The Final Whistle • Role Governance' })
+      .setTimestamp();
+
+    await statusMsg.edit({ content: '', embeds: [embed] });
+  } catch (error: any) {
+    logger.error({ error }, 'Error setting up Match Moderator role permissions');
+    await statusMsg.edit(`❌ An error occurred during setup: ${error?.message || error}`).catch(() => {});
   }
 }
 
