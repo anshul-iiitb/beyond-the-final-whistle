@@ -101,12 +101,14 @@ export async function handleHelpCommand(message: Message) {
         value:
           '• `-match [@user]` / `-livematch [full]` / `-batchmatch [N]` — 90m tactical matches w/ halftime box scores, fair MOTM tie-breakers & AI Gazette.\n' +
           '• `-friendly [@user]` — 👑 **VIP All-Star Exhibition** (zero stat drops + permanent `+1–2` MOTM boost).\n' +
+          '• `-joinnation <alias>` • `-joinclub <alias>` — Join international or club squads (enforces roster limits).\n' +
           '• `-tactics [team]` • `-intstats` • `-clubstats` • `-roster <alias>`.'
       },
       {
         name: '👑 Admin, VIP & DevOps',
         value:
           '• `-setup` • `-setupemojis` • `-vip [perks]` • `-vip give @user <days>`\n' +
+          '• `-setlimit <nation|club> <alias|all> <limit>` • `-teamlimits` — Squad roster limits.\n' +
           '• `-friendly [@user|setup]` — 👑 **VIP All-Star Exhibition** (zero stat loss, +1-2 MOTM boost, challenge button).\n' +
           '• `-setprice <item|boots|avatars|banners|cars|reset> <amt>` • `-devfund <amt> [@user]`\n' +
           '• `-seedauction [n] [hrs]` • `-auctionstart` • `-auctionhalt`/`-auctionresume [lot#]` • `-auctionend`/`-auctioncancel <lot#>`\n' +

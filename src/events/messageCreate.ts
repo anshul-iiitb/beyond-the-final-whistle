@@ -1,5 +1,5 @@
 import { Message } from 'discord.js';
-import { handleProfileCommand, handleSetDescCommand, handleLeaderboardCommand, handleGiveCommand, handleJoinNationCommand, handleDailyCommand } from '../commands/playerCommands.js';
+import { handleProfileCommand, handleSetDescCommand, handleLeaderboardCommand, handleGiveCommand, handleJoinNationCommand, handleJoinClubCommand, handleDailyCommand } from '../commands/playerCommands.js';
 import { handlePlaystyleCommand } from '../commands/playstyleCommand.js';
 import { handleCooldownCommand } from '../commands/cooldownCommand.js';
 import { handleTravelCommand, handleLocationsCommand, handleShowroomCommand, handleVehicleBuyCommand } from '../commands/travelCommands.js';
@@ -32,7 +32,9 @@ import {
   handleAddVarCommand,
   handleSetupEmojisCommand,
   handlePricesCommand,
-  handleSetPriceCommand
+  handleSetPriceCommand,
+  handleSetLimitCommand,
+  displayTeamLimitsOverview
 } from '../commands/adminCommands.js';
 import { handleHelpCommand } from '../commands/helpCommand.js';
 import { handleBTFWGitPull, handleBTFWGitPullBack } from '../services/gitService.js';
@@ -100,6 +102,11 @@ export async function onMessageCreate(message: Message) {
       case 'joinnation':
       case 'nation':
         await handleJoinNationCommand(message, args);
+        break;
+      case 'joinclub':
+      case 'signclub':
+      case 'clubjoin':
+        await handleJoinClubCommand(message, args);
         break;
       case 'intteam':
       case 'team':
@@ -335,6 +342,16 @@ export async function onMessageCreate(message: Message) {
       case 'setprice':
       case 'setprices':
         await handleSetPriceCommand(message, args);
+        break;
+      case 'setlimit':
+      case 'teamlimit':
+      case 'squadlimit':
+      case 'maxplayers':
+        await handleSetLimitCommand(message, args);
+        break;
+      case 'teamlimits':
+      case 'squadlimits':
+        await displayTeamLimitsOverview(message);
         break;
       case 'additem':
         await handleAddItemCommand(message, args);

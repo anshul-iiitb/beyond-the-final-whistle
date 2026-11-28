@@ -632,3 +632,156 @@ export async function handleSetPriceCommand(message: Message, args: string[]) {
     `✅ Updated live price for **${resolved.label}** to **\`${formatK(parsedPrice)}\`** ${coinEmoji}!`
   );
 }
+
+/**
+ * Display current squad roster capacity limits across all National Teams and Football Clubs
+ */
+export async function displayTeamLimitsOverview(message: Message) {
+  const [nations, clubs] = await Promise.all([
+    prisma.nationalTeam.findMany({
+      include: { _count: { select: { players: true } } },
+      orderBy: { name: 'asc' }
+    }),
+    prisma.footballClub.findMany({
+      include: { _count: { select: { players: true } } },
+      orderBy: { name: 'asc' }
+    })
+  ]);
+
+  const nationLines = nations.map(n => {
+    const cap = n.maxPlayers || 23;
+    const count = n._count.players;
+    const isFull = count >= cap;
+    const status = isFull ? '🔴 `[FULL]`' : '🟢 `[OPEN]`';
+    return `• **${n.name}** ${n.flag} (\`${n.alias.toUpperCase()}\`): **${count}/${cap}** ${status}`;
+  });
+
+  const clubLines = clubs.length > 0
+    ? clubs.map(c => {
+        const cap = c.maxPlayers || 23;
+        const count = c._count.players;
+        const isFull = count >= cap;
+        const status = isFull ? '🔴 `[FULL]`' : '🟢 `[OPEN]`';
+        return `• **${c.name}** ${c.badge} (\`${c.alias.toUpperCase()}\`): **${count}/${cap}** ${status}`;
+      })
+    : ['*No registered football clubs yet.*'];
+
+  const embed = new EmbedBuilder()
+    .setColor(THEME_COLORS.PRIMARY)
+    .setTitle('📋 Squad Roster Capacities & Team Limits')
+    .setDescription(
+      [
+        `Current squad capacities and active limits for International Federations & Football Clubs.`,
+        `### 🌍 National Teams (${nations.length})\n` + (nationLines.length ? nationLines.join('\n') : '*None*'),
+        `### 🛡️ Football Clubs (${clubs.length})\n` + clubLines.join('\n'),
+        `${UI.DIVIDER}\n` +
+        subtext('⚙️ **Admin Commands:**\n• `-setlimit nation <alias|all> <limit>`\n• `-setlimit club <alias|all> <limit>`\n• `-teamlimits` to refresh this list')
+      ].join(UI.SPACER)
+    )
+    .setFooter({ text: 'Beyond The Final Whistle • Squad Governance' })
+    .setTimestamp();
+
+  await message.reply({ embeds: [embed] });
+}
+
+/**
+ * Admin command to set squad roster limits for National Teams and Football Clubs
+ * Usage:
+ * -setlimit nation <alias|all> <limit>
+ * -setlimit club <alias|all> <limit>
+ * -teamlimits / -setlimit list
+ */
+export async function handleSetLimitCommand(message: Message, args: string[]) {
+  const sub = (args[0] || '').toLowerCase().trim();
+
+  // If no args or "list" / "view", display the limits overview embed
+  if (!sub || sub === 'list' || sub === 'view') {
+    return await displayTeamLimitsOverview(message);
+  }
+
+  if (!isAuthorized(message)) {
+    return await message.reply('❌ Unauthorized: Administrator permissions required.');
+  }
+
+  if (sub !== 'nation' && sub !== 'national' && sub !== 'club' && sub !== 'teams') {
+    return await message.reply(
+      '❌ **Invalid Syntax!**\n' +
+      '• `-setlimit nation <alias|all> <limit>` — e.g. `-setlimit nation eng 25` or `-setlimit nation all 23`\n' +
+      '• `-setlimit club <alias|all> <limit>` — e.g. `-setlimit club rma 25` or `-setlimit club all 23`\n' +
+      '• `-teamlimits` or `-setlimit list` — View all current roster capacities & limits'
+    );
+  }
+
+  const targetAlias = (args[1] || '').toLowerCase().trim();
+  const limitRaw = args[2]?.trim();
+
+  if (!targetAlias || !limitRaw) {
+    return await message.reply(
+      '❌ **Missing arguments!**\n' +
+      '• `-setlimit nation <alias|all> <limit>` (e.g. `-setlimit nation eng 25`, `-setlimit nation all 23`)\n' +
+      '• `-setlimit club <alias|all> <limit>` (e.g. `-setlimit club rma 25`, `-setlimit club all 23`)\n' +
+      '• Run `-teamlimits` to view current team squad counts and limits.'
+    );
+  }
+
+  const limit = parseInt(limitRaw, 10);
+  if (isNaN(limit) || limit < 1 || limit > 100) {
+    return await message.reply('❌ Limit must be a valid integer between **1** and **100** players.');
+  }
+
+  const isNation = sub === 'nation' || sub === 'national';
+
+  if (targetAlias === 'all') {
+    if (isNation) {
+      const res = await prisma.nationalTeam.updateMany({
+        data: { maxPlayers: limit }
+      });
+      return await message.reply(
+        `✅ Successfully set squad limit to **${limit} players** across **ALL ${res.count} National Teams**! 🌍`
+      );
+    } else {
+      const res = await prisma.footballClub.updateMany({
+        data: { maxPlayers: limit }
+      });
+      return await message.reply(
+        `✅ Successfully set squad limit to **${limit} players** across **ALL ${res.count} Football Clubs**! 🛡️`
+      );
+    }
+  }
+
+  if (isNation) {
+    const nation = await prisma.nationalTeam.findUnique({
+      where: { alias: targetAlias },
+      include: { _count: { select: { players: true } } }
+    });
+    if (!nation) {
+      return await message.reply(`❌ National team with alias \`${targetAlias}\` not found. Run \`-joinnation\` or \`-teamlimits\` to view valid aliases.`);
+    }
+
+    await prisma.nationalTeam.update({
+      where: { id: nation.id },
+      data: { maxPlayers: limit }
+    });
+
+    return await message.reply(
+      `✅ Updated squad roster capacity for **${nation.name}** ${nation.flag} (\`${nation.alias.toUpperCase()}\`) to **${limit} players** (Current: ${nation._count.players}/${limit})!`
+    );
+  } else {
+    const club = await prisma.footballClub.findUnique({
+      where: { alias: targetAlias },
+      include: { _count: { select: { players: true } } }
+    });
+    if (!club) {
+      return await message.reply(`❌ Football club with alias \`${targetAlias}\` not found. Run \`-teamlimits\` to view registered clubs.`);
+    }
+
+    await prisma.footballClub.update({
+      where: { id: club.id },
+      data: { maxPlayers: limit }
+    });
+
+    return await message.reply(
+      `✅ Updated squad roster capacity for **${club.name}** ${club.badge} (\`${club.alias.toUpperCase()}\`) to **${limit} players** (Current: ${club._count.players}/${limit})!`
+    );
+  }
+}

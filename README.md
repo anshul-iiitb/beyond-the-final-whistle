@@ -63,7 +63,10 @@
 | | `-odds [fixture#]` | Algorithmic multipliers based on OVR, boots, TP, and stadiums |
 | | `-bet <#>` `<pick>` `<amt>` | Place matchday wager (Strict 50k limit, closes 30m prior to match) |
 | | `-bets` | Inspect active and settled betting slips |
-| **Nations & Clubs** | `-intteam [alias]` | National Team starting lineup, specialists & tactical playbook |
+| **Nations & Clubs** | `-joinnation <alias>` | Sign for a National Team (enforces squad roster capacity) |
+| | `-joinclub <alias>` | Sign for a Football Club (enforces squad roster capacity) |
+| | `-intteam [alias]` | National Team starting lineup, specialists & tactical playbook |
+| | `-teamlimits` | View squad roster counts and maximum capacity limits across all teams |
 | | `-intset <role> @user` | Designate starting lineup slots and set-piece specialists |
 | | `-stadium [upgrade/name]` | Upgrade club stadium (Levels 1-5, up to 90,000 capacity) |
 | | `-potw` | Player of the Week race tracked from live matchday telemetry |
@@ -79,6 +82,8 @@
 | | `-roster <alias>` | View national team squad lineup |
 | **Admin & VIP** | `-vip [perks]` | View full VIP Privileges & Super-Perks or manage duration |
 | | `-setup` | Automatically build campus channels, friendly ground & VIP lounge |
+| | `-setlimit <nation\|club> <alias\|all> <limit>` | Set maximum squad roster player limits |
+| | `-teamlimits` | View squad roster counts and capacity limits across all teams |
 | | `-vip give @user <days>` | Grant timed VIP status |
 | | `-auctionhalt` / `-auctionresume` | Pause active auctions (freezing time left) and resume later |
 | | `-testmatch <o1> <o2> <on\|off> <on\|off>` | Simulate a controlled OVR/boot test match in `#live-match` |

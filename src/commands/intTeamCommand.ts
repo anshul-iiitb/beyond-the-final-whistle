@@ -88,7 +88,7 @@ export async function handleIntTeamCommand(message: Message, args: string[]) {
           : `### 🎯 Set-Piece Specialists\n` +
             `🔒 **[CONFIDENTIAL SCOUTING DATA]**\n` +
             `*Set-piece designations are classified and hidden from rival teams.*`,
-        `### 👥 Official Squad Roster (${nation.players.length})\n` +
+        `### 👥 Official Squad Roster (${nation.players.length}/${nation.maxPlayers || 23})\n` +
         (squadLines.length > 0 ? squadLines.join('\n') : '*No registered players yet.*'),
         `${UI.DIVIDER}\n` +
         (isOwnNation

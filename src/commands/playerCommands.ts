@@ -754,20 +754,44 @@ export async function handleLeaderboardCommand(message: Message, args: string[])
 export async function handleJoinNationCommand(message: Message, args: string[]) {
   const nationAlias = args[0]?.toLowerCase();
   if (!nationAlias) {
-    const nations = await prisma.nationalTeam.findMany();
-    const list = nations.map(n => `• **${n.name}** ${n.flag} (\`-joinnation ${n.alias}\`)`).join('\n');
+    const nations = await prisma.nationalTeam.findMany({
+      include: { _count: { select: { players: true } } },
+      orderBy: { name: 'asc' }
+    });
+    const list = nations.map(n => {
+      const cap = n.maxPlayers || 23;
+      const isFull = n._count.players >= cap;
+      const badge = isFull ? ' `[FULL]`' : ` \`(${n._count.players}/${cap})\``;
+      return `• **${n.name}** ${n.flag}${badge} (\`-joinnation ${n.alias}\`)`;
+    }).join('\n');
     return await message.reply(
       `🌍 **Available National Teams:**\n\n${list || 'No nations created yet.'}\n\n*Usage:* \`-joinnation <alias>\``
     );
   }
 
-  const nation = await prisma.nationalTeam.findUnique({ where: { alias: nationAlias } });
+  const nation = await prisma.nationalTeam.findUnique({
+    where: { alias: nationAlias },
+    include: { _count: { select: { players: true } } }
+  });
   if (!nation) {
     return await message.reply(`❌ National team \`${nationAlias}\` not found.`);
   }
 
   const player = await prisma.player.findUnique({ where: { id: message.author.id } });
   const isFirstTime = !player?.nationId;
+
+  // If already registered for this nation
+  if (player?.nationId === nation.id) {
+    return await message.reply(`ℹ️ You are already an active player for **${nation.name}** ${nation.flag}!`);
+  }
+
+  // Squad Capacity Limit Check
+  const maxPlayers = nation.maxPlayers || 23;
+  if (nation._count.players >= maxPlayers) {
+    return await message.reply(
+      `❌ **National Squad Full:** **${nation.name}** ${nation.flag} has reached its maximum roster capacity of **${maxPlayers} players** (${nation._count.players}/${maxPlayers})!\n*Only the national coaching staff or an administrator can expand squad limits (\`-setlimit nation ${nation.alias} <limit>\`).*`
+    );
+  }
 
   // FIFA Nation Allegiance Lockout: If player has played 3+ official caps, lock nation switching
   if (player?.nationId && player.nationId !== nation.id) {
@@ -815,6 +839,58 @@ export async function handleJoinNationCommand(message: Message, args: string[]) 
   const coinEmoji = getEmoji(message.guild, 'coin');
   const bonusMsg = isFirstTime ? `\n🎁 **Welcome Bonus:** Received **+100k coins** ${coinEmoji} and **+100k followers 👤** for joining your first National Team!\n🚪 **Locker Room Unlocked:** Your national team room is now visible in the **Nations** category!` : '';
   await message.reply(`🎉 You are now officially capped for **${nation.name}** ${nation.flag}!${bonusMsg}`);
+}
+
+export async function handleJoinClubCommand(message: Message, args: string[]) {
+  const clubAlias = args[0]?.toLowerCase();
+  if (!clubAlias) {
+    const clubs = await prisma.footballClub.findMany({
+      include: { _count: { select: { players: true } } },
+      orderBy: { name: 'asc' }
+    });
+    const list = clubs.map(c => {
+      const cap = c.maxPlayers || 23;
+      const isFull = c._count.players >= cap;
+      const badge = isFull ? ' `[FULL]`' : ` \`(${c._count.players}/${cap})\``;
+      return `• **${c.name}** ${c.badge}${badge} (\`-joinclub ${c.alias}\`)`;
+    }).join('\n');
+    return await message.reply(
+      `🛡️ **Available Football Clubs:**\n\n${list || 'No football clubs registered yet.'}\n\n*Usage:* \`-joinclub <alias>\``
+    );
+  }
+
+  const club = await prisma.footballClub.findUnique({
+    where: { alias: clubAlias },
+    include: { _count: { select: { players: true } } }
+  });
+  if (!club) {
+    return await message.reply(`❌ Football club \`${clubAlias}\` not found.`);
+  }
+
+  const player = await prisma.player.findUnique({ where: { id: message.author.id } });
+  if (player?.clubId === club.id) {
+    return await message.reply(`ℹ️ You are already signed with **${club.name}** ${club.badge}!`);
+  }
+
+  // Club Squad Capacity Limit Check
+  const maxPlayers = club.maxPlayers || 23;
+  if (club._count.players >= maxPlayers) {
+    return await message.reply(
+      `❌ **Club Squad Full:** **${club.name}** ${club.badge} has reached its maximum roster capacity of **${maxPlayers} players** (${club._count.players}/${maxPlayers})!\n*Only club executives or an administrator can expand squad limits (\`-setlimit club ${club.alias} <limit>\`).*`
+    );
+  }
+
+  await prisma.player.upsert({
+    where: { id: message.author.id },
+    update: { clubId: club.id },
+    create: {
+      id: message.author.id,
+      username: message.author.username,
+      clubId: club.id
+    }
+  });
+
+  await message.reply(`🤝 **Transfer Complete!** You have officially signed for **${club.name}** ${club.badge}! Welcome to your new club squad!`);
 }
 
 export async function handleDailyCommand(message: Message) {
