@@ -96,6 +96,7 @@ export async function executeTraining(playerId: string, type: 'normal' | 'vip' |
     where: { id: playerId },
     data: {
       trainingPoints: { increment: earnedTp },
+      lifetimeTpEarned: { increment: earnedTp },
       stamina: { decrement: cfg.staminaCost },
       [cfg.timestampField]: now
     },

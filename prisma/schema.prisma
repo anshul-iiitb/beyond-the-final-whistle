@@ -47,6 +47,11 @@ model Player {
   lastDailyAt           DateTime?
   weeklyFormPoints      Int               @default(0)
   lastPotwResetAt       DateTime?
+  lifetimeTpEarned      Int               @default(0)
+  referredById          String?
+  referredAt            DateTime?
+  referralCount         Int               @default(0)
+  referralVipOnly       Boolean           @default(false)
 
   // 15 Granular Football Attributes (1 to 99)
   fin                   Int               @default(50) // Finishing

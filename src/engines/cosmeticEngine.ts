@@ -86,6 +86,12 @@ export async function acquireMonthlyCosmetic(
         message: '👑 Monthly free cosmetic claims require **VIP** status! Otherwise buy it with `-avatarbuy`.'
       };
     }
+    if (player.referralVipOnly) {
+      return {
+        success: false,
+        message: '❌ **Referral VIP Restriction:** Free monthly collector avatars/banners are reserved for full VIP members. Your referral pass provides complete access to all VIP commands, elite training sessions, sauna stamina recharges, and auction house privileges!'
+      };
+    }
     if (player.lastVipCosmeticMonth === monthKey) {
       return {
         success: false,

@@ -289,12 +289,13 @@ export async function handleVipCommand(message: Message, args: string[]) {
     const targetMember = message.guild ? await message.guild.members.fetch(targetUser.id).catch(() => null) : null;
     const updated = await prisma.player.upsert({
       where: { id: targetUser.id },
-      update: { vipTier: tier, vipExpiresAt: expiry },
+      update: { vipTier: tier, vipExpiresAt: expiry, referralVipOnly: false },
       create: {
         id: targetUser.id,
         username: targetUser.username,
         vipTier: tier,
-        vipExpiresAt: expiry
+        vipExpiresAt: expiry,
+        referralVipOnly: false
       }
     });
 

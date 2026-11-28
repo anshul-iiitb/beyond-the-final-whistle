@@ -42,6 +42,7 @@ export async function handleHelpCommand(message: Message) {
           '• `-theme [alias]` — Browse/apply **20 stadium backdrop themes** for your `-profile` card.\n' +
           '• `-daily` — Daily matchday check-in streak (earns progressive coins, Day 7 milestone bonus +50k & +2 TP).\n' +
           '• `-cd` (`-cooldowns`) — Unified personal timer dashboard for travel, drills, recovery, and sponsors.\n' +
+          '• `-referral [@user]` — Credit your recruiter upon earning 50 TP to grant them **7 Days of VIP Access** (or inspect your referral status).\n' +
           '• `-setdesc <text>` • `-lb [category]` — Interactive visual leaderboard (`goals`, `wealth`, `followers`, `ovr`).\n' +
           '• `-give @user <amount>` — Transfer coins (`50k`, `500k`, `2.5m` supported).\n' +
           `• \`-joinnation <alias>\` — Join National Team (**100k ${coin} + 100k ${followers}**; locked after 3 official caps).`

@@ -1,5 +1,6 @@
 import { Message } from 'discord.js';
 import { handleProfileCommand, handleSetDescCommand, handleLeaderboardCommand, handleGiveCommand, handleJoinNationCommand, handleJoinClubCommand, handleDailyCommand } from '../commands/playerCommands.js';
+import { handleReferralCommand } from '../commands/referralCommand.js';
 import { handlePlaystyleCommand } from '../commands/playstyleCommand.js';
 import { handleCooldownCommand } from '../commands/cooldownCommand.js';
 import { handleTravelCommand, handleLocationsCommand, handleShowroomCommand, handleVehicleBuyCommand } from '../commands/travelCommands.js';
@@ -87,6 +88,11 @@ export async function onMessageCreate(message: Message) {
         break;
       case 'daily':
         await handleDailyCommand(message);
+        break;
+      case 'referral':
+      case 'refer':
+      case 'ref':
+        await handleReferralCommand(message, args);
         break;
       case 'cd':
       case 'cooldown':

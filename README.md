@@ -43,6 +43,7 @@
 | | `-joinnation <alias>` | Step 2/2: Sign for national squad (+100k coins & followers) & unlock campus |
 | **Profile** | `-profile [@user]` | View complete player card, attributes, and garage |
 | | `-theme [alias]` | Browse and apply 20 custom stadium backdrop themes |
+| | `-referral [@user]` | Credit recruiter at 50 TP to award 7 days VIP / view referral status |
 | | `-daily` | Claim daily matchday check-in stipend (streak rewards & 7-day bonus) |
 | | `-cd` / `-cooldowns` | Unified personal countdowns dashboard across all facilities |
 | | `-setdesc <text>` | Set personal profile bio (up to 100 chars) |

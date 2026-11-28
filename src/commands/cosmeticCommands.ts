@@ -44,16 +44,21 @@ export async function buildCosmeticShopPayload(userId: string, page = 1, guild?:
   const activeCatalog = getActiveMonthlyCosmetics();
   const coinEmoji = getEmoji(guild, 'coin');
   const isVip = (player?.vipTier ?? 0) >= 1;
+  const isReferralVip = Boolean(player?.referralVipOnly);
   const vipPassShort = !isVip
     ? 'VIP Only (1 Free/mo)'
-    : player?.lastVipCosmeticMonth === monthKey
-      ? 'VIP Claim Used'
-      : '1 Free VIP Claim Ready';
+    : isReferralVip
+      ? 'Referral VIP (Pass Only)'
+      : player?.lastVipCosmeticMonth === monthKey
+        ? 'VIP Claim Used'
+        : '1 Free VIP Claim Ready';
   const vipPassLine = !isVip
     ? '🔒 VIP Only (1 Free/month)'
-    : player?.lastVipCosmeticMonth === monthKey
-      ? '✅ Claimed this month'
-      : '🎁 **1 Free Claim Ready!** (`-avatarclaim <alias>`)';
+    : isReferralVip
+      ? 'ℹ️ **Referral VIP Active** *(Free monthly claims reserved for full VIP)*'
+      : player?.lastVipCosmeticMonth === monthKey
+        ? '✅ Claimed this month'
+        : '🎁 **1 Free Claim Ready!** (`-avatarclaim <alias>`)';
 
   const targetKind = safePage === 1 ? 'AVATAR' : 'BANNER';
   const pageItems = activeCatalog.filter(c => c.kind === targetKind);
