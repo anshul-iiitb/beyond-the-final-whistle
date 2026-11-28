@@ -133,14 +133,17 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
           value:
             '• `-intteam [alias]` (`-team`) — View Captain, VC, starting lineup, specialists & match record.\n' +
             '• `-joinnation <alias>` — Sign for an open national squad (8 active nations available).\n' +
-            '• `-intset <cap|vc|atk|mid|def|fk|corner|pen> @player` — Designate Captain 👑, VC 🎖️, Starting XI & Specialists!\n' +
-            '• `-roster <alias>` — Quick squad lineup view.'
+            '• `-intlineup <atk> <mid> <def>` — Set all 3 starting positions at once with plain usernames or pings!\n' +
+            '• `-intset <cap|vc|atk|mid|def|fk|corner|pen> <player>` — Designate Captain 👑, VC 🎖️, Starters & Specialists!\n' +
+            '• `-roster <alias>` — Quick squad lineup view.\n' +
+            '*💡 Tip: Plain usernames/display names work everywhere—no need to ping!*'
         },
         {
           name: '🛡️ Football Clubs & Stadium Infrastructure',
           value:
             '• `-joinclub <alias>` — Sign for a professional football club (enforces roster limits).\n' +
-            '• `-clubset <cap|vc|atk|mid|def|fk|corner|pen> @player` — Designate club leadership, starting slots & specialists.\n' +
+            '• `-clublineup <atk> <mid> <def>` (`-lineup`) — Set all 3 club starters at once without pings!\n' +
+            '• `-clubset <cap|vc|atk|mid|def|fk|corner|pen> <player>` — Designate club leadership, starting slots & specialists.\n' +
             '• `-stadium [upgrade|name]` — Upgrade Club Stadium (Levels 1-5, +15k to 90k capacity, +home advantage).\n' +
             '• `-teamlimits` — View active squad roster counts & limits across all nations & clubs.'
         },

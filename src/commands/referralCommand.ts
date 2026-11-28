@@ -1,6 +1,7 @@
 import { Message, EmbedBuilder } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import { THEME_COLORS, UI, makeProgressBar, subtext } from '../utils/themeHelper.js';
+import { resolveTargetUser } from '../utils/userResolver.js';
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { syncMemberGameRoles } from '../utils/roleSyncHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
@@ -59,19 +60,17 @@ export async function handleReferralCommand(message: Message, args: string[]) {
     return await message.reply({ embeds: [embed] });
   }
 
-  // Parse target user
-  let targetUser = message.mentions.users.first();
-  if (!targetUser) {
-    const rawTarget = args[0].replace(/[<@!>]/g, '');
-    try {
-      targetUser = await message.client.users.fetch(rawTarget).catch(() => undefined);
-    } catch {
-      targetUser = undefined;
+  // Parse target user (supports mention, ID, or username)
+  let targetUser: any = message.mentions.users.first();
+  if (!targetUser && args[0]) {
+    const resolved = await resolveTargetUser(message, args[0]);
+    if (resolved) {
+      targetUser = resolved.user || { id: resolved.id, username: resolved.username };
     }
   }
 
   if (!targetUser) {
-    return await message.reply('❌ Please mention the player who invited you (e.g. `-referral @inviter`).');
+    return await message.reply('❌ Please specify the player who invited you (e.g. `-referral ronaldo` or `-referral @inviter`).');
   }
 
   if (targetUser.id === message.author.id) {

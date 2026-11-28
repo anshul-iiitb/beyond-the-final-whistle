@@ -10,6 +10,7 @@ import { getEmoji } from '../utils/emojiHelper.js';
 import { THEME_COLORS, UI, makeDualProgressBar, subtext } from '../utils/themeHelper.js';
 import { logger } from '../utils/logger.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
+import { resolveTargetUser } from '../utils/userResolver.js';
 
 /**
  * Resolves a team query string (e.g. 'por', 'portugal', 'esp', 'spain') to NationalTeam or FootballClub
@@ -70,7 +71,13 @@ export async function handleFriendlyCommand(message: Message, args: string[]) {
     return await message.reply({ embeds: [embed] });
   }
 
-  const opponent = message.mentions.users.first();
+  let opponent: any = message.mentions.users.first();
+  if (!opponent && args[0] && args.length === 1 && !['setup', 'menu'].includes(args[0].toLowerCase())) {
+    const resolved = await resolveTargetUser(message, args[0]);
+    if (resolved) {
+      opponent = resolved.user || { id: resolved.id, username: resolved.username };
+    }
+  }
 
   // If two team arguments are passed (e.g. -friendly por esp or -friendly portugal spain)
   if (!opponent && args.length >= 2) {
@@ -298,7 +305,11 @@ async function runSimulatedMatchCommand(
   isExhibition: boolean,
   teamOptions?: { homeTeamKey: string; awayTeamKey: string }
 ) {
-  const opponent = message.mentions.users.first();
+  let opponent: any = message.mentions.users.first();
+  if (!opponent && args[0] && !teamOptions && !['sim', 'quick', 'fast'].includes(args[0].toLowerCase())) {
+    const resolved = await resolveTargetUser(message, args[0]);
+    if (resolved) opponent = resolved.user || { id: resolved.id, username: resolved.username };
+  }
   const thinkingMsg = await sendThinkingMessage(
     message,
     isExhibition
@@ -382,7 +393,15 @@ async function runSimulatedMatchCommand(
 }
 
 export async function handleIntStatsCommand(message: Message, args: string[]) {
-  const targetUser = message.mentions.users.first() || message.author;
+  let targetUser: any = message.mentions.users.first();
+  if (!targetUser && args[0]) {
+    const resolved = await resolveTargetUser(message, args[0]);
+    if (resolved) {
+      targetUser = resolved.user || { id: resolved.id, username: resolved.username };
+    }
+  }
+  if (!targetUser) targetUser = message.author;
+
   const thinkingMsg = await sendThinkingMessage(message, 'Generating International Career Card...');
 
   const player = await prisma.player.findUnique({
@@ -412,7 +431,15 @@ export async function handleIntStatsCommand(message: Message, args: string[]) {
 }
 
 export async function handleClubStatsCommand(message: Message, args: string[]) {
-  const targetUser = message.mentions.users.first() || message.author;
+  let targetUser: any = message.mentions.users.first();
+  if (!targetUser && args[0]) {
+    const resolved = await resolveTargetUser(message, args[0]);
+    if (resolved) {
+      targetUser = resolved.user || { id: resolved.id, username: resolved.username };
+    }
+  }
+  if (!targetUser) targetUser = message.author;
+
   const thinkingMsg = await sendThinkingMessage(message, 'Generating Club Franchise Career Card...');
 
   const player = await prisma.player.findUnique({

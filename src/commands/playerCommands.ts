@@ -17,6 +17,7 @@ import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelpe
 import { formatK, parseCoinAmount, getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
 import { THEME_COLORS, UI, makeProgressBar, subtext } from '../utils/themeHelper.js';
+import { resolveTargetUser } from '../utils/userResolver.js';
 
 export function computeSeasonRank(ovr: number, matchesPlayed: number): string {
   if (ovr >= 88 && matchesPlayed >= 50) return 'Legendary';
@@ -439,7 +440,19 @@ export async function buildProfileViewPayload(
  * Handles -profile [@user]
  */
 export async function handleProfileCommand(message: Message, args: string[]) {
-  const targetUser = message.mentions.users.first() || message.author;
+  let targetUser: any = message.mentions.users.first();
+  if (!targetUser && args[0]) {
+    const resolved = await resolveTargetUser(message, args[0]);
+    if (resolved) {
+      targetUser = resolved.user || {
+        id: resolved.id,
+        username: resolved.username,
+        displayAvatarURL: () => null,
+      };
+    }
+  }
+  if (!targetUser) targetUser = message.author;
+
   const thinkingMsg = await sendThinkingMessage(message, 'Compiling Career Dossier & Studio Card...');
 
   try {
@@ -522,11 +535,32 @@ export async function handleSetDescCommand(message: Message, args: string[]) {
 }
 
 export async function handleGiveCommand(message: Message, args: string[]) {
-  const targetUser = message.mentions.users.first();
-  const amountStr = args.find(a => !a.startsWith('<@'));
+  let targetUser: any = message.mentions.users.first();
+  let amountStr = args.find(a => !a.startsWith('<@'));
+
+  if (!targetUser && args.length >= 2) {
+    const amtIdx = args.findIndex(a => {
+      try {
+        const val = parseCoinAmount(a);
+        return val !== null && val > 0n;
+      } catch {
+        return false;
+      }
+    });
+    if (amtIdx !== -1) {
+      amountStr = args[amtIdx];
+      const userToken = args.find((_, idx) => idx !== amtIdx);
+      if (userToken) {
+        const resolved = await resolveTargetUser(message, userToken);
+        if (resolved) {
+          targetUser = resolved.user || { id: resolved.id, username: resolved.username };
+        }
+      }
+    }
+  }
 
   if (!targetUser || !amountStr) {
-    return await message.reply('❌ Usage: `-give @user <amount>` (e.g. `-give @teammate 50k`)');
+    return await message.reply('❌ Usage: `-give <username or @user> <amount>` (e.g. `-give ronaldo 50k` or `-give @teammate 50k`)');
   }
 
   const amount = parseCoinAmount(amountStr);

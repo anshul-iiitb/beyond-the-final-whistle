@@ -15,6 +15,7 @@ import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelpe
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
 import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
+import { resolveTargetUser } from '../utils/userResolver.js';
 
 export function buildCosmeticShopPageRow(activePage: number) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -174,7 +175,15 @@ export async function handleEquipCommand(message: Message, args: string[]) {
 }
 
 export async function handleInventoryCommand(message: Message, args: string[] = []) {
-  const targetUser = message.mentions.users.first() || message.author;
+  let targetUser: any = message.mentions.users.first();
+  if (!targetUser && args[0]) {
+    const resolved = await resolveTargetUser(message, args[0]);
+    if (resolved) {
+      targetUser = resolved.user || { id: resolved.id, username: resolved.username };
+    }
+  }
+  if (!targetUser) targetUser = message.author;
+
   const player = await prisma.player.findUnique({
     where: { id: targetUser.id },
     include: { cosmetics: true, vehicles: true, inventory: true, nation: true }

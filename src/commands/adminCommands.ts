@@ -17,6 +17,7 @@ import { installCustomServerEmojis, getEmoji } from '../utils/emojiHelper.js';
 import { parseCoinAmount, formatK } from '../utils/formatHelper.js';
 import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
 import { logger } from '../utils/logger.js';
+import { resolveTargetUser } from '../utils/userResolver.js';
 
 const MASTER_ADMIN = '478599245276905495';
 
@@ -423,17 +424,27 @@ export async function handleVipCommand(message: Message, args: string[]) {
   }
 
   const isRemove = rawAction === 'remove' || rawAction === 'revoke' || rawAction === 'del';
-  const targets = [...message.mentions.users.values()];
-
-  if (targets.length === 0) {
-    return await message.reply(
-      '❌ **Usage:** `-vip give @user [days]` (e.g. `-vip give @player 28`), `-vip add @user [days]`, or `-vip remove @user`'
-    );
-  }
+  const targets: any[] = [...message.mentions.users.values()];
 
   const nonMentionArgs = args.filter(
     a => !a.startsWith('<@') && !['give', 'add', 'grant', 'remove', 'revoke', 'del'].includes(a.toLowerCase())
   );
+
+  if (targets.length === 0) {
+    const userCandidate = nonMentionArgs.find(a => !/^\d+$/.test(a));
+    if (userCandidate) {
+      const resolved = await resolveTargetUser(message, userCandidate);
+      if (resolved) {
+        targets.push(resolved.user || { id: resolved.id, username: resolved.username });
+      }
+    }
+  }
+
+  if (targets.length === 0) {
+    return await message.reply(
+      '❌ **Usage:** `-vip give <user or @user> [days]` (e.g. `-vip give ronaldo 28` or `-vip remove ronaldo`)'
+    );
+  }
   const rawDays = nonMentionArgs.find(a => /^\d+$/.test(a));
   const parsedDays = rawDays ? parseInt(rawDays, 10) : 30;
   if (isNaN(parsedDays) || parsedDays < 1 || parsedDays > 3650) {
@@ -579,9 +590,13 @@ export async function handleAddItemCommand(message: Message, args: string[]) {
     return await message.reply('❌ Unauthorized.');
   }
 
-  const targetUser = message.mentions.users.first();
+  let targetUser: any = message.mentions.users.first();
+  if (!targetUser && args[1]) {
+    const resolved = await resolveTargetUser(message, args[1]);
+    if (resolved) targetUser = resolved.user || { id: resolved.id, username: resolved.username };
+  }
   if (!targetUser) {
-    return await message.reply('❌ Usage: `-additem <itemSymbol/alias> @user`');
+    return await message.reply('❌ Usage: `-additem <itemSymbol/alias> <user or @user>`');
   }
 
   const rawItem = args[0] || ':worldcup:';
@@ -632,7 +647,12 @@ export async function handleAddVarCommand(message: Message, args: string[]) {
     return await message.reply('❌ Unauthorized.');
   }
 
-  const targetUser = message.mentions.users.first() || message.author;
+  let targetUser: any = message.mentions.users.first();
+  if (!targetUser && args[2]) {
+    const resolved = await resolveTargetUser(message, args[2]);
+    if (resolved) targetUser = resolved.user || { id: resolved.id, username: resolved.username };
+  }
+  if (!targetUser) targetUser = message.author;
   const varName = args[0]?.toLowerCase();
   const valStr = args[1];
 
@@ -1138,10 +1158,28 @@ export async function handleSetCaptainCommand(message: Message, args: string[]) 
   // Filter out mention/ID from args to extract type and alias
   const nonTargetArgs = args.filter(arg => !arg.match(/^<@!?\d+>$/) && !/^\d{17,20}$/.test(arg));
 
+  if (!targetUserId && nonTargetArgs.length >= 3) {
+    const candidate = nonTargetArgs[2];
+    const resolved = await resolveTargetUser(message, candidate);
+    if (resolved) {
+      targetUserId = resolved.id;
+      targetUser = (resolved.user || { id: resolved.id, username: resolved.username }) as any;
+      nonTargetArgs.splice(2, 1);
+    }
+  } else if (!targetUserId && nonTargetArgs.length === 2) {
+    const candidate = nonTargetArgs[1];
+    const resolved = await resolveTargetUser(message, candidate);
+    if (resolved) {
+      targetUserId = resolved.id;
+      targetUser = (resolved.user || { id: resolved.id, username: resolved.username }) as any;
+      nonTargetArgs.splice(1, 1);
+    }
+  }
+
   if (nonTargetArgs.length === 0 || !targetUserId) {
     return await message.reply(
-      '❌ **Usage:** `-setcaptain <nation|club> <alias> @player`\n' +
-      '*Example:* `-setcaptain nation por @player` or `-setcaptain club rm @player`'
+      '❌ **Usage:** `-setcaptain <nation|club> <alias> <user or @player>`\n' +
+      '*Example:* `-setcaptain nation por ronaldo` or `-setcaptain club rm mbappe`'
     );
   }
 

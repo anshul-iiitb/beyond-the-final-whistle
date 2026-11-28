@@ -7,7 +7,7 @@ import { handleTravelCommand, handleLocationsCommand, handleShowroomCommand, han
 import { handleTrainCommand, handleSpTrainCommand, handleRecoveryCommand, handleConvertCommand } from '../commands/trainingCommands.js';
 import { handleAdvertCommand, handleCoachingCommand, handleMeetGreetCommand, handleChirpCommand } from '../commands/socialCommands.js';
 import { handleBuyCommand, handleUseCommand, handleIntelCommand } from '../commands/marketCommands.js';
-import { handleIntTeamCommand, handleIntSetCommand, handleClubSetCommand } from '../commands/intTeamCommand.js';
+import { handleIntTeamCommand, handleIntSetCommand, handleClubSetCommand, handleIntLineupCommand, handleClubLineupCommand, handleLineupCommand } from '../commands/intTeamCommand.js';
 import { handleAvatarCommand, handleAvatarBuyCommand, handleAvatarClaimCommand, handleEquipCommand, handleThemeCommand, handleInventoryCommand } from '../commands/cosmeticCommands.js';
 import {
   handleAuctionHouseCommand,
@@ -130,6 +130,18 @@ export async function onMessageCreate(message: Message) {
         break;
       case 'clubset':
         await handleClubSetCommand(message, args);
+        break;
+      case 'intlineup':
+      case 'nationlineup':
+        await handleIntLineupCommand(message, args);
+        break;
+      case 'clublineup':
+        await handleClubLineupCommand(message, args);
+        break;
+      case 'lineup':
+      case 'setlineup':
+      case 'starting3':
+        await handleLineupCommand(message, args);
         break;
 
       // Spatial Campus & Showroom
