@@ -359,6 +359,28 @@ export async function runLiveEpisodicMatch(
   let recentComebackTeamAlias: string | null = null;
   let comebackSurgeRemaining: number = 0;
 
+  // Track match phase continuity for coherent attack/defense sequences
+  interface PhaseState {
+    type: 'KICKOFF' | 'SAVE' | 'CORNER_CLEARED' | 'CORNER_MISSED' | 'GOAL' | 'GOAL_DISALLOWED' | 'TACKLE' | 'INTERCEPTION' | 'OFFSIDE' | 'FOUL' | 'BUILDUP';
+    teamAlias: string;
+    defTeamAlias: string;
+    actorName: string;
+    actorPosition: string;
+    secondaryPlayerName?: string;
+    minute: number;
+  }
+
+  let lastPhase: PhaseState = {
+    type: 'KICKOFF',
+    teamAlias: homeTeam.alias,
+    defTeamAlias: awayTeam.alias,
+    actorName: homeTeam.players.mid.name,
+    actorPosition: 'MID',
+    minute: 0
+  };
+
+  const subPause = (ms: number = 2200) => tickDelay > 0 ? sleep(Math.min(tickDelay, ms)) : sleep(ms);
+
   /**
    * Probabilistic duel helper: higher stats win more often, but upsets always remain possible!
    */
@@ -488,6 +510,15 @@ export async function runLiveEpisodicMatch(
             secondaryPlayer: targetShooter,
             narrative: `WHAT A HEROIC BLOCK! ${defPlayer.name} throws his body on the line, producing an astonishing sliding block to divert ${targetShooter.name}'s goalbound shot away from danger!`
           });
+          lastPhase = {
+            type: 'TACKLE',
+            teamAlias: defTeam.alias,
+            defTeamAlias: attTeam.alias,
+            actorName: defPlayer.name,
+            actorPosition: defPlayer.position,
+            secondaryPlayerName: targetShooter.name,
+            minute: min
+          };
           return;
         }
       }
@@ -594,10 +625,19 @@ export async function runLiveEpisodicMatch(
           extraMentions: [defPlayer],
           narrative: commentary
         });
+        lastPhase = {
+          type: 'GOAL',
+          teamAlias: attTeam.alias,
+          defTeamAlias: defTeam.alias,
+          actorName: targetShooter.name,
+          actorPosition: targetShooter.position,
+          secondaryPlayerName: targetAssister ? targetAssister.name : undefined,
+          minute: min
+        };
 
         // 📺 VAR Goal Review (15% probability of checking offside/handball)
         if (Math.random() < 0.15) {
-          await sleep(2000);
+          await subPause(2000);
           await sendIncident({
             minute: min,
             icon: '📺',
@@ -606,7 +646,7 @@ export async function runLiveEpisodicMatch(
             secondaryPlayer: targetAssister || defPlayer,
             narrative: `HOLD ON! The referee holds his ear! The VAR room in Stockley Park is drawing lines to check if ${targetShooter.name} was offside in the buildup to the goal!`
           });
-          await sleep(2600);
+          await subPause(2600);
 
           if (Math.random() < 0.28) {
             // Disallowed!
@@ -624,6 +664,14 @@ export async function runLiveEpisodicMatch(
               secondaryPlayer: defPlayer,
               narrative: `GOAL DISALLOWED! The semi-automated technology confirms ${targetShooter.name}'s shoulder was mere inches offside when the ball was played! The goal is chalked off! Scoreline resets to ${homeTeam.name} ${homeTeam.score} : ${awayTeam.score} ${awayTeam.name}!`
             });
+            lastPhase = {
+              type: 'GOAL_DISALLOWED',
+              teamAlias: attTeam.alias,
+              defTeamAlias: defTeam.alias,
+              actorName: targetShooter.name,
+              actorPosition: targetShooter.position,
+              minute: min
+            };
             return;
           } else {
             // Goal stands!
@@ -652,7 +700,7 @@ export async function runLiveEpisodicMatch(
             secondaryPlayer: targetShooter,
             narrative: `Goalkeeper parries the stinging effort behind the post! Corner kick awarded to ${attTeam.name}.`
           });
-          await sleep(2200);
+          await subPause(2200);
 
           // 2. Taken
           await sendIncident({
@@ -662,7 +710,7 @@ export async function runLiveEpisodicMatch(
             actor: cornerTaker,
             narrative: `${cornerTaker.name} whips an outswinging delivery deep toward the penalty spot!`
           });
-          await sleep(2200);
+          await subPause(2200);
 
           // 3. Outcome
           const headerCandidates = activeAtt.filter(p => p.name !== cornerTaker.name);
@@ -674,25 +722,59 @@ export async function runLiveEpisodicMatch(
           const defHeaderStat = (defPlayer.hea || 68) * 1.1 + defPlayer.phy;
           const headerDuelProb = calcDuelWinProb(attHeaderStat, defHeaderStat, 48);
 
-          if (Math.random() * 100 < headerDuelProb && Math.random() < 0.28) {
-            attTeam.score++;
-            headerFinisher.goals++;
-            headerFinisher.shots++;
-            cornerTaker.assists++;
-            scorers.push({ minute: min, player: headerFinisher.name, team: attTeam.name, assistBy: cornerTaker.name });
-            matchChronology.push(`⚽ ${min}' Goal (Corner) -- ${headerFinisher.name} ${headerFinisher.flag} (assist: ${cornerTaker.name} ${cornerTaker.flag})`);
+          const strikerWonAerialDuel = Math.random() * 100 < headerDuelProb;
 
-            await sendIncident({
-              minute: min,
-              icon: '⚽',
-              eventTitle: `GOAL (Corner) — ${headerFinisher.name} ${headerFinisher.flag} (Assist: ${cornerTaker.name} ${cornerTaker.flag})`,
-              actor: headerFinisher,
-              secondaryPlayer: cornerTaker,
-              narrative: `BULLET HEADER! ${headerFinisher.name} climbs above the defender and crashes ${cornerTaker.name}'s corner kick into the net! GOAL!`
-            });
+          if (strikerWonAerialDuel) {
+            // Striker won the aerial duel to meet the cross!
+            if (Math.random() < 0.30) {
+              attTeam.score++;
+              headerFinisher.goals++;
+              headerFinisher.shots++;
+              cornerTaker.assists++;
+              scorers.push({ minute: min, player: headerFinisher.name, team: attTeam.name, assistBy: cornerTaker.name });
+              matchChronology.push(`⚽ ${min}' Goal (Corner) -- ${headerFinisher.name} ${headerFinisher.flag} (assist: ${cornerTaker.name} ${cornerTaker.flag})`);
+
+              await sendIncident({
+                minute: min,
+                icon: '⚽',
+                eventTitle: `GOAL (Corner) — ${headerFinisher.name} ${headerFinisher.flag} (Assist: ${cornerTaker.name} ${cornerTaker.flag})`,
+                actor: headerFinisher,
+                secondaryPlayer: cornerTaker,
+                narrative: `BULLET HEADER! ${headerFinisher.name} climbs above the defender and crashes ${cornerTaker.name}'s corner kick into the net! GOAL!`
+              });
+              lastPhase = {
+                type: 'GOAL',
+                teamAlias: attTeam.alias,
+                defTeamAlias: defTeam.alias,
+                actorName: headerFinisher.name,
+                actorPosition: headerFinisher.position,
+                secondaryPlayerName: cornerTaker.name,
+                minute: min
+              };
+            } else {
+              // Striker heads but misses target!
+              headerFinisher.shots++;
+              await sendIncident({
+                minute: min,
+                icon: '❌',
+                eventTitle: 'CORNER MISSED',
+                actor: headerFinisher,
+                secondaryPlayer: cornerTaker,
+                narrative: `${headerFinisher.name} leaps to meet ${cornerTaker.name}'s corner delivery with a powerful header, but directs it agonizingly inches wide of the upright! Goal kick.`
+              });
+              lastPhase = {
+                type: 'CORNER_MISSED',
+                teamAlias: attTeam.alias,
+                defTeamAlias: defTeam.alias,
+                actorName: headerFinisher.name,
+                actorPosition: headerFinisher.position,
+                secondaryPlayerName: cornerTaker.name,
+                minute: min
+              };
+            }
           } else {
-            // Cleared corner! Check for half-volley screamer from edge of box (26% chance)!
-            if (Math.random() < 0.26) {
+            // Defender clears corner! Check for half-volley screamer from edge of box (22% chance)!
+            if (Math.random() < 0.22) {
               const volleyCandidate = activeAtt.find(p => p.name !== cornerTaker.name && p.name !== headerFinisher.name) || activeAtt[0];
               attTeam.score++;
               volleyCandidate.goals++;
@@ -708,15 +790,34 @@ export async function runLiveEpisodicMatch(
                 secondaryPlayer: cornerTaker,
                 narrative: `UNSTOPPABLE HALF-VOLLEY SCREAMER! The cleared corner drops 22 yards out, and ${volleyCandidate.name} arrives at pace to strike an absolute rocket into the top corner through a crowd of bodies! WHAT A GOAL!`
               });
+              lastPhase = {
+                type: 'GOAL',
+                teamAlias: attTeam.alias,
+                defTeamAlias: defTeam.alias,
+                actorName: volleyCandidate.name,
+                actorPosition: volleyCandidate.position,
+                minute: min
+              };
             } else {
+              // Defending team clears the corner!
+              defPlayer.interceptions++;
               await sendIncident({
                 minute: min,
-                icon: '❌',
-                eventTitle: 'CORNER MISSED',
+                icon: '🛡️',
+                eventTitle: 'CORNER CLEARED',
                 actor: defPlayer,
                 secondaryPlayer: cornerTaker,
-                narrative: `${defPlayer.name} rises highest to head the corner kick firmly away from the penalty box.`
+                narrative: `${defPlayer.name} rises highest in the 6-yard box, commanding the air to head ${cornerTaker.name}'s corner kick firmly away from the penalty box!`
               });
+              lastPhase = {
+                type: 'CORNER_CLEARED',
+                teamAlias: attTeam.alias,
+                defTeamAlias: defTeam.alias,
+                actorName: defPlayer.name,
+                actorPosition: defPlayer.position,
+                secondaryPlayerName: cornerTaker.name,
+                minute: min
+              };
             }
           }
         } else {
@@ -743,9 +844,277 @@ export async function runLiveEpisodicMatch(
             secondaryPlayer: targetShooter,
             narrative: commentary
           });
+
+          lastPhase = {
+            type: 'SAVE',
+            teamAlias: attTeam.alias,
+            defTeamAlias: defTeam.alias,
+            actorName: defPlayer.name,
+            actorPosition: defPlayer.position,
+            secondaryPlayerName: targetShooter.name,
+            minute: min
+          };
         }
       }
     };
+
+    // ==========================================
+    // COHERENT TRANSITION: POST-SAVE BUILDUP & FLANK ATTACK
+    // ==========================================
+    if (lastPhase.type === 'SAVE') {
+      const savingTeamWonPossession = Math.random() < 0.65;
+      if (savingTeamWonPossession) {
+        // Case A: Team that made the save initiates deep buildup from the back
+        const saveAttTeam = defTeam; // The team that made the save
+        const saveDefTeam = attTeam; // The team that took the saved shot
+        const saveActAtt = getActivePlayers(saveAttTeam);
+
+        const buildDefender = saveAttTeam.players.def.redCards === 0 ? saveAttTeam.players.def : saveActAtt[0];
+        const buildMidfielder = saveAttTeam.players.mid.redCards === 0 ? saveAttTeam.players.mid : saveActAtt[0];
+        const buildStriker = saveAttTeam.players.atk.redCards === 0 ? saveAttTeam.players.atk : saveActAtt[0];
+
+        // 1. Buildup from the back & pass out wide
+        const buildupCommentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${buildMidfielder.name} (${buildMidfielder.playstyle})`,
+          actorTeam: saveAttTeam.name,
+          secondaryPlayer: buildStriker.name,
+          secondaryTeam: saveAttTeam.name,
+          details: `${buildDefender.name} calmly gathers following the save and rolls it out to ${buildMidfielder.name}. Evading the high press, ${buildMidfielder.name} picks his head up and spreads an exquisite cross-field ball out wide to the flank for ${buildStriker.name}!`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '🔄',
+          eventTitle: `BUILDUP FROM THE BACK & WIDE PASS — ${saveAttTeam.name}`,
+          actor: buildMidfielder,
+          secondaryPlayer: buildStriker,
+          extraMentions: [buildDefender],
+          narrative: buildupCommentary
+        });
+        await subPause(2200);
+
+        // 2. Cross whipped into the box from the flank
+        const crossCommentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${buildStriker.name} (${buildStriker.playstyle})`,
+          actorTeam: saveAttTeam.name,
+          secondaryPlayer: buildMidfielder.name,
+          secondaryTeam: saveAttTeam.name,
+          details: `${buildStriker.name} controls on the run down the flank, chops inside to beat his marker, and delivers a venomous inswinging cross into the danger zone for ${buildMidfielder.name}!`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '👟',
+          eventTitle: `WHIPPED CROSS INTO THE BOX — ${saveAttTeam.name}`,
+          actor: buildStriker,
+          secondaryPlayer: buildMidfielder,
+          narrative: crossCommentary
+        });
+        await subPause(2200);
+
+        // 3. Goal attempt resolved from the cross!
+        await resolveGoalAttempt(buildMidfielder, buildStriker, true);
+        return;
+      } else {
+        // Case B: Attacking team recycles the loose parried save
+        const recycleMid = midAtt;
+        const recycleWinger = striker;
+        const recycleRunner = defAtt.redCards === 0 ? defAtt : activeAtt[0];
+
+        // 1. Second-ball recycle & pass out wide
+        const recycleCommentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${recycleMid.name} (${recycleMid.playstyle})`,
+          actorTeam: attTeam.name,
+          secondaryPlayer: recycleWinger.name,
+          secondaryTeam: attTeam.name,
+          details: `The ball spins loose off the keeper's gloves from the earlier save! ${recycleMid.name} reacts fastest to pounce on the loose rebound, sliding a first-time pass out wide to ${recycleWinger.name}!`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '⚡',
+          eventTitle: `SECOND-BALL RECYCLE & FLANK PASS — ${attTeam.name}`,
+          actor: recycleMid,
+          secondaryPlayer: recycleWinger,
+          narrative: recycleCommentary
+        });
+        await subPause(2200);
+
+        // 2. Cross whipped into the box
+        const crossCommentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${recycleWinger.name} (${recycleWinger.playstyle})`,
+          actorTeam: attTeam.name,
+          secondaryPlayer: recycleRunner.name,
+          secondaryTeam: attTeam.name,
+          details: `${recycleWinger.name} takes a touch on the wing and whips a teasing cross towards the penalty spot for the arriving ${recycleRunner.name}!`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '👟',
+          eventTitle: `CROSS INTO THE DANGER ZONE — ${attTeam.name}`,
+          actor: recycleWinger,
+          secondaryPlayer: recycleRunner,
+          narrative: crossCommentary
+        });
+        await subPause(2200);
+
+        // 3. Goal attempt from cross
+        await resolveGoalAttempt(recycleRunner, recycleWinger, true);
+        return;
+      }
+    }
+
+    // ==========================================
+    // COHERENT TRANSITION: POST-CORNER CLEARANCE TRANSITION
+    // ==========================================
+    if (lastPhase.type === 'CORNER_CLEARED') {
+      const counterBreak = Math.random() < 0.60;
+      if (counterBreak) {
+        // Clearing team transitions into counter-attack!
+        const breakAttTeam = defTeam;
+        const breakMid = breakAttTeam.players.mid;
+        const breakStriker = breakAttTeam.players.atk;
+
+        const breakCommentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${breakMid.name} (${breakMid.playstyle})`,
+          actorTeam: breakAttTeam.name,
+          secondaryPlayer: breakStriker.name,
+          secondaryTeam: breakAttTeam.name,
+          details: `Seizing upon ${lastPhase.actorName}'s commanding corner clearance, ${breakMid.name} bursts through midfield and sprays the ball out wide into acres of open space for ${breakStriker.name}!`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '⚡',
+          eventTitle: `COUNTER BREAK FROM CLEARED CORNER — ${breakAttTeam.name}`,
+          actor: breakMid,
+          secondaryPlayer: breakStriker,
+          narrative: breakCommentary
+        });
+        await subPause(2200);
+
+        const crossCommentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${breakStriker.name} (${breakStriker.playstyle})`,
+          actorTeam: breakAttTeam.name,
+          secondaryPlayer: breakMid.name,
+          secondaryTeam: breakAttTeam.name,
+          details: `${breakStriker.name} charges down the wing on the breakaway and whips a dangerous cross into the box for ${breakMid.name}!`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '👟',
+          eventTitle: `WHIPPED CROSS ON THE BREAK — ${breakAttTeam.name}`,
+          actor: breakStriker,
+          secondaryPlayer: breakMid,
+          narrative: crossCommentary
+        });
+        await subPause(2200);
+
+        await resolveGoalAttempt(breakMid, breakStriker, true, true);
+        return;
+      } else {
+        // Corner-taking team recycles possession from deep
+        const recycleCommentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${midAtt.name} (${midAtt.playstyle})`,
+          actorTeam: attTeam.name,
+          secondaryPlayer: striker.name,
+          secondaryTeam: attTeam.name,
+          details: `${attTeam.name} sweep up the cleared ball near the halfway line. ${midAtt.name} calmly recycles possession, looks up, and spreads play out wide to ${striker.name}.`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '🔄',
+          eventTitle: `RECYCLED POSSESSION & WIDE SPREAD — ${attTeam.name}`,
+          actor: midAtt,
+          secondaryPlayer: striker,
+          narrative: recycleCommentary
+        });
+        await subPause(2200);
+
+        const crossCommentary = await generateAiMinuteCommentary({
+          minute: min,
+          type: 'BUILDUP',
+          homeTeam: homeTeam.name,
+          awayTeam: awayTeam.name,
+          homeScore: homeTeam.score,
+          awayScore: awayTeam.score,
+          actorPlayer: `${striker.name} (${striker.playstyle})`,
+          actorTeam: attTeam.name,
+          secondaryPlayer: defAtt.name,
+          secondaryTeam: attTeam.name,
+          details: `${striker.name} shapes a high, curling cross back into the crowded penalty box for ${defAtt.name}!`
+        });
+
+        await sendIncident({
+          minute: min,
+          icon: '👟',
+          eventTitle: `INSWINGING CROSS INTO THE MIXER — ${attTeam.name}`,
+          actor: striker,
+          secondaryPlayer: defAtt,
+          narrative: crossCommentary
+        });
+        await subPause(2200);
+
+        await resolveGoalAttempt(defAtt, striker, true);
+        return;
+      }
+    }
+
+    if (lastPhase.type === 'CORNER_MISSED') {
+      lastPhase = {
+        type: 'BUILDUP',
+        teamAlias: defTeam.alias,
+        defTeamAlias: attTeam.alias,
+        actorName: defPlayer.name,
+        actorPosition: defPlayer.position,
+        minute: min
+      };
+    }
 
     // ==========================================
     // 1. DEFENSIVE TRAP & COUNTER PRESSING INTERVENTIONS
@@ -806,7 +1175,7 @@ export async function runLiveEpisodicMatch(
           secondaryPlayer: defPlayer,
           narrative: commentary
         });
-        await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
+        await subPause(2200);
         // Breaks into direct 1v1 scoring chance!
         await resolveGoalAttempt(striker, midAtt);
         return;
@@ -913,7 +1282,7 @@ export async function runLiveEpisodicMatch(
             secondaryPlayer: midDef,
             narrative: `WHISTLE BLOWS! The referee points straight to the penalty spot! ${midDef.name} brings down the attacker inside the box with a desperate challenge!`
           });
-          await sleep(2200);
+          await subPause(2200);
 
           // 📺 VAR Penalty Review Check (18% probability of VAR review)
           if (Math.random() < 0.18) {
@@ -925,7 +1294,7 @@ export async function runLiveEpisodicMatch(
               secondaryPlayer: midDef,
               narrative: `HOLD ON! The referee holds his ear! The VAR team is reviewing whether ${midDef.name} touched the ball first or if ${penTaker.name} initiated contact!`
             });
-            await sleep(2600);
+            await subPause(2600);
 
             // 35% chance VAR overturns the penalty
             if (Math.random() < 0.35) {
@@ -950,7 +1319,7 @@ export async function runLiveEpisodicMatch(
                 secondaryPlayer: midDef,
                 narrative: `DECISION CONFIRMED! Replays show clear knee-on-ankle contact with no ball touched! The spot-kick stands!`
               });
-              await sleep(1800);
+              await subPause(1800);
             }
           }
 
@@ -965,7 +1334,7 @@ export async function runLiveEpisodicMatch(
               ? `HEART IN MOUTH! ${penTaker.name} places the ball on the spot in the dying stages with everything on the line... the entire stadium falls deathly silent!`
               : `${penTaker.name} places the ball on the spot, takes four measured steps back, and stares down the goalkeeper... the whistle sounds!`
           });
-          await sleep(2200);
+          await subPause(2200);
 
           // 3. Outcome (High-stakes clutch conversion: 76-88% late, 70-84% normal)
           const penGoalChance = isLatePen
@@ -1017,7 +1386,7 @@ export async function runLiveEpisodicMatch(
               ? `LATE FREE KICK DRAMA! In the dying embers of the match, ${midDef.name} commits a foul in prime shooting territory outside the box! ${fkTaker.name} immediately claims the ball!`
               : `Free kick awarded in dangerous territory outside the 18-yard box! ${midDef.name}'s challenge is deemed illegal. ${fkTaker.name} immediately claims the ball.`
           });
-          await sleep(2200);
+          await subPause(2200);
 
           // 2. Taken
           await sendIncident({
@@ -1027,7 +1396,7 @@ export async function runLiveEpisodicMatch(
             actor: fkTaker,
             narrative: `${fkTaker.name} sizes up the wall. He strikes it with dip and swerve toward goal!`
           });
-          await sleep(2200);
+          await subPause(2200);
 
           // 3. Outcome (Late game dramatic conversion: 35-48%, normal: 14-25%)
           const fkGoalChance = isLateGameFk
@@ -1101,7 +1470,7 @@ export async function runLiveEpisodicMatch(
 
       // 📺 VAR Dangerous Challenge / Red Card Check (12% probability on hard tackling)
       if (isHardTackling && Math.random() < 0.12 && activeTackler.redCards === 0) {
-        await sleep(2000);
+        await subPause(2000);
         await sendIncident({
           minute: min,
           icon: '📺',
@@ -1110,7 +1479,7 @@ export async function runLiveEpisodicMatch(
           secondaryPlayer: tackledPlayer,
           narrative: `The referee stops play! VAR calls for an on-field review to check for serious foul play on ${activeTackler.name}'s studs-up challenge on ${tackledPlayer.name}!`
         });
-        await sleep(2600);
+        await subPause(2600);
 
         activeTackler.redCards++;
         cards.push({ minute: min, player: activeTackler.name, type: 'RED', team: defTeam.name });
@@ -1220,7 +1589,7 @@ export async function runLiveEpisodicMatch(
         secondaryPlayer: midAtt,
         narrative: commentary
       });
-      await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
+      await subPause(2200);
 
       // 65% chance breaks cleanly through on goal to shoot with counter-attack bonus!
       if (Math.random() < 0.65) {
@@ -1271,7 +1640,7 @@ export async function runLiveEpisodicMatch(
           secondaryPlayer: midAtt,
           narrative: commentary
         });
-        await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
+        await subPause(2200);
 
         if (isLongScreamer) {
           // 25-yard thunderbolt screamer attempt!
@@ -1323,7 +1692,7 @@ export async function runLiveEpisodicMatch(
           secondaryPlayer: striker,
           narrative: commentary
         });
-        await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
+        await subPause(2200);
 
         // 60% chance to unleash 1v1 strike
         if (Math.random() < 0.60) {
@@ -1368,7 +1737,7 @@ export async function runLiveEpisodicMatch(
           extraMentions: [defPlayer],
           narrative: commentary
         });
-        await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
+        await subPause(2200);
 
         // 60% chance attacker connects with cross (header/volley attempt)
         if (Math.random() < 0.60) {
@@ -1436,7 +1805,7 @@ export async function runLiveEpisodicMatch(
           secondaryPlayer: defPlayer,
           narrative: commentary
         });
-        await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
+        await subPause(2200);
 
         if (Math.random() < 0.55 && midAtt.redCards === 0) {
           await resolveGoalAttempt(midAtt, striker);
@@ -1506,7 +1875,33 @@ export async function runLiveEpisodicMatch(
       }
     }
 
-    await resolveGoalAttempt(shooter, assister);
+    // Coherent prelude: Build up, pass out wide, and delivery into the box!
+    const deliveryActor = assister || midAtt;
+    const deliveryCommentary = await generateAiMinuteCommentary({
+      minute: min,
+      type: 'BUILDUP',
+      homeTeam: homeTeam.name,
+      awayTeam: awayTeam.name,
+      homeScore: homeTeam.score,
+      awayScore: awayTeam.score,
+      actorPlayer: `${deliveryActor.name} (${deliveryActor.playstyle})`,
+      actorTeam: attTeam.name,
+      secondaryPlayer: shooter.name,
+      secondaryTeam: attTeam.name,
+      details: `${deliveryActor.name} orchestrates a brilliant buildup from midfield, sprays a pass out wide to the flank, and delivers an incisive pass into the box for ${shooter.name}!`
+    });
+
+    await sendIncident({
+      minute: min,
+      icon: '👟',
+      eventTitle: `BUILDUP & IN-BOX DELIVERY — ${attTeam.name}`,
+      actor: deliveryActor,
+      secondaryPlayer: shooter,
+      narrative: deliveryCommentary
+    });
+    await subPause(2200);
+
+    await resolveGoalAttempt(shooter, assister, Math.random() < 0.35);
   };
 
   // ==========================================
@@ -1521,6 +1916,14 @@ export async function runLiveEpisodicMatch(
   // HALF TIME INTERMISSION (45')
   // ==========================================
   matchChronology.push(`⏸️ 45' Halftime`);
+  lastPhase = {
+    type: 'KICKOFF',
+    teamAlias: awayTeam.alias,
+    defTeamAlias: homeTeam.alias,
+    actorName: awayTeam.players.mid.name,
+    actorPosition: 'MID',
+    minute: 45
+  };
 
   const homeShots = homeTeam.players.atk.shots + homeTeam.players.mid.shots + homeTeam.players.def.shots;
   const awayShots = awayTeam.players.atk.shots + awayTeam.players.mid.shots + awayTeam.players.def.shots;
@@ -1567,7 +1970,7 @@ export async function runLiveEpisodicMatch(
       `@${homeTeam.name} @${awayTeam.name}\n` +
       `▶️ **Second half is underway!**`
   });
-  await sleep(2500);
+  await subPause(2500);
 
   // ==========================================
   // SECOND HALF
@@ -1582,7 +1985,7 @@ export async function runLiveEpisodicMatch(
     await channel.send({
       content: `⏱️ **+3' Stoppage time signaled by the fourth official! Knife-edge drama to the death!**`
     });
-    await sleep(2000);
+    await subPause(2000);
     await simulateTacticalPhase(93);
     await (tickDelay > 0 ? sleep(tickDelay) : randomTick());
   }
@@ -1719,14 +2122,14 @@ export async function runLiveEpisodicMatch(
   });
 
   logger.info(`✅ Match completed: ${homeTeam.name} ${homeTeam.score} - ${awayTeam.score} ${awayTeam.name}`);
-  await sleep(2500);
+  await subPause(2500);
 
   // ==========================================
   // DISPATCH AI GAZETTE TO #NEWS (WITH DYNAMIC SCORECARD GRAPHIC)
   // ==========================================
   try {
-    const newsChannel = (client.channels.cache.get(newsChannelId) ||
-      client.channels.cache.find(c => (c as any).name?.includes('news'))) as TextChannel;
+    const newsChannel = (client.channels.cache?.get(newsChannelId) ||
+      client.channels.cache?.find(c => (c as any).name?.includes('news'))) as TextChannel;
 
     if (newsChannel && newsChannel.isTextBased()) {
       const newsArticle = await generateAiNewsArticle({
