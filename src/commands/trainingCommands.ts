@@ -79,8 +79,8 @@ export function buildTrainingSelectionMenu(user: User, guild?: Guild | null) {
       `Select an on-pitch training regimen below to accumulate Training Points (${tpEmoji}) and enhance your biomechanical attributes:\n\n` +
       `⚽ **Standard Pitch Drills**\n` +
       `> Tactical ball drills focusing on positional fundamentals.\n` +
-      `• **Yield:** \`+1 to +2 TP\` ${tpEmoji} (Scales with player overall)\n` +
-      `• **Cooldown:** \`30 minutes\` • **Stamina Cost:** \`5\` ${staminaEmoji}\n\n` +
+      `• **Yield:** \`+2 to +4 TP\` ${tpEmoji}\n` +
+      `• **Cooldown:** \`1 hour\` • **Stamina Cost:** \`5\` ${staminaEmoji}\n\n` +
       `👑 **VIP Elite Performance**\n` +
       `> High-intensity bespoke biometric training for VIP footballers.\n` +
       `• **Yield:** \`+6 TP\` ${tpEmoji}\n` +

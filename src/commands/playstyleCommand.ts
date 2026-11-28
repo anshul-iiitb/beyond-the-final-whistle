@@ -25,12 +25,29 @@ export async function handlePlaystyleCommand(message: Message, args: string[]) {
     });
   }
 
+  // Reset command support
+  if (args[0]?.toLowerCase() === 'reset') {
+    await prisma.player.update({
+      where: { id: message.author.id },
+      data: { playstyle: 'NONE', currentLocation: 'none' }
+    });
+    if (message.guild) {
+      await syncMemberLocationVisibility(message.guild, message.author.id, 'none');
+    }
+    return await message.reply(
+      `🔄 **Playstyle Reset Successful!**\n` +
+      `Your tactical role and campus location have been reset.\n` +
+      `👉 Choose your new archetype now: \`-playstyle <choice>\` (e.g. \`-playstyle b2b\`, \`-playstyle nnd\`, \`-playstyle f9\`).`
+    );
+  }
+
   // If player already has a playstyle
   if (player.playstyle && player.playstyle !== 'NONE') {
     const currentStyle = PLAYSTYLES[player.playstyle] || PLAYSTYLES.PCH;
     return await message.reply(
       `ℹ️ You already have an active playstyle (**${currentStyle.emoji} ${currentStyle.name} • ${currentStyle.position}**).\n` +
-      `To switch tactical roles later, visit the Research Facility (\`-travel rf\` ➔ \`-convert <style>\`, 7-day cooldown).`
+      `To switch tactical roles later, visit the Research Facility (\`-travel rf\` ➔ \`-convert <style>\`, 7-day cooldown).\n` +
+      `*(Need to re-choose for the 18-playstyle update? Run \`-playstyle reset\`)*`
     );
   }
 

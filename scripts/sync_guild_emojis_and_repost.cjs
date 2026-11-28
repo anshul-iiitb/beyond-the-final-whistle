@@ -165,10 +165,11 @@ client.once('clientReady', async () => {
       `• **Technical:** \`PAS\` (Passing), \`VIS\` (Vision), \`CRO\` (Crossing), \`DRI\` (Dribbling)\n` +
       `• **Defending:** \`TCK\` (Tackling), \`INT\` (Interceptions), \`MRK\` (Marking)\n` +
       `• **Physical & Mental:** \`PAC\` (Pace), \`PHY\` (Physicality), \`CMP\` (Composure), \`AGI\` (Agility), \`WRK\` (Work Rate)\n\n` +
-      `### ⚽ TACTICAL PLAYSTYLES\n` +
-      `• **Attacker:** 🎯 *Poacher* (Box predator), ⚡ *Speedster* (Counter runner), 🦘 *Target Man* (Aerial anchor)\n` +
-      `• **Midfielder:** 🪄 *Playmaker* (Vision & passing), 🔋 *Box-to-Box* (Work rate engine), 🛡️ *Anchor* (Screen)\n` +
-      `• **Defender:** 🛑 *Stopper* (Physical enforcer), 🧹 *Sweeper* (Pace & recovery), 🧠 *Ball-Playing Defender* (Distribution)\n\n` +
+      `### ⚽ TACTICAL PLAYSTYLES (18 ARCHETYPES)\n` +
+      `• **Strikers (ATT):** \`PCH\` Poacher, \`F9\` False Nine, \`TGT\` Target Man, \`SPD\` Speedster, \`INF\` Inside Forward, \`PFW\` Pressing Forward\n` +
+      `• **Midfielders (MID):** \`ENG\` Enganche, \`B2B\` Box-to-Box, \`MEZ\` Mezzala, \`REG\` Regista, \`BWM\` Ball Winner, \`ANC\` Anchor Man\n` +
+      `• **Defenders (DEF):** \`NND\` No-Nonsense DC, \`BPD\` Ball Playing DC, \`STP\` Stopper, \`COV\` Covering Defender, \`AER\` Aerial Titan, \`WCB\` Wide Centre-Back\n\n` +
+      `⭐ **Key Stat Mastery & 15% Discount:** Each playstyle has 3 Key Stats with **15% TP discount** at Research Lab and in-match duel mastery (Specialist 70+, Elite 80+, World Class 90+)!\n\n` +
       `${DIVIDER}\n` +
       `-# 💡 Upgrade attributes at the Research Facility (-travel rf ➔ -sptrain <attr>).`
     )
@@ -205,14 +206,13 @@ client.once('clientReady', async () => {
     .setColor('#6366f1') // Indigo
     .setTitle('🔰 Rookie Footballer Onboarding Guide — Launch Your Legacy')
     .setDescription(
-      `> *Welcome rookie! Follow this 5-step checklist to kickstart your professional football career:*\n\n` +
-      `### 1️⃣ Join a National Team\n` +
-      `Head to <#${channels.find(c => c && c.name.includes('roles'))?.id || 'roles'}> or run \`-joinnation <alias>\` (\`ger\`, \`por\`, \`esp\`, \`fra\`, \`eng\`, \`bra\`, \`arg\`, \`ned\`).\n` +
-      `*Instantly unlock your private Locker Room and receive **100k ${E.coin} + 100k ${E.followers}** signing bonus!*\n\n` +
-      `### 2️⃣ Choose Your Tactical Playstyle\n` +
-      `Travel to the Training Center using \`-travel tc\`, then run \`-train\`. Select your on-pitch tactical identity.\n\n` +
+      `> *Welcome rookie! Follow this 2-step onboarding checklist to kickstart your professional football career:*\n\n` +
+      `### 1️⃣ Step 1: Choose Your Tactical Playstyle\n` +
+      `Run \`-playstyle <choice>\` (e.g. \`-playstyle pch\`, \`-playstyle b2b\`, \`-playstyle nnd\`) to set your tactical role, position (\`ATT\`, \`MID\`, or \`DEF\`), and enter the **Training Center** (\`tc\`)!\n\n` +
+      `### 2️⃣ Step 2: Pledge Allegiance to a National Team\n` +
+      `Run \`-joinnation <alias>\` (\`ger\`, \`por\`, \`esp\`, \`fra\`, \`eng\`, \`bra\`, \`arg\`, \`ned\`) to claim your **100k ${E.coin} + 100k ${E.followers}** signing bonus and unlock all campus facilities!\n\n` +
       `### 3️⃣ Complete Daily Training Drills\n` +
-      `Run \`-train\` every 30 minutes to accumulate Training Points (${E.tp}). When stamina drops, visit the Player Sauna (\`-travel ps\`) and run \`-recovery\`.\n\n` +
+      `Run \`-train\` at the Training Center (\`1 hour\`, **+2 to +4 ${E.tp} TP**). When stamina drops, visit the Clubhouse (\`-travel ch\`) and run \`-recovery\`.\n\n` +
       `### 4️⃣ Build Fan Clout & Sign Brand Deals\n` +
       `Run \`-tweet <text>\` in any channel — the bot publishes it to locked <#${channels.find(c => c && c.name.includes('twitter'))?.id || 'twitter'}> for 👍 fan likes! At 100k+ followers, visit the Photoshoot Hall (\`-travel ph\`) and run \`-advert\` for big cash payouts!\n\n` +
       `### 5️⃣ Matchday Preparation & Tactical Intel\n` +
