@@ -5,6 +5,7 @@ import { prisma } from '../database/prisma.js';
 import { SPONSORS } from '../config/constants.js';
 import { formatK, getNationFlag } from '../utils/formatHelper.js';
 import { getEmoji } from '../utils/emojiHelper.js';
+import { withActionLock } from '../utils/mutexHelper.js';
 
 const tweetVotersCache = new Map<string, Set<string>>();
 
@@ -95,136 +96,194 @@ export async function executeSponsorAdvert(playerId: string, sponsorKey?: string
     };
   }
 
-  const newFollowers = BigInt(Math.max(0, Number(player.followers + sponsor.followerDelta)));
-  const updated = await prisma.player.update({
-    where: { id: playerId },
-    data: {
-      coins: { increment: sponsor.rewardCoins },
-      followers: newFollowers,
-      stamina: { decrement: sponsor.staminaCost },
-      lastAdvertAt: now
-    },
-    include: { nation: true }
+  return withActionLock(`${playerId}:advert`, async () => {
+    const cooldownMs = 2 * 60 * 60 * 1000;
+    const cutoff = new Date(now.getTime() - cooldownMs);
+    const newFollowers = BigInt(Math.max(0, Number(player.followers + sponsor.followerDelta)));
+
+    const updateRes = await prisma.player.updateMany({
+      where: {
+        id: playerId,
+        currentLocation: 'ph',
+        stamina: { gte: sponsor.staminaCost },
+        followers: { gte: sponsor.minFollowers },
+        OR: [
+          { lastAdvertAt: null },
+          { lastAdvertAt: { lte: cutoff } }
+        ]
+      },
+      data: {
+        coins: { increment: sponsor.rewardCoins },
+        followers: newFollowers,
+        stamina: { decrement: sponsor.staminaCost },
+        lastAdvertAt: now
+      }
+    });
+
+    if (updateRes.count === 0) {
+      return { success: false, message: '⏳ Endorsement already processed or 2-hour cooldown active.' };
+    }
+
+    const updated = await prisma.player.findUnique({
+      where: { id: playerId },
+      include: { nation: true }
+    });
+
+    const flag = getNationFlag(updated?.nation || player.nation);
+    const followerChangeStr = sponsor.followerDelta > 0n ? `+${formatK(sponsor.followerDelta)}` : sponsor.followerDelta < 0n ? `${formatK(sponsor.followerDelta)}` : '0';
+
+    const embed = new EmbedBuilder()
+      .setColor('#f59e0b')
+      .setTitle(`${player.username} ${flag} signed endorsement with ${sponsor.emoji} ${sponsor.name}!`)
+      .setDescription(
+        `📸 **Commercial Photoshoot Complete!**\n\n` +
+        `${coinEmoji} **Earnings:** \`+${formatK(sponsor.rewardCoins)} coins\`\n` +
+        `${fansEmoji} **Follower Change:** \`${followerChangeStr} followers\` (Total: \`${formatK(updated?.followers ?? newFollowers)}\`)\n` +
+        `${staminaEmoji} **Stamina:** \`${updated?.stamina ?? (player.stamina - sponsor.staminaCost)}/100\`\n\n` +
+        `*(2-hour brand photoshoot cooldown active)*`
+      )
+      .setFooter({ text: 'Beyond The Final Whistle • Commercial Hub' });
+
+    const files: AttachmentBuilder[] = [];
+    const adGifPath = path.resolve(process.cwd(), `assets/adverts/${sponsor.key}.gif`);
+    const bannerPath = path.resolve(process.cwd(), 'assets/photoshoot.png');
+
+    if (fs.existsSync(adGifPath)) {
+      files.push(new AttachmentBuilder(adGifPath, { name: `${sponsor.key}.gif` }));
+      embed.setImage(`attachment://${sponsor.key}.gif`);
+    } else if (fs.existsSync(bannerPath)) {
+      files.push(new AttachmentBuilder(bannerPath, { name: 'photoshoot.png' }));
+      embed.setImage('attachment://photoshoot.png');
+    }
+
+    return { success: true, message: '', embed, files };
   });
-
-  const flag = getNationFlag(player.nation);
-  const followerChangeStr = sponsor.followerDelta > 0n ? `+${formatK(sponsor.followerDelta)}` : sponsor.followerDelta < 0n ? `${formatK(sponsor.followerDelta)}` : '0';
-
-  const embed = new EmbedBuilder()
-    .setColor('#f59e0b')
-    .setTitle(`${player.username} ${flag} signed endorsement with ${sponsor.emoji} ${sponsor.name}!`)
-    .setDescription(
-      `📸 **Commercial Photoshoot Complete!**\n\n` +
-      `${coinEmoji} **Earnings:** \`+${formatK(sponsor.rewardCoins)} coins\`\n` +
-      `${fansEmoji} **Follower Change:** \`${followerChangeStr} followers\` (Total: \`${formatK(updated.followers)}\`)\n` +
-      `${staminaEmoji} **Stamina:** \`${updated.stamina}/100\`\n\n` +
-      `*(2-hour brand photoshoot cooldown active)*`
-    )
-    .setFooter({ text: 'Beyond The Final Whistle • Commercial Hub' });
-
-  const files: AttachmentBuilder[] = [];
-  const adGifPath = path.resolve(process.cwd(), `assets/adverts/${sponsor.key}.gif`);
-  const bannerPath = path.resolve(process.cwd(), 'assets/photoshoot.png');
-
-  if (fs.existsSync(adGifPath)) {
-    files.push(new AttachmentBuilder(adGifPath, { name: `${sponsor.key}.gif` }));
-    embed.setImage(`attachment://${sponsor.key}.gif`);
-  } else if (fs.existsSync(bannerPath)) {
-    files.push(new AttachmentBuilder(bannerPath, { name: 'photoshoot.png' }));
-    embed.setImage('attachment://photoshoot.png');
-  }
-
-  return { success: true, message: '', embed, files };
 }
 
 /**
  * Handles grassroots youth coaching at the Local Club
  */
 export async function executeCoaching(playerId: string): Promise<{ success: boolean; message: string }> {
-  const player = await prisma.player.findUnique({ where: { id: playerId } });
-  if (!player) return { success: false, message: '❌ Player not found.' };
+  return withActionLock(`${playerId}:coaching`, async () => {
+    const player = await prisma.player.findUnique({ where: { id: playerId } });
+    if (!player) return { success: false, message: '❌ Player not found.' };
 
-  if (player.currentLocation !== 'ch') {
-    return { success: false, message: '❌ You must be at the **🏡 Player Clubhouse** (`-travel ch`) to coach youth!' };
-  }
+    if (player.currentLocation !== 'ch') {
+      return { success: false, message: '❌ You must be at the **🏡 Player Clubhouse** (`-travel ch`) to coach youth!' };
+    }
 
-  const now = new Date();
-  if (player.lastCoachedAt) {
+    const now = new Date();
     const cooldownMs = 2 * 60 * 60 * 1000;
-    const elapsed = now.getTime() - player.lastCoachedAt.getTime();
-    if (elapsed < cooldownMs) {
-      const remainingMinutes = Math.ceil((cooldownMs - elapsed) / (60 * 1000));
-      return { success: false, message: `⏳ **Coaching Cooldown:** The kids are on lunch break! Available again in **${remainingMinutes} minutes**.` };
-    }
-  }
+    const cutoff = new Date(now.getTime() - cooldownMs);
 
-  if (player.stamina < 10) {
-    return { success: false, message: `⚡ Coaching requires **10 Stamina** (You have ${player.stamina}/100). Rest at sauna or drink a sports drink.` };
-  }
-
-  const rewardCoins = 50000n;
-  const updated = await prisma.player.update({
-    where: { id: playerId },
-    data: {
-      coins: { increment: rewardCoins },
-      stamina: { decrement: 10 },
-      lastCoachedAt: now
+    if (player.lastCoachedAt) {
+      const elapsed = now.getTime() - player.lastCoachedAt.getTime();
+      if (elapsed < cooldownMs) {
+        const remainingMinutes = Math.ceil((cooldownMs - elapsed) / (60 * 1000));
+        return { success: false, message: `⏳ **Coaching Cooldown:** The kids are on lunch break! Available again in **${remainingMinutes} minutes**.` };
+      }
     }
+
+    if (player.stamina < 10) {
+      return { success: false, message: `⚡ Coaching requires **10 Stamina** (You have ${player.stamina}/100). Rest at sauna or drink a sports drink.` };
+    }
+
+    const rewardCoins = 50000n;
+    const updateRes = await prisma.player.updateMany({
+      where: {
+        id: playerId,
+        currentLocation: 'ch',
+        stamina: { gte: 10 },
+        OR: [
+          { lastCoachedAt: null },
+          { lastCoachedAt: { lte: cutoff } }
+        ]
+      },
+      data: {
+        coins: { increment: rewardCoins },
+        stamina: { decrement: 10 },
+        lastCoachedAt: now
+      }
+    });
+
+    if (updateRes.count === 0) {
+      return { success: false, message: '⏳ Coaching session already recorded or 2-hour cooldown active.' };
+    }
+
+    const updated = await prisma.player.findUnique({ where: { id: playerId } });
+
+    return {
+      success: true,
+      message:
+        `⚽ **Grassroots Academy Coaching Session Complete!**\n\n` +
+        `🪙 Earned: **+${formatK(rewardCoins)} coins**\n` +
+        `⚡ Stamina: \`${updated?.stamina ?? (player.stamina - 10)}/100 ⚡\`\n` +
+        `*(2-hour coaching cooldown active)*`
+    };
   });
-
-  return {
-    success: true,
-    message:
-      `⚽ **Grassroots Academy Coaching Session Complete!**\n\n` +
-      `🪙 Earned: **+${formatK(rewardCoins)} coins**\n` +
-      `⚡ Stamina: \`${updated.stamina}/100 ⚡\`\n` +
-      `*(2-hour coaching cooldown active)*`
-  };
 }
 
 /**
  * Handles fan autograph and meet & greet session at the Local Club
  */
 export async function executeMeetGreet(playerId: string): Promise<{ success: boolean; message: string }> {
-  const player = await prisma.player.findUnique({ where: { id: playerId } });
-  if (!player) return { success: false, message: '❌ Player not found.' };
+  return withActionLock(`${playerId}:meetgreet`, async () => {
+    const player = await prisma.player.findUnique({ where: { id: playerId } });
+    if (!player) return { success: false, message: '❌ Player not found.' };
 
-  if (player.currentLocation !== 'ch') {
-    return { success: false, message: '❌ You must be at the **🏡 Player Clubhouse** (`-travel ch`) to meet your fans!' };
-  }
+    if (player.currentLocation !== 'ch') {
+      return { success: false, message: '❌ You must be at the **🏡 Player Clubhouse** (`-travel ch`) to meet your fans!' };
+    }
 
-  const now = new Date();
-  if (player.lastMeetGreetAt) {
+    const now = new Date();
     const cooldownMs = 2 * 60 * 60 * 1000;
-    const elapsed = now.getTime() - player.lastMeetGreetAt.getTime();
-    if (elapsed < cooldownMs) {
-      const remainingMinutes = Math.ceil((cooldownMs - elapsed) / (60 * 1000));
-      return { success: false, message: `⏳ **Fan Queue Cooldown:** Security is clearing the line! Next meet & greet in **${remainingMinutes} minutes**.` };
-    }
-  }
+    const cutoff = new Date(now.getTime() - cooldownMs);
 
-  if (player.stamina < 10) {
-    return { success: false, message: `⚡ Signing autographs requires **10 Stamina** (You have ${player.stamina}/100). Rest at sauna or drink a sports drink.` };
-  }
-
-  const rewardFollowers = 50000n;
-  const updated = await prisma.player.update({
-    where: { id: playerId },
-    data: {
-      followers: { increment: rewardFollowers },
-      stamina: { decrement: 10 },
-      lastMeetGreetAt: now
+    if (player.lastMeetGreetAt) {
+      const elapsed = now.getTime() - player.lastMeetGreetAt.getTime();
+      if (elapsed < cooldownMs) {
+        const remainingMinutes = Math.ceil((cooldownMs - elapsed) / (60 * 1000));
+        return { success: false, message: `⏳ **Fan Queue Cooldown:** Security is clearing the line! Next meet & greet in **${remainingMinutes} minutes**.` };
+      }
     }
+
+    if (player.stamina < 10) {
+      return { success: false, message: `⚡ Signing autographs requires **10 Stamina** (You have ${player.stamina}/100). Rest at sauna or drink a sports drink.` };
+    }
+
+    const rewardFollowers = 50000n;
+    const updateRes = await prisma.player.updateMany({
+      where: {
+        id: playerId,
+        currentLocation: 'ch',
+        stamina: { gte: 10 },
+        OR: [
+          { lastMeetGreetAt: null },
+          { lastMeetGreetAt: { lte: cutoff } }
+        ]
+      },
+      data: {
+        followers: { increment: rewardFollowers },
+        stamina: { decrement: 10 },
+        lastMeetGreetAt: now
+      }
+    });
+
+    if (updateRes.count === 0) {
+      return { success: false, message: '⏳ Meet & greet already recorded or 2-hour cooldown active.' };
+    }
+
+    const updated = await prisma.player.findUnique({ where: { id: playerId } });
+
+    return {
+      success: true,
+      message:
+        `✍️ **Club Autograph & Fan Meet-and-Greet Complete!**\n\n` +
+        `👥 Gained: **+${formatK(rewardFollowers)} followers** (Total: \`${formatK(updated?.followers ?? (player.followers + rewardFollowers))} 👤\`)\n` +
+        `⚡ Stamina: \`${updated?.stamina ?? (player.stamina - 10)}/100 ⚡\`\n` +
+        `*(2-hour meet & greet cooldown active)*`
+    };
   });
-
-  return {
-    success: true,
-    message:
-      `✍️ **Club Autograph & Fan Meet-and-Greet Complete!**\n\n` +
-      `👥 Gained: **+${formatK(rewardFollowers)} followers** (Total: \`${formatK(updated.followers)} 👤\`)\n` +
-      `⚡ Stamina: \`${updated.stamina}/100 ⚡\`\n` +
-      `*(2-hour meet & greet cooldown active)*`
-  };
 }
 
 /**

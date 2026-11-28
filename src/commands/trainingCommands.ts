@@ -97,17 +97,17 @@ export function buildTrainingSelectionMenu(user: User, guild?: Guild | null) {
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId('train_normal')
+      .setCustomId(`train_normal_${user.id}`)
       .setLabel('Normal Training')
       .setEmoji('⚽')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
-      .setCustomId('train_vip')
+      .setCustomId(`train_vip_${user.id}`)
       .setLabel('VIP Training (+6 TP)')
       .setEmoji('👑')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
-      .setCustomId('train_noeffort')
+      .setCustomId(`train_noeffort_${user.id}`)
       .setLabel('No Effort (+20 TP)')
       .setEmoji('👑')
       .setStyle(ButtonStyle.Danger)

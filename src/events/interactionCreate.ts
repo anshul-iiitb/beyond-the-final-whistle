@@ -1,4 +1,4 @@
-import { Interaction, ButtonInteraction, StringSelectMenuInteraction, ModalSubmitInteraction, TextChannel, MessageFlags, EmbedBuilder, GuildMember } from 'discord.js';
+import { Interaction, ButtonInteraction, StringSelectMenuInteraction, ModalSubmitInteraction, TextChannel, MessageFlags, EmbedBuilder, GuildMember, ActionRowBuilder } from 'discord.js';
 import { executeTraining, upgradeAttribute } from '../engines/trainingEngine.js';
 import { buildTrainingSuccessEmbed, buildSpTrainLabPayload } from '../commands/trainingCommands.js';
 import { executeSponsorAdvert, applyTweetVote, buildUpdatedTweetEmbed } from '../engines/socialEngine.js';
@@ -212,10 +212,33 @@ export async function onInteractionCreate(interaction: Interaction) {
     // ==========================================
     if (!interaction.isButton()) return;
 
-    // 1. Training Drills: train_normal, train_vip, train_noeffort
+    // 1. Training Drills: train_normal_<userId>, train_vip_<userId>, train_noeffort_<userId> (or legacy train_normal)
     if (customId.startsWith('train_')) {
-      const type = customId.replace('train_', '') as 'normal' | 'vip' | 'noeffort';
-      
+      const parts = customId.split('_'); // ['train', 'normal', '123456789']
+      const type = parts[1] as 'normal' | 'vip' | 'noeffort';
+      const ownerId = parts[2];
+
+      if (ownerId && interaction.user.id !== ownerId) {
+        return await interaction.reply({
+          content: '❌ This training regimen belongs to another player. Run `-train` to open yours!',
+          ephemeral: true
+        });
+      }
+
+      // Immediately disable buttons on the selection message to prevent double-click race conditions in UI
+      try {
+        if (interaction.message && interaction.message.editable) {
+          const disabledRows = interaction.message.components.map(c => {
+            const row = ActionRowBuilder.from(c as any);
+            row.components.forEach((btn: any) => btn.setDisabled(true));
+            return row;
+          });
+          await interaction.message.edit({ components: disabledRows as any });
+        }
+      } catch (err) {
+        // Silently proceed if message is not editable
+      }
+
       // Immediately acknowledge interaction to avoid 3s Discord timeout ("did not respond")
       await sendThinkingMessage(interaction, 'Recording pitch training session...');
 

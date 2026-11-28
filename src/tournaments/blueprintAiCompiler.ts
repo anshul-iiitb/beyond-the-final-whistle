@@ -343,14 +343,13 @@ export async function compileTextToBlueprint(
     (preferredName ? `Tournament Format Name: ${preferredName}\n\n` : '') +
     `Convert this tournament structure and rules into valid JSON Blueprint:\n\n${rawInput.trim()}`;
 
-  // Use active working free & low-cost models on OpenRouter
+  // Prioritize ultra-reliable fast low-cost model, with free fallbacks
   const models = [
-    'openrouter/free',
-    'nvidia/nemotron-3.5-lightning:free',
-    'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
-    'google/gemma-4-31b-it:free',
-    'google/gemma-4-26b-a4b-it:free',
     'openai/gpt-4o-mini',
+    'openrouter/free',
+    'liquid/lfm-3-1.7b:free',
+    'nvidia/nemotron-3.5-lightning:free',
+    'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
   ];
 
   let rawJsonText: string | null = null;
@@ -373,7 +372,7 @@ export async function compileTextToBlueprint(
             { role: 'user', content: prompt },
           ],
           temperature: 0.1,
-          max_tokens: 1200,
+          max_tokens: 1800,
         }),
         signal: AbortSignal.timeout(20000),
       });

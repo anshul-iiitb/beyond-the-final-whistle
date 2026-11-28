@@ -1,6 +1,7 @@
 import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, User, Guild, AttachmentBuilder, Client } from 'discord.js';
 import path from 'path';
 import { prisma } from '../database/prisma.js';
+import { withActionLock } from '../utils/mutexHelper.js';
 import {
   CAMPUS_LOCATIONS,
   PLAYSTYLES,
@@ -950,68 +951,82 @@ export async function handleJoinClubCommand(message: Message, args: string[]) {
 }
 
 export async function handleDailyCommand(message: Message) {
-  const player = await prisma.player.findUnique({ where: { id: message.author.id } });
-  if (!player) {
-    return await message.reply('❌ You have not registered yet. Use `-profile` to register.');
-  }
+  return withActionLock(`${message.author.id}:daily`, async () => {
+    const player = await prisma.player.findUnique({ where: { id: message.author.id } });
+    if (!player) {
+      return await message.reply('❌ You have not registered yet. Use `-profile` to register.');
+    }
 
-  const now = new Date();
-  if (player.lastDailyAt) {
-    const elapsedMs = now.getTime() - player.lastDailyAt.getTime();
+    const now = new Date();
     const cooldownMs = 24 * 60 * 60 * 1000;
-    if (elapsedMs < cooldownMs) {
-      const waitMinutes = Math.ceil((cooldownMs - elapsedMs) / 60000);
-      const hours = Math.floor(waitMinutes / 60);
-      const mins = waitMinutes % 60;
-      return await message.reply(
-        `⏳ **Daily Already Claimed!** Next daily available in **${hours}h ${mins}m**.`
-      );
+    const cutoff = new Date(now.getTime() - cooldownMs);
+
+    if (player.lastDailyAt) {
+      const elapsedMs = now.getTime() - player.lastDailyAt.getTime();
+      if (elapsedMs < cooldownMs) {
+        const waitMinutes = Math.ceil((cooldownMs - elapsedMs) / 60000);
+        const hours = Math.floor(waitMinutes / 60);
+        const mins = waitMinutes % 60;
+        return await message.reply(
+          `⏳ **Daily Already Claimed!** Next daily available in **${hours}h ${mins}m**.`
+        );
+      }
     }
-  }
 
-  let newStreak = 1;
-  if (player.lastDailyAt) {
-    const elapsedMs = now.getTime() - player.lastDailyAt.getTime();
-    if (elapsedMs <= 48 * 60 * 60 * 1000) {
-      newStreak = (player.dailyStreak || 0) + 1;
+    let newStreak = 1;
+    if (player.lastDailyAt) {
+      const elapsedMs = now.getTime() - player.lastDailyAt.getTime();
+      if (elapsedMs <= 48 * 60 * 60 * 1000) {
+        newStreak = (player.dailyStreak || 0) + 1;
+      }
     }
-  }
 
-  const baseCoins = 10000n;
-  const streakBonus = BigInt((newStreak - 1) * 2500);
-  let totalCoins = baseCoins + streakBonus;
+    const baseCoins = 10000n;
+    const streakBonus = BigInt((newStreak - 1) * 2500);
+    let totalCoins = baseCoins + streakBonus;
 
-  let milestoneBonus = '';
-  let tpBonus = 0;
-  if (newStreak % 7 === 0) {
-    totalCoins += 50000n;
-    tpBonus = 2;
-    milestoneBonus = `\n🔥 **7-DAY MILESTONE BONUS!** Received extra **+50k coins** 🪙 and **+2 TP** 🏋️!`;
-  }
-
-  const coinEmoji = getEmoji(message.guild, 'coin');
-
-  await prisma.player.update({
-    where: { id: player.id },
-    data: {
-      coins: { increment: totalCoins },
-      trainingPoints: { increment: tpBonus },
-      dailyStreak: newStreak,
-      lastDailyAt: now
+    let milestoneBonus = '';
+    let tpBonus = 0;
+    if (newStreak % 7 === 0) {
+      totalCoins += 50000n;
+      tpBonus = 2;
+      milestoneBonus = `\n🔥 **7-DAY MILESTONE BONUS!** Received extra **+50k coins** 🪙 and **+2 TP** 🏋️!`;
     }
+
+    const coinEmoji = getEmoji(message.guild, 'coin');
+
+    const updateRes = await prisma.player.updateMany({
+      where: {
+        id: player.id,
+        OR: [
+          { lastDailyAt: null },
+          { lastDailyAt: { lte: cutoff } }
+        ]
+      },
+      data: {
+        coins: { increment: totalCoins },
+        trainingPoints: { increment: tpBonus },
+        dailyStreak: newStreak,
+        lastDailyAt: now
+      }
+    });
+
+    if (updateRes.count === 0) {
+      return await message.reply('⏳ **Daily already claimed!** Please wait 24 hours between claims.');
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(THEME_COLORS.GOLD)
+      .setTitle(`☀️ Daily Matchday Stipend — Day ${newStreak} Streak`)
+      .setDescription(
+        `You checked in for matchday duty!\n\n` +
+        `🪙 **Daily Reward:** **+${formatK(totalCoins)} coins** ${coinEmoji}\n` +
+        `🔥 **Current Streak:** **${newStreak} days** (Earn +2.5k more coins each consecutive day!)${milestoneBonus}\n\n` +
+        subtext('Check back tomorrow within 48 hours to preserve your check-in streak!')
+      )
+      .setFooter({ text: 'Beyond The Final Whistle • Daily Economy' })
+      .setTimestamp();
+
+    await message.reply({ embeds: [embed] });
   });
-
-  const embed = new EmbedBuilder()
-    .setColor(THEME_COLORS.GOLD)
-    .setTitle(`☀️ Daily Matchday Stipend — Day ${newStreak} Streak`)
-    .setDescription(
-      `You checked in for matchday duty!\n\n` +
-      `🪙 **Daily Reward:** **+${formatK(totalCoins)} coins** ${coinEmoji}\n` +
-      `🔥 **Current Streak:** **${newStreak} days** (Earn +2.5k more coins each consecutive day!)${milestoneBonus}\n\n` +
-      subtext('Check back tomorrow within 48 hours to preserve your check-in streak!')
-    )
-    .setFooter({ text: 'Beyond The Final Whistle • Daily Economy' })
-    .setTimestamp();
-
-  await message.reply({ embeds: [embed] });
 }
