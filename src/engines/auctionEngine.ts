@@ -42,7 +42,7 @@ export async function getPausedLotsRemainingMap(lotIds: string[]): Promise<Map<s
 }
 
 async function announceAuctionDrop(client: Client, listings: any[], headline = '🏛️ DAILY AUCTION HOUSE DROPS ARE LIVE!') {
-  if (!client || listings.length === 0) return;
+  if (!client?.guilds?.cache || listings.length === 0) return;
   const ahCfg = getAuctionAutomationConfig();
 
   for (const guild of client.guilds.cache.values()) {
@@ -548,11 +548,11 @@ export async function haltAuctionLots(
     return { success: false, haltedCount: 0, message: '❌ Selected lot(s) already expired before they could be halted.' };
   }
 
-  const lines = haltedSummary.map((h, i) =>
+  const lines = haltedSummary.map((h) =>
     `• ${h.lot.emoji} **${h.lot.itemName}** — frozen at **\`${formatDurationMs(h.remainingMs)}\`** remaining`
   ).join('\n');
 
-  if (client) {
+  if (client?.guilds?.cache) {
     for (const guild of client.guilds.cache.values()) {
       const ahChannel = guild.channels.cache.find(
         c => c.isTextBased() && c.name.toLowerCase().includes('auction-house')
@@ -576,7 +576,7 @@ export async function haltAuctionLots(
     haltedCount: haltedSummary.length,
     message:
       `⏸️ **Halted ${haltedSummary.length} auction lot(s)!** Timers frozen:\n${lines}\n\n` +
-      'Restart with the exact same time left using `-auctionresume`.'
+      `Restart with the exact same time left using \`-auctionresume\`.`
   };
 }
 
