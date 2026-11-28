@@ -71,6 +71,25 @@ export async function playTournamentFixture(params: {
   const isLive = !params.fast && Boolean(params.channel && params.client);
 
   if (isLive && params.client && params.channel) {
+    if (params.channel.guild && fixture.matchNumber === 1 && fixture.matchday === 1) {
+      const announceChannel = params.channel.guild.channels.cache.find(
+        (c) =>
+          c.isTextBased() &&
+          (c.name.includes('announcement') ||
+            c.name.includes('announcements') ||
+            c.name.includes('btfw-news') ||
+            c.name.includes('news')) &&
+          !c.name.includes('bot-cmd')
+      ) as TextChannel | null;
+
+      if (announceChannel && announceChannel.id !== params.channel.id) {
+        await announceChannel.send({
+          content: `@everyone ⚽ **${tourney.name} OPENING KICKOFF!** Match #1 (**${homeTeam.name} vs ${awayTeam.name}**) is now LIVE in <#${params.channel.id}>! Tune in to watch!`,
+          allowedMentions: { parse: ['everyone'] }
+        }).catch(() => {});
+      }
+    }
+
     const homeMatchTeam = await buildLiveMatchTeam(homeTeam.alias, true);
     const awayMatchTeam = await buildLiveMatchTeam(awayTeam.alias, false);
 

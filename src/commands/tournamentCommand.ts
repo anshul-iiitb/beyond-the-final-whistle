@@ -1,4 +1,4 @@
-import { Message, EmbedBuilder, TextChannel } from 'discord.js';
+import { Message, EmbedBuilder, TextChannel, Guild } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import {
   createTournament,
@@ -11,6 +11,21 @@ import {
 import { playTournamentFixture } from '../tournaments/tournamentMatchRunner.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { logger } from '../utils/logger.js';
+
+function findAnnouncementChannel(guild: Guild): TextChannel | null {
+  return (
+    guild.channels.cache.find(
+      (c) =>
+        c.isTextBased() &&
+        (c.name.includes('announcement') ||
+          c.name.includes('announcements') ||
+          c.name.includes('btfw-news') ||
+          c.name.includes('news') ||
+          c.name.includes('gazette')) &&
+        !c.name.includes('bot-cmd')
+    ) as TextChannel | null
+  ) || null;
+}
 
 async function resolveTournament(identifier: string) {
   const trimmed = identifier.trim();
@@ -223,11 +238,11 @@ export async function handleTournamentCommand(message: Message, args: string[]) 
     return;
   }
 
-  // SCHEDULE FIXTURES
-  if (sub === 'schedule' || sub === 'generate' || sub === 'fixturesgen') {
+  // SCHEDULE FIXTURES / START TOURNAMENT
+  if (sub === 'schedule' || sub === 'start' || sub === 'kickoff' || sub === 'generate' || sub === 'fixturesgen') {
     const tourneyQuery = args[1];
     if (!tourneyQuery) {
-      await message.reply('⚠️ Usage: `-tourney schedule "<tournament>"`.');
+      await message.reply('⚠️ Usage: `-tourney schedule "<tournament>"` (or `-tourney start "<tournament>"`).');
       return;
     }
 
@@ -251,6 +266,38 @@ export async function handleTournamentCommand(message: Message, args: string[]) 
         .setFooter({ text: `${tourney.name} • Fixtures Ready` });
 
       await message.reply({ embeds: [embed] });
+
+      // Automatically broadcast tournament kickoff to announcement channel pinging @everyone
+      if (message.guild) {
+        const announceChannel = findAnnouncementChannel(message.guild);
+        if (announceChannel) {
+          const liveChannel = message.guild.channels.cache.find(
+            (c) => c.isTextBased() && c.name.includes('live-match')
+          );
+          const announceEmbed = new EmbedBuilder()
+            .setColor('#f59e0b')
+            .setTitle(`🏆 TOURNAMENT COMMENCED: ${tourney.name.toUpperCase()}! 🏆`)
+            .setDescription(
+              `@everyone The whistle has blown and the competition is officially underway!\n\n` +
+              `🏆 **Tournament:** **${tourney.name}**\n` +
+              `⚔️ **Initial Stage:** \`${tourney.currentPhase}\`\n` +
+              `👥 **Enrolled Teams:** **${tourney.teams.length}** teams (${tourney.type === 'NATION' ? 'National Teams 🌍' : 'Football Clubs 🛡️'})\n` +
+              `📅 **Scheduled Fixtures:** **${fixtures.length}** match(es)\n\n` +
+              `### 📌 How to Follow the Action\n` +
+              `• Standings & Table: \`-tourney table "${tourney.name}"\`\n` +
+              `• Fixtures Schedule: \`-tourney fixtures "${tourney.name}"\`\n` +
+              `• Matchday Broadcasts: ${liveChannel ? `<#${liveChannel.id}>` : '#live-match'}`
+            )
+            .setFooter({ text: `${tourney.name} • Beyond The Final Whistle Tournament Federation` })
+            .setTimestamp();
+
+          await announceChannel.send({
+            content: `@everyone 📢 **${tourney.name}** has officially commenced! Fixtures and groups are now live:`,
+            embeds: [announceEmbed],
+            allowedMentions: { parse: ['everyone'] }
+          }).catch((err) => logger.warn({ err: err.message }, 'Failed to broadcast tournament start announcement'));
+        }
+      }
     } catch (err: any) {
       await message.reply(`❌ ${err.message}`);
     }
@@ -444,6 +491,28 @@ export async function handleTournamentCommand(message: Message, args: string[]) 
           .setTimestamp();
 
         await updateLoadingMessage(thinking, { embeds: [crownEmbed] });
+
+        if (message.guild) {
+          const announceChannel = findAnnouncementChannel(message.guild);
+          if (announceChannel) {
+            const champName = adv.championName || 'Champion';
+            const championEmbed = new EmbedBuilder()
+              .setColor('#f1c40f')
+              .setTitle(`👑 TOURNAMENT CHAMPIONS: ${champName.toUpperCase()}! 👑`)
+              .setDescription(
+                `@everyone 🎉 **Congratulations to ${champName}!** 🎉${adv.scoreText || ''}\n\n` +
+                `All stages of **${tourney.name}** have concluded! Their name is immortalized in Beyond The Final Whistle history.`
+              )
+              .setFooter({ text: `${tourney.name} • Champion Crowned` })
+              .setTimestamp();
+
+            await announceChannel.send({
+              content: `@everyone 👑 **WE HAVE A CHAMPION! All hail ${champName}, winner of ${tourney.name}!**`,
+              embeds: [championEmbed],
+              allowedMentions: { parse: ['everyone'] }
+            }).catch((err) => logger.warn({ err: err.message }, 'Failed to broadcast tournament champion announcement'));
+          }
+        }
         return;
       }
 

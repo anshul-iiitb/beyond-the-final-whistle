@@ -437,6 +437,10 @@ export async function generateTournamentStageFixtures(tournamentId: string) {
   }
 
   await prisma.tournamentFixture.createMany({ data: fixturesToCreate });
+  await prisma.tournament.update({
+    where: { id: tourney.id },
+    data: { status: 'ACTIVE' },
+  });
   return fixturesToCreate;
 }
 

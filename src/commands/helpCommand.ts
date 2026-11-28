@@ -189,7 +189,7 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
             '• `-tourney create "<name>" [NATION|CLUB] [blueprintSlug]` — Create a new tournament.\n' +
             '• `-tourney enroll "<name>" <alias | all>` — Enroll nations or clubs (or all teams at once).\n' +
             '• `-tourney blueprint "<name>" <slug>` — Apply blueprint format and assign group seeds.\n' +
-            '• `-tourney schedule "<name>"` — Generate stage round-robin or knockout fixtures.\n' +
+            '• `-tourney schedule "<name>"` (or `-tourney start`) — Generate stage fixtures & broadcast kickoff announcement (@everyone in announcements channel).\n' +
             '• `-tourney table "<name>" [group]` — Live group standings (PTS, GD, GF, W/D/L).\n' +
             '• `-tourney fixtures "<name>" [matchday]` — Inspect matchday fixtures and results.\n' +
             '• `-tourney play "<name>" [next | match#] [fast]` — Broadcast (20s pulse) or simulate fixture.\n' +
