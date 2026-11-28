@@ -1,7 +1,8 @@
 import assert from 'node:assert';
-import { calculateDerivedRatings } from '../dist/engines/matchSimulationEngine.js';
+import { calculateDerivedRatings, calculatePlaystyleMastery } from '../dist/engines/matchSimulationEngine.js';
 import { MAX_BET_AMOUNT } from '../dist/engines/bettingEngine.js';
 import { MATCHDAY_LOCKOUT_WHITELIST } from '../dist/engines/fixtureEngine.js';
+import { PLAYSTYLES } from '../dist/config/constants.js';
 
 console.log('🧪 Starting BTFW New Feature Verification Tests...\n');
 
@@ -10,8 +11,8 @@ console.log('1️⃣ Checking Maximum Sportsbook Bet Limit...');
 assert.strictEqual(MAX_BET_AMOUNT, 50000n, 'MAX_BET_AMOUNT must strictly be 50,000 coins (50k)');
 console.log('   ✅ Max bet limit is strictly enforced at 50,000 coins (50k).');
 
-// 2. Verify Capped TP Boost & Position-Linked Boots
-console.log('\n2️⃣ Checking Position-Linked Boots, Intel & Capped +10 TP Stat Boosts...');
+// 2. Verify Capped TP Boost & Position-Locked Boots
+console.log('\n2️⃣ Checking Position-Locked Boots, Intel & Capped +10 TP Stat Boosts...');
 
 const mockAttacker = {
   // Stats yielding raw Atk: 56, Mid: 53, Def: 51
@@ -71,5 +72,55 @@ assert.ok(!MATCHDAY_LOCKOUT_WHITELIST.has('train'), 'Training must be blocked du
 assert.ok(!MATCHDAY_LOCKOUT_WHITELIST.has('bet'), 'Betting must be blocked during matchday lockout');
 assert.ok(!MATCHDAY_LOCKOUT_WHITELIST.has('buy'), 'Market purchases must be blocked during matchday lockout');
 console.log('   ✅ Matchday Lockout permissions correctly whitelisted/blacklisted.');
+
+// 4. 18 Balanced Tactical Playstyles
+console.log('\n4️⃣ Checking 18 Balanced Playstyle Archetypes (6-6-6)...');
+const strikers = ['PCH', 'F9', 'TGT', 'SPD', 'INF', 'PFW'];
+const midfielders = ['ENG', 'B2B', 'MEZ', 'REG', 'BWM', 'ANC'];
+const defenders = ['NND', 'BPD', 'STP', 'COV', 'AER', 'WCB'];
+
+for (const s of strikers) {
+  assert.ok(PLAYSTYLES[s], `Striker playstyle ${s} must exist`);
+  assert.strictEqual(PLAYSTYLES[s].position, 'ATT');
+  assert.strictEqual(PLAYSTYLES[s].keyStats.length, 3);
+}
+for (const m of midfielders) {
+  assert.ok(PLAYSTYLES[m], `Midfielder playstyle ${m} must exist`);
+  assert.strictEqual(PLAYSTYLES[m].position, 'MID');
+  assert.strictEqual(PLAYSTYLES[m].keyStats.length, 3);
+}
+for (const d of defenders) {
+  assert.ok(PLAYSTYLES[d], `Defender playstyle ${d} must exist`);
+  assert.strictEqual(PLAYSTYLES[d].position, 'DEF');
+  assert.strictEqual(PLAYSTYLES[d].keyStats.length, 3);
+}
+console.log('   ✅ All 18 playstyles (6 Strikers, 6 Midfielders, 6 Defenders) verified with 3 key stats each.');
+
+// 5. In-Match Key Stat Mastery Tiers
+console.log('\n5️⃣ Checking Key Stat Mastery Tiers & Duel Multipliers...');
+
+// Poacher with key stats: fin, cmp, agi
+const rookiePoacher = calculatePlaystyleMastery({ playstyle: 'PCH', fin: 55, cmp: 50, agi: 50 });
+assert.strictEqual(rookiePoacher.masteryTier, 'NONE');
+assert.strictEqual(rookiePoacher.duelMultiplier, 1.0);
+assert.strictEqual(rookiePoacher.ratingFloorBonus, 0);
+
+const specialistPoacher = calculatePlaystyleMastery({ playstyle: 'PCH', fin: 75, cmp: 72, agi: 70 });
+assert.strictEqual(specialistPoacher.masteryTier, 'SPECIALIST');
+assert.strictEqual(specialistPoacher.duelMultiplier, 1.10);
+assert.strictEqual(specialistPoacher.ratingFloorBonus, 0.15);
+
+const eliteRegista = calculatePlaystyleMastery({ playstyle: 'REG', pas: 85, vis: 84, cmp: 83 });
+assert.strictEqual(eliteRegista.masteryTier, 'ELITE');
+assert.strictEqual(eliteRegista.duelMultiplier, 1.20);
+assert.strictEqual(eliteRegista.ratingFloorBonus, 0.35);
+
+const worldClassNoNonsense = calculatePlaystyleMastery({ playstyle: 'NND', tck: 94, pac: 92, cmp: 90 });
+assert.strictEqual(worldClassNoNonsense.masteryTier, 'WORLD_CLASS');
+assert.strictEqual(worldClassNoNonsense.duelMultiplier, 1.30);
+assert.strictEqual(worldClassNoNonsense.ratingFloorBonus, 0.50);
+assert.strictEqual(worldClassNoNonsense.traitName, 'No-Nonsense Brick Wall');
+
+console.log('   ✅ Key Stat Mastery tiers (Specialist, Elite, World Class) fully operational.');
 
 console.log('\n🎉 ALL NEW FEATURE TESTS PASSED SUCCESSFULLY!\n');

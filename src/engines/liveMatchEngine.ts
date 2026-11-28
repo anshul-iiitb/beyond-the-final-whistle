@@ -4,6 +4,7 @@ import fs from 'fs';
 import { generatePossessionPieChart, generateMatchScorecardGraphic } from '../utils/chartHelper.js';
 import { TeamTactics } from '../commands/tacticsCommand.js';
 import { generateAiMinuteCommentary, generateAiNewsArticle, MatchEventData } from '../services/aiEngine.js';
+import { calculatePlaystyleMastery } from './matchSimulationEngine.js';
 import { logger } from '../utils/logger.js';
 
 export interface MatchPlayer {
@@ -91,6 +92,10 @@ function calculatePlayerRating(player: MatchPlayer, teamWon: boolean, cleanSheet
   if (teamWon) base += 0.4;
   if (cleanSheet && player.position === 'DEF') base += 0.9;
   if (cleanSheet && player.position === 'MID') base += 0.4;
+
+  // In-match Key Stat Mastery Rating Floor Bonus (rewards specialized training in key stats)
+  const mastery = calculatePlaystyleMastery(player);
+  base += mastery.ratingFloorBonus;
 
   base += (Math.random() * 0.4 - 0.2);
   return +Math.max(4.0, Math.min(10.0, base)).toFixed(1);
@@ -377,19 +382,26 @@ export async function runLiveEpisodicMatch(
       }
 
       // 2. Calculate Shooting Power vs Defensive Resistance
+      const shooterMastery = calculatePlaystyleMastery(targetShooter);
+      const defMastery = calculatePlaystyleMastery(defPlayer);
+
       let shooterFinishing: number;
       if (isHeader) {
-        shooterFinishing = (targetShooter.hea || 65) * 1.1 + targetShooter.phy * 0.9;
+        const headerMultiplier = (targetShooter.playstyle === 'TGT' || targetShooter.playstyle === 'AER') ? shooterMastery.duelMultiplier : 1.0;
+        shooterFinishing = ((targetShooter.hea || 65) * 1.1 + targetShooter.phy * 0.9) * headerMultiplier;
       } else if (isLongShot) {
-        shooterFinishing = (targetShooter.pow || 66) * 1.0 + targetShooter.fin * 0.9 + targetShooter.cmp * 0.7;
+        const longMultiplier = (targetShooter.playstyle === 'SPD' || targetShooter.playstyle === 'INF' || targetShooter.playstyle === 'B2B') ? shooterMastery.duelMultiplier : 1.0;
+        shooterFinishing = ((targetShooter.pow || 66) * 1.0 + targetShooter.fin * 0.9 + targetShooter.cmp * 0.7) * longMultiplier;
       } else {
-        shooterFinishing = targetShooter.fin * 1.0 + targetShooter.cmp * 0.9 + (targetShooter.playstyle === 'PCH' ? 8 : 0);
+        const boxMultiplier = (targetShooter.playstyle === 'PCH' || targetShooter.playstyle === 'INF' || targetShooter.playstyle === 'F9') ? shooterMastery.duelMultiplier : 1.0;
+        shooterFinishing = (targetShooter.fin * 1.0 + targetShooter.cmp * 0.9) * boxMultiplier + (targetShooter.playstyle === 'PCH' ? 8 : 0);
       }
 
       // If counter-attack, defense is stretched and caught upfield
-      const defResistance = isCounterAttack
+      const defMultiplier = (defPlayer.playstyle === 'NND' || defPlayer.playstyle === 'SWP' || defPlayer.playstyle === 'STP' || defPlayer.playstyle === 'COV') ? defMastery.duelMultiplier : 1.0;
+      const defResistance = (isCounterAttack
         ? ((defPlayer.tck + defPlayer.int) / 2) * 1.25
-        : ((defPlayer.tck + defPlayer.int + defPlayer.phy) / 3) * 1.75;
+        : ((defPlayer.tck + defPlayer.int + defPlayer.phy) / 3) * 1.75) * defMultiplier;
 
       let goalProb = isCounterAttack
         ? Math.max(24, Math.min(48, Math.round(34 + (shooterFinishing - defResistance) * 0.22)))
@@ -1005,12 +1017,12 @@ export async function runLiveEpisodicMatch(
       return;
     }
 
-    // Scenario D: INTERCEPTIONS & SWEEPER CLEARANCE (BPD & Sweeper Playstyles)
+    // Scenario D: INTERCEPTIONS & SWEEPER CLEARANCE (BPD, No-Nonsense DC, Sweeper & Covering Defender)
     if (actionRoll >= 50 && actionRoll < 60) {
-      if (defPlayer.playstyle === 'SWP') {
+      if (defPlayer.playstyle === 'SWP' || defPlayer.playstyle === 'NND' || defPlayer.playstyle === 'COV') {
         const swpDuel = calcDuelWinProb(defPlayer.pac * 1.2 + defPlayer.int, striker.pac * 1.2, 54);
         if (Math.random() * 100 < swpDuel) {
-          // Sweeper sliding recovery clearance
+          // Sweeper / No-Nonsense sliding recovery clearance
           defPlayer.interceptions++;
           const commentary = await generateAiMinuteCommentary({
             minute: min,
@@ -1019,17 +1031,17 @@ export async function runLiveEpisodicMatch(
             awayTeam: awayTeam.name,
             homeScore: homeTeam.score,
             awayScore: awayTeam.score,
-            actorPlayer: `${defPlayer.name} (Sweeper)`,
+            actorPlayer: `${defPlayer.name} (${defPlayer.playstyle})`,
             actorTeam: defTeam.name,
             secondaryPlayer: striker.name,
             secondaryTeam: attTeam.name,
-            details: `Sweeper ${defPlayer.name} (${defTeam.name}) uses recovery pace to execute a sliding clearance just as the through ball was arriving for ${striker.name} (${attTeam.name}).`
+            details: `Defender ${defPlayer.name} (${defTeam.name}) uses sharp recovery anticipation to execute a sliding clearance just as the through ball was arriving for ${striker.name} (${attTeam.name}).`
           });
 
           await sendIncident({
             minute: min,
             icon: '🧹',
-            eventTitle: 'SWEEPER RECOVERY CLEARANCE',
+            eventTitle: 'NO-NONSENSE RECOVERY CLEARANCE',
             actor: defPlayer,
             secondaryPlayer: striker,
             narrative: commentary

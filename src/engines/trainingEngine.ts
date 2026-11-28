@@ -144,15 +144,21 @@ export async function getAttributeLabOverview(playerId: string) {
   const player = await prisma.player.findUnique({ where: { id: playerId } });
   if (!player) return null;
 
+  const playerStyle = PLAYSTYLES[player.playstyle || 'PCH'] || PLAYSTYLES.PCH;
+
   const attributes: AttributeLabItem[] = ATTRIBUTES_LIST.map(meta => {
     const currentVal = (player as any)[meta.key] as number;
-    const tpCost = calculateAttributeTpCost(currentVal);
+    let tpCost = calculateAttributeTpCost(currentVal);
+    const isKeyStat = playerStyle.keyStats.includes(meta.key);
+    if (isKeyStat) {
+      tpCost = Math.max(1, Math.round(tpCost * 0.85)); // 15% Playstyle Key Stat Discount!
+    }
     const isMaxed = currentVal >= 99;
     const canAffordTp = player.trainingPoints >= tpCost;
     const canAffordStamina = player.stamina >= SP_TRAIN_STAMINA_COST;
     return {
       key: meta.key,
-      name: meta.name,
+      name: meta.name + (isKeyStat ? ' ⭐ [KEY]' : ''),
       category: meta.category,
       currentVal,
       tpCost,
@@ -201,7 +207,12 @@ export async function upgradeAttribute(playerId: string, attributeKey: string) {
     return { success: false, message: `⚡ Upgrading requires **${SP_TRAIN_STAMINA_COST} Stamina** (You have ${player.stamina}/100). Rest at sauna or drink a sports drink.` };
   }
 
-  const tpCost = calculateAttributeTpCost(currentVal);
+  const playerStyle = PLAYSTYLES[player.playstyle || 'PCH'] || PLAYSTYLES.PCH;
+  const isKeyStat = playerStyle.keyStats.includes(attrLower);
+  let tpCost = calculateAttributeTpCost(currentVal);
+  if (isKeyStat) {
+    tpCost = Math.max(1, Math.round(tpCost * 0.85)); // 15% Playstyle Key Stat Discount!
+  }
 
   if (player.trainingPoints < tpCost) {
     return {
@@ -219,12 +230,14 @@ export async function upgradeAttribute(playerId: string, attributeKey: string) {
     }
   });
 
+  const discountTag = isKeyStat ? `\n⭐ **Key Stat Advantage:** Saved TP developing your core **${playerStyle.name}** attribute (15% discount applied)!` : '';
+
   return {
     success: true,
     message:
       `🔬 **Biomechanics Attribute Enhancement Successful!**\n\n` +
       `✨ **${attrMeta.name} (${attrMeta.key.toUpperCase()}):** \`${currentVal}\` ➔ **\`${(updated as any)[attrLower]}\`** (+1)\n` +
-      `📉 Cost: **-${tpCost} TP** | **-${SP_TRAIN_STAMINA_COST} ⚡ Stamina**\n` +
+      `📉 Cost: **-${tpCost} TP** | **-${SP_TRAIN_STAMINA_COST} ⚡ Stamina**${discountTag}\n` +
       `📊 Remaining: \`${updated.trainingPoints} TP\` | \`${updated.stamina} ⚡ Stamina\``
   };
 }

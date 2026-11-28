@@ -201,6 +201,7 @@ export interface PlaystyleDef {
 }
 
 export const PLAYSTYLES: Record<string, PlaystyleDef> = {
+  // === 6 STRIKER PLAYSTYLES (ATT) ===
   PCH: {
     code: 'PCH',
     name: 'Poacher',
@@ -208,6 +209,22 @@ export const PLAYSTYLES: Record<string, PlaystyleDef> = {
     emoji: '🎯',
     description: 'Box predator with lethal instinct, clinical finishing, and ice-cold composure.',
     keyStats: ['fin', 'cmp', 'agi']
+  },
+  F9: {
+    code: 'F9',
+    name: 'False Nine',
+    position: 'ATT',
+    emoji: '🎭',
+    description: 'Drops deep between lines to drag CBs out of position and create midfield passing overloads.',
+    keyStats: ['vis', 'pas', 'dri']
+  },
+  TGT: {
+    code: 'TGT',
+    name: 'Target Man',
+    position: 'ATT',
+    emoji: '🦘',
+    description: 'Colossal physical powerhouse who bullies defenders in aerial duels and hold-up play.',
+    keyStats: ['hea', 'phy', 'pow']
   },
   SPD: {
     code: 'SPD',
@@ -217,13 +234,31 @@ export const PLAYSTYLES: Record<string, PlaystyleDef> = {
     description: 'Explosive counter-attack runner who incinerates high backlines with blistering pace.',
     keyStats: ['pac', 'dri', 'pow']
   },
-  TGT: {
-    code: 'TGT',
-    name: 'Target Man',
+  INF: {
+    code: 'INF',
+    name: 'Inside Forward',
     position: 'ATT',
-    emoji: '🦘',
-    description: 'Colossal physical powerhouse who bullies center-backs in aerial duels and hold-up play.',
-    keyStats: ['hea', 'phy', 'pow']
+    emoji: '🏹',
+    description: 'Attacks from wide channels, cutting inside onto their stronger foot to curl deadly shots.',
+    keyStats: ['fin', 'dri', 'pac']
+  },
+  PFW: {
+    code: 'PFW',
+    name: 'Pressing Forward',
+    position: 'ATT',
+    emoji: '🐺',
+    description: 'Relentless workhorse harrying goalkeepers and CBs in possession to force panic turnovers.',
+    keyStats: ['wrk', 'phy', 'pac']
+  },
+
+  // === 6 MIDFIELDER PLAYSTYLES (MID) ===
+  ENG: {
+    code: 'ENG',
+    name: 'Enganche',
+    position: 'MID',
+    emoji: '🪄',
+    description: 'Classic stationary #10 genius orchestrating the final third with visionary through-balls.',
+    keyStats: ['vis', 'pas', 'cmp']
   },
   PLM: {
     code: 'PLM',
@@ -231,47 +266,105 @@ export const PLAYSTYLES: Record<string, PlaystyleDef> = {
     position: 'MID',
     emoji: '🪄',
     description: 'Visionary midfield maestro threading pin-point through balls between compact defensive lines.',
-    keyStats: ['vis', 'pas', 'dri']
+    keyStats: ['vis', 'pas', 'cmp']
   },
   B2B: {
     code: 'B2B',
     name: 'Box-to-Box',
     position: 'MID',
     emoji: '🔋',
-    description: 'Endless engine dominating both boxes with relentless work rate and tactical tackling.',
+    description: 'Endless engine dominating both boxes with relentless work rate, tackling, and late arrivals.',
     keyStats: ['wrk', 'cmp', 'tck']
+  },
+  MEZ: {
+    code: 'MEZ',
+    name: 'Mezzala',
+    position: 'MID',
+    emoji: '🌪️',
+    description: 'Dynamic half-winger drifting into wide half-spaces to overload flanks and whip dangerous cutbacks.',
+    keyStats: ['dri', 'pas', 'agi']
+  },
+  REG: {
+    code: 'REG',
+    name: 'Regista',
+    position: 'MID',
+    emoji: '🎼',
+    description: 'Deep-lying conductor dictating match tempo from deep with laser-guided progressive diagonals.',
+    keyStats: ['pas', 'vis', 'cmp']
+  },
+  BWM: {
+    code: 'BWM',
+    name: 'Ball Winner',
+    position: 'MID',
+    emoji: '⚔️',
+    description: 'Aggressive midfield destroyer hunting down playmakers with crunching challenges and high intensity.',
+    keyStats: ['tck', 'phy', 'wrk']
   },
   ANC: {
     code: 'ANC',
-    name: 'Anchor',
+    name: 'Anchor Man',
     position: 'MID',
     emoji: '🛡️',
-    description: 'Deep holding defensive shield who sweeps up loose balls and shuts down transition attacks.',
-    keyStats: ['tck', 'int', 'mrk']
+    description: 'Positional defensive screen holding central ground, cutting passing lanes, and halting counters.',
+    keyStats: ['int', 'mrk', 'tck']
+  },
+
+  // === 6 CENTRE BACK PLAYSTYLES (DEF) ===
+  NND: {
+    code: 'NND',
+    name: 'No-Nonsense DC',
+    position: 'DEF',
+    emoji: '🧹',
+    description: 'Zero-risk safety-first sweeper; clears danger into the stands and covers behind the defensive line.',
+    keyStats: ['tck', 'pac', 'cmp']
+  },
+  SWP: {
+    code: 'SWP',
+    name: 'No-Nonsense Sweeper',
+    position: 'DEF',
+    emoji: '🧹',
+    description: 'Rapid recovery defender reading long balls and covering behind the defensive line.',
+    keyStats: ['tck', 'pac', 'cmp']
+  },
+  BPD: {
+    code: 'BPD',
+    name: 'Ball-Playing DC',
+    position: 'DEF',
+    emoji: '🧠',
+    description: 'Cerebral ball-carrier stepping into midfield with laser-guided progressive passing.',
+    keyStats: ['pas', 'vis', 'cmp']
   },
   STP: {
     code: 'STP',
     name: 'Stopper',
     position: 'DEF',
     emoji: '🛑',
-    description: 'Aggressive physical enforcer who clatters strikers and clears box danger without mercy.',
+    description: 'Aggressive physical enforcer who steps up to clatter strikers and dominate aerial duels.',
     keyStats: ['phy', 'tck', 'hea']
   },
-  SWP: {
-    code: 'SWP',
-    name: 'Sweeper',
+  COV: {
+    code: 'COV',
+    name: 'Covering Defender',
     position: 'DEF',
-    emoji: '🧹',
-    description: 'Rapid recovery defender reading long balls and covering for out-of-position full-backs.',
-    keyStats: ['pac', 'mrk', 'cmp']
+    emoji: '👁️',
+    description: 'Cerebral reader of the game; drops deep to intercept passes before danger develops.',
+    keyStats: ['int', 'mrk', 'pac']
   },
-  BPD: {
-    code: 'BPD',
-    name: 'Ball-Playing Defender',
+  AER: {
+    code: 'AER',
+    name: 'Aerial Titan',
     position: 'DEF',
-    emoji: '🧠',
-    description: 'Cerebral ball-carrier stepping out of the defensive block with laser-guided progressive passing.',
-    keyStats: ['int', 'pas', 'cmp']
+    emoji: '🗿',
+    description: 'Imposing colossus in both penalty boxes; heads away crosses and dominates set-piece scrambles.',
+    keyStats: ['hea', 'phy', 'mrk']
+  },
+  WCB: {
+    code: 'WCB',
+    name: 'Wide Centre-Back',
+    position: 'DEF',
+    emoji: '🛡️',
+    description: 'Modern hybrid CB stepping out to shut down wingers on wide channels and providing overlapping width.',
+    keyStats: ['pac', 'cro', 'phy']
   }
 };
 

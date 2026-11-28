@@ -53,8 +53,7 @@ export async function handleHelpCommand(message: Message) {
         value:
           '• `-train` — Interactive pitch drills at `tc`:\n' +
           `  🟢 \`Normal\` (+2-4 ${tp} TP, 1h, 5 ${stamina}) • 🔵 \`👑 VIP 6h\` (+6 ${tp}, 6h, 5 ${stamina}) • 🔴 \`👑 20h Endurance\` (+20 ${tp}, 20h CD, 50 ${stamina})\n` +
-          `• \`-sptrain [attr]\` / \`-convert [style]\` — Research Lab attribute upgrades (` +
-          '`3–15` ' + `${tp}, \`50\` ${stamina}) or swap playstyle at \`rf\`.\n` +
+          `• \`-sptrain [attr]\` / \`-convert [style]\` — Research Lab upgrades (**15% TP discount on your 3 Key Stats!**) or swap between **18 tactical roles** at \`rf\`.\n` +
           `• \`-recovery\` / \`-coaching\` / \`-meetgreet\` — Recover +30/+100 ${stamina}, earn +50k ${coin}, or +50k ${followers}!`
       },
       {

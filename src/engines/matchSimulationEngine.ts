@@ -1,5 +1,5 @@
 import { prisma } from '../database/prisma.js';
-import { ATTRIBUTES_LIST } from '../config/constants.js';
+import { ATTRIBUTES_LIST, PLAYSTYLES } from '../config/constants.js';
 import { generateAiMinuteCommentary, generateAiNewsArticle, MatchEventData, MatchSummaryData } from '../services/aiEngine.js';
 import { parseTeamTactics, TeamTactics } from '../commands/tacticsCommand.js';
 import { logger } from '../utils/logger.js';
@@ -17,6 +17,68 @@ export interface SimulatedMatchResult {
   motmRating: number;
   isExhibition?: boolean;
   motmBoost?: { playerName: string; attrName: string; attrKey: string; delta: number; oldVal: number; newVal: number };
+}
+
+export interface PlaystyleMasteryData {
+  avgKeyStat: number;
+  masteryTier: 'NONE' | 'SPECIALIST' | 'ELITE' | 'WORLD_CLASS';
+  duelMultiplier: number;
+  ratingFloorBonus: number;
+  traitName: string;
+}
+
+/**
+ * Calculates in-match Key Stat Mastery for a footballer.
+ * When players specialize and upgrade their playstyle's 3 key stats:
+ * - Tier 1 (Avg 70+ in Key Stats): Specialist (+10% duel power, +0.15 rating floor)
+ * - Tier 2 (Avg 80+ in Key Stats): Elite (+20% duel power, +0.35 rating floor)
+ * - Tier 3 (Avg 90+ in Key Stats): World Class (+30% duel power, +0.50 rating floor, signature trait)
+ */
+export function calculatePlaystyleMastery(player: { playstyle?: string; [attr: string]: any }): PlaystyleMasteryData {
+  const code = (player.playstyle || 'PCH').toUpperCase();
+  const style = PLAYSTYLES[code] || PLAYSTYLES.PCH;
+  const k = style.keyStats;
+
+  const val1 = Number(player[k[0]]) || 50;
+  const val2 = Number(player[k[1]]) || 50;
+  const val3 = Number(player[k[2]]) || 50;
+  const avg = Math.round((val1 + val2 + val3) / 3);
+
+  const traits: Record<string, string> = {
+    PCH: 'Lethal Predator Instinct',
+    F9: 'Half-Space Deception',
+    TGT: 'Colossal Aerial Dominance',
+    SPD: 'Vaporizing Afterburners',
+    INF: 'Bending Far-Corner Whip',
+    PFW: 'Suffocating Press',
+    ENG: 'Surgical Playmaking Genius',
+    PLM: 'Surgical Playmaking Genius',
+    B2B: 'Endless Box Domination',
+    MEZ: 'Half-Space Overload',
+    REG: 'Metronome Orchestration',
+    BWM: 'Bone-Crunching Destroyer',
+    ANC: 'Iron Curtain Screen',
+    NND: 'No-Nonsense Brick Wall',
+    SWP: 'No-Nonsense Brick Wall',
+    BPD: 'Laser Vision Progressive Ball',
+    STP: 'Intimidating Front-Foot Clatter',
+    COV: 'Anticipatory Sweeping Radar',
+    AER: 'Aerial Titan Fortress',
+    WCB: 'Overlapping Iron Flank'
+  };
+
+  const traitName = traits[code] || `${style.name} Mastery`;
+
+  if (avg >= 90) {
+    return { avgKeyStat: avg, masteryTier: 'WORLD_CLASS', duelMultiplier: 1.30, ratingFloorBonus: 0.5, traitName };
+  }
+  if (avg >= 80) {
+    return { avgKeyStat: avg, masteryTier: 'ELITE', duelMultiplier: 1.20, ratingFloorBonus: 0.35, traitName };
+  }
+  if (avg >= 70) {
+    return { avgKeyStat: avg, masteryTier: 'SPECIALIST', duelMultiplier: 1.10, ratingFloorBonus: 0.15, traitName };
+  }
+  return { avgKeyStat: avg, masteryTier: 'NONE', duelMultiplier: 1.0, ratingFloorBonus: 0, traitName };
 }
 
 /**

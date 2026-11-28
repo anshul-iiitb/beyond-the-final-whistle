@@ -241,18 +241,23 @@ export async function handleSpTrainCommand(message: Message, args: string[]) {
 export async function handleConvertCommand(message: Message, args: string[]) {
   const styleArg = args[0];
   if (!styleArg) {
-    const styleLines = Object.values(PLAYSTYLES).map(s =>
-      `${s.emoji} \`${s.code}\` **${s.name}** (${s.position}) — *Key:* ${s.keyStats.map(k => `\`${k.toUpperCase()}\``).join(', ')}`
-    );
+    const uniqueStyles = Array.from(new Map(Object.values(PLAYSTYLES).map(s => [s.code, s])).values());
+    const attLines = uniqueStyles.filter(s => s.position === 'ATT').map(s => `${s.emoji} \`${s.code}\` **${s.name}** — *Key:* ${s.keyStats.map(k => `\`${k.toUpperCase()}\``).join(', ')}`);
+    const midLines = uniqueStyles.filter(s => s.position === 'MID').map(s => `${s.emoji} \`${s.code}\` **${s.name}** — *Key:* ${s.keyStats.map(k => `\`${k.toUpperCase()}\``).join(', ')}`);
+    const defLines = uniqueStyles.filter(s => s.position === 'DEF').map(s => `${s.emoji} \`${s.code}\` **${s.name}** — *Key:* ${s.keyStats.map(k => `\`${k.toUpperCase()}\``).join(', ')}`);
+
     const embed = new EmbedBuilder()
       .setColor(THEME_COLORS.CYAN)
-      .setTitle('🎭 Research Facility — Playstyle Conversion Guide')
+      .setTitle('🎭 Research Facility — 18 Tactical Playstyles Directory')
       .setDescription(
         [
-          '**Cost:** `FREE` (0 TP • 0 Stamina)   •   **Cooldown:** `7 Days`   •   **Location:** `-travel rf`',
-          `### 📋 Available Tactical Roles\n${styleLines.join('\n')}`,
+          '**Conversion Cost:** `FREE`   •   **Cooldown:** `7 Days`   •   **Location:** `-travel rf`',
+          '⭐ *Key Stats get a **15% TP discount** in `-sptrain` and unlock up to **+30% duel multipliers** in matches!*',
+          `### ⚡ Strikers & Attackers (ATT)\n${attLines.join('\n')}`,
+          `### 🎯 Midfielders (MID)\n${midLines.join('\n')}`,
+          `### 🛡️ Centre Backs & Defenders (DEF)\n${defLines.join('\n')}`,
           `${UI.DIVIDER}\n` +
-          subtext('💡 Switch role at the Research Facility: `-convert <code_or_alias>` (e.g. `-convert pch` or `-convert plm`).')
+          subtext('💡 Convert role at Research Facility: `-convert <code>` (e.g. `-convert f9`, `-convert eng`, `-convert nnd`).')
         ].join(UI.SPACER)
       )
       .setFooter({ text: 'Beyond The Final Whistle • Research Facility' })
