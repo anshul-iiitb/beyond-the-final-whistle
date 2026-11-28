@@ -43,6 +43,14 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
             '• `-lb [category]` — Interactive leaderboards (`ovr`, `goals`, `wealth`, `followers`).\n' +
             `• \`-give @user <amount>\` — Transfer coins to another player (\`50k\`, \`500k\`, \`2.5m\`).\n` +
             '• `-referral [@user]` — Credit your recruiter upon earning 50 TP to grant them **7 Days of VIP Access** (or check referral status).'
+        },
+        {
+          name: '🔒 Channel Access & Anti-Spam Limits',
+          value:
+            '• `#bot-cmds` — Primary hub for `-profile`, onboarding, daily streaks, economy, and general commands.\n' +
+            '• `#live-match` — Reserved strictly for match broadcasts, lineups (`-lineup`), and matchday tactics (`-tactics`). Irrelevant commands like `-profile` are locked here to prevent commentary clutter.\n' +
+            '• `#general` — Social chatter only; bot gameplay commands are restricted and redirected to `#bot-cmds`.\n' +
+            '• **Anti-Spam Rate Limit:** 2-second command cooldown per user across all channels.'
         }
       );
       break;

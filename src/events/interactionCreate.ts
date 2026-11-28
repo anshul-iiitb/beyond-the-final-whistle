@@ -1,4 +1,4 @@
-import { Interaction, ButtonInteraction, StringSelectMenuInteraction, ModalSubmitInteraction, TextChannel, MessageFlags, EmbedBuilder } from 'discord.js';
+import { Interaction, ButtonInteraction, StringSelectMenuInteraction, ModalSubmitInteraction, TextChannel, MessageFlags, EmbedBuilder, GuildMember } from 'discord.js';
 import { executeTraining, upgradeAttribute } from '../engines/trainingEngine.js';
 import { buildTrainingSuccessEmbed, buildSpTrainLabPayload } from '../commands/trainingCommands.js';
 import { executeSponsorAdvert, applyTweetVote, buildUpdatedTweetEmbed } from '../engines/socialEngine.js';
@@ -50,7 +50,8 @@ export async function onInteractionCreate(interaction: Interaction) {
         cmd: matchedRule.cmd,
         userId: interaction.user.id,
         guild: interaction.guild,
-        channelId: interaction.channelId
+        channelId: interaction.channelId,
+        member: interaction.member as GuildMember | null,
       });
       if (!access.allowed && access.message) {
         return await interaction.reply({ content: access.message, ephemeral: true });

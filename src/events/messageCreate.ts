@@ -65,7 +65,8 @@ export async function onMessageCreate(message: Message) {
       cmd,
       userId: message.author.id,
       guild: message.guild,
-      channelId: message.channelId
+      channelId: message.channelId,
+      member: message.member,
     });
     if (!access.allowed && access.message) {
       await message.reply(access.message);

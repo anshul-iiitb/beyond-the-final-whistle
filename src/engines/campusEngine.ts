@@ -1,4 +1,4 @@
-import { Guild, GuildMember, EmbedBuilder } from 'discord.js';
+import { Guild, GuildMember, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import { CAMPUS_LOCATIONS, BASE_TRAVEL_COOLDOWN_MINUTES, resolveLocationAlias } from '../config/constants.js';
 import { checkMatchdayLockout } from './fixtureEngine.js';
@@ -117,6 +117,190 @@ export function findLocationChannel(guild: Guild, locId: string) {
   return undefined;
 }
 
+export const ADMIN_COMMANDS = new Set([
+  'setup',
+  'setupemojis',
+  'gitpull',
+  'gitpullback',
+  'vip',
+  'devfund',
+  'additem',
+  'addvar',
+  'prices',
+  'setprice',
+  'setlimit',
+  'teamlimits',
+  'lockteam',
+  'unlockteam',
+  'setupmodrole',
+  'setcaptain',
+  'setcap',
+  'fixtureadmin',
+  'seedauction',
+  'auctionstart',
+  'auctionconfig',
+  'auctionend',
+  'auctioncancel',
+  'auctionhalt',
+  'auctionresume',
+]);
+
+/**
+ * Commands permitted inside live match broadcasting channels (#live-match).
+ * Useless economy/career/profile commands (-profile, -daily, -train, etc.) are locked.
+ */
+export const LIVE_MATCH_ALLOWED_COMMANDS = new Set([
+  'livematch',
+  'match',
+  'friendly',
+  'testmatch',
+  'batchmatch',
+  'tourney',
+  'cup',
+  'tournament',
+  'tactics',
+  'lineup',
+  'intlineup',
+  'clublineup',
+  'starting3',
+  'setlineup',
+  'roster',
+  'team',
+  'intteam',
+  'club',
+  'intstats',
+  'clubstats',
+  'odds',
+  'fixtures',
+  'bet',
+  'mybets',
+  ...ADMIN_COMMANDS,
+]);
+
+/**
+ * Commands permitted inside friendly exhibition channels (#friendly-matches).
+ */
+export const FRIENDLY_MATCH_ALLOWED_COMMANDS = new Set([
+  'friendly',
+  'match',
+  'livematch',
+  'testmatch',
+  'tactics',
+  'lineup',
+  'intlineup',
+  'clublineup',
+  'starting3',
+  'setlineup',
+  'roster',
+  'team',
+  'intteam',
+  'club',
+  'intstats',
+  'clubstats',
+  'odds',
+  'fixtures',
+  'bet',
+  'mybets',
+  ...ADMIN_COMMANDS,
+]);
+
+/**
+ * Commands permitted inside general chatter channels (#general, #chat).
+ * Game commands are redirected to #bot-cmds.
+ */
+export const GENERAL_CHAT_ALLOWED_COMMANDS = new Set([
+  'help',
+  ...ADMIN_COMMANDS,
+]);
+
+export function isLiveMatchChannel(channelName: string): boolean {
+  const norm = channelName.toLowerCase();
+  return (
+    norm.includes('live-match') ||
+    norm.includes('live_match') ||
+    norm.includes('match-zone') ||
+    norm.includes('livematch')
+  );
+}
+
+export function isFriendlyMatchChannel(channelName: string): boolean {
+  const norm = channelName.toLowerCase();
+  return (
+    (norm.includes('friendly') || norm.includes('exhibition')) &&
+    !norm.includes('bot-cmd')
+  );
+}
+
+export function isNewsChannel(channelName: string): boolean {
+  const norm = channelName.toLowerCase();
+  return (
+    (norm.includes('news') || norm.includes('gazette') || norm.includes('announcement')) &&
+    !norm.includes('bot-cmd')
+  );
+}
+
+export function isGeneralChatChannel(channelName: string): boolean {
+  const norm = channelName.toLowerCase().replace(/[^a-z0-9-_]/g, '');
+  if (norm.includes('vip') || norm.includes('bot-cmd') || norm.includes('command')) return false;
+  const generalKeywords = [
+    'general',
+    'chat',
+    'main',
+    'main-chat',
+    'general-chat',
+    'discussion',
+    'lounge',
+    'talk',
+    'chatter',
+    'off-topic',
+    'hangout',
+  ];
+  return generalKeywords.some(
+    (g) => norm === g || norm.endsWith(`-${g}`) || norm.startsWith(`${g}-`)
+  );
+}
+
+export function getBotCommandsChannelLink(guild?: Guild | null): string {
+  if (!guild?.channels?.cache) return '`#bot-cmds`';
+  const cache = guild.channels.cache;
+  const botCmds = typeof cache.find === 'function'
+    ? cache.find((c: any) => c.isTextBased?.() && c.name?.toLowerCase().includes('bot-cmd'))
+    : Array.from(cache.values()).find((c: any) => c.isTextBased?.() && c.name?.toLowerCase().includes('bot-cmd'));
+  return botCmds ? `<#${botCmds.id}>` : '`#bot-cmds`';
+}
+
+const userLastCommandTime = new Map<string, number>();
+const COMMAND_RATE_LIMIT_MS = 2000; // 2.0s anti-spam cooldown
+
+function isUserAdmin(member: GuildMember | null | undefined): boolean {
+  if (!member) return false;
+  if (member.guild.ownerId === member.id) return true;
+  return (
+    member.permissions?.has(PermissionFlagsBits.Administrator) ||
+    member.permissions?.has(PermissionFlagsBits.ManageGuild) ||
+    false
+  );
+}
+
+export function checkUserRateLimit(userId: string, isAdmin: boolean): { limited: boolean; waitSec?: string } {
+  if (isAdmin) return { limited: false };
+  const now = Date.now();
+  const last = userLastCommandTime.get(userId) || 0;
+  const elapsed = now - last;
+  if (elapsed < COMMAND_RATE_LIMIT_MS) {
+    const waitSec = ((COMMAND_RATE_LIMIT_MS - elapsed) / 1000).toFixed(1);
+    return { limited: true, waitSec };
+  }
+  userLastCommandTime.set(userId, now);
+  if (userLastCommandTime.size > 2000) {
+    const cutoff = now - 60000;
+    for (const [uid, time] of userLastCommandTime.entries()) {
+      if (time < cutoff) userLastCommandTime.delete(uid);
+    }
+  }
+  return { limited: false };
+}
+
 export const ONBOARDING_WHITELIST = new Set([
   'playstyle', 'setplaystyle', 'pickplaystyle', 'chooseplaystyle', 'styles', 'roles',
   'joinnation', 'nation', 'nations',
@@ -134,22 +318,81 @@ export async function validateCommandAccess(options: {
   userId: string;
   guild?: Guild | null;
   channelId?: string | null;
+  member?: GuildMember | null;
 }): Promise<{ allowed: boolean; message?: string }> {
   const { cmd, userId, guild, channelId } = options;
   const normalizedCmd = cmd.toLowerCase();
+  const member = options.member || (guild ? guild.members.cache.get(userId) : null);
+  const isAdmin = isUserAdmin(member);
 
-  // Matchday Lockout Guard: Freezes non-exempt commands 30m prior to match until 15m after full-time
+  // 1. Anti-Spam Command Rate Limiting
+  const rateLimit = checkUserRateLimit(userId, isAdmin);
+  if (rateLimit.limited) {
+    return {
+      allowed: false,
+      message: `⏳ **Slow down!** Please wait **${rateLimit.waitSec}s** before running another command.`,
+    };
+  }
+
+  // 2. Channel Lockdown Guards
+  if (guild && channelId) {
+    const channel = guild.channels.cache.get(channelId);
+    const channelName = channel?.name || '';
+    const botCmdsLink = getBotCommandsChannelLink(guild);
+
+    // A. Live Match Channel Lockdown (Clean commentary stream; lock -profile, -daily, -train, etc.)
+    if (isLiveMatchChannel(channelName)) {
+      if (!LIVE_MATCH_ALLOWED_COMMANDS.has(normalizedCmd)) {
+        return {
+          allowed: false,
+          message: `❌ Command \`-${normalizedCmd}\` is locked in <#${channelId}>! Keep this channel clear for live match coverage. Run this command in ${botCmdsLink} or your campus facility.`,
+        };
+      }
+    }
+
+    // B. Friendly Matches Channel Lockdown
+    if (isFriendlyMatchChannel(channelName)) {
+      if (!FRIENDLY_MATCH_ALLOWED_COMMANDS.has(normalizedCmd)) {
+        return {
+          allowed: false,
+          message: `❌ Command \`-${normalizedCmd}\` is locked in <#${channelId}>! Use this channel for exhibition friendlies & lineups. Run this command in ${botCmdsLink} or your campus facility.`,
+        };
+      }
+    }
+
+    // C. News / Gazette Channel Lockdown
+    if (isNewsChannel(channelName)) {
+      if (!ADMIN_COMMANDS.has(normalizedCmd)) {
+        return {
+          allowed: false,
+          message: `❌ Bot commands are disabled in <#${channelId}>! This channel is reserved for matchday news and reports. Please use ${botCmdsLink}.`,
+        };
+      }
+    }
+
+    // D. General Chat Channel Lockdown
+    if (isGeneralChatChannel(channelName)) {
+      if (!GENERAL_CHAT_ALLOWED_COMMANDS.has(normalizedCmd)) {
+        return {
+          allowed: false,
+          message: `❌ Bot commands are restricted in <#${channelId}>! Please use ${botCmdsLink} to run \`-${normalizedCmd}\`.`,
+        };
+      }
+    }
+  }
+
+  // 3. Matchday Lockout Guard: Freezes non-exempt commands 30m prior to match until 15m after full-time
   const lockout = await checkMatchdayLockout(normalizedCmd);
   if (lockout.locked) {
     return { allowed: false, message: lockout.message };
   }
 
-  // Commands whitelisted during onboarding
+  // 4. Commands whitelisted during rookie onboarding (only in valid non-locked channels)
   if (ONBOARDING_WHITELIST.has(normalizedCmd)) {
     return { allowed: true };
   }
 
-  // 2-Step Rookie Onboarding Guard
+  // 5. 2-Step Rookie Onboarding Guard
   const player = await prisma.player.findUnique({
     where: { id: userId },
     select: { currentLocation: true, playstyle: true, nationId: true }
@@ -176,6 +419,7 @@ export async function validateCommandAccess(options: {
     };
   }
 
+  // 6. Campus Location Check
   const requiredLocId = COMMAND_LOCATION_MAP[normalizedCmd];
   if (!requiredLocId) {
     return { allowed: true };
