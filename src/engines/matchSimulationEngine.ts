@@ -170,21 +170,27 @@ function applyTacticalModifiers(baseRatings: { atk: number; mid: number; def: nu
   return { ratings, possMod };
 }
 
+export interface SimulateMatchOptions {
+  isExhibition?: boolean;
+  homeTeamKey?: string;
+  awayTeamKey?: string;
+}
+
 /**
  * Executes full 90-minute AI-powered football match simulation incorporating deep team tactics
  */
 export async function simulateFullMatch(
   homePlayerId: string,
   awayPlayerId?: string,
-  options: { isExhibition?: boolean } = {}
+  options: SimulateMatchOptions = {}
 ): Promise<SimulatedMatchResult> {
   const isExhibition = Boolean(options.isExhibition);
-  const homePlayer = await prisma.player.findUnique({
+  const homePlayer = homePlayerId ? await prisma.player.findUnique({
     where: { id: homePlayerId },
     include: { nation: true, club: true }
-  });
+  }) : null;
 
-  if (isExhibition && (!homePlayer || homePlayer.vipTier < 1)) {
+  if (isExhibition && !options.homeTeamKey && (!homePlayer || homePlayer.vipTier < 1)) {
     throw new Error('VIP status is required to host All-Star Exhibition Friendlies (`-friendly`).');
   }
 
@@ -193,21 +199,112 @@ export async function simulateFullMatch(
     include: { nation: true, club: true }
   }) : null;
 
-  const homeTeam = homePlayer?.nation || homePlayer?.club;
-  const awayTeam = awayPlayer?.nation || awayPlayer?.club;
+  let homeTeam = (homePlayer?.nation || homePlayer?.club) as any;
+  let awayTeam = (awayPlayer?.nation || awayPlayer?.club) as any;
+
+  if (options.homeTeamKey) {
+    const q = options.homeTeamKey.toLowerCase().trim();
+    const nation = await prisma.nationalTeam.findFirst({
+      where: {
+        OR: [
+          { alias: q },
+          { name: { equals: q, mode: 'insensitive' } },
+          { alias: { equals: q.slice(0, 3) } }
+        ]
+      },
+      include: { players: true }
+    });
+    const club = !nation ? await prisma.footballClub.findFirst({
+      where: {
+        OR: [
+          { alias: q },
+          { name: { equals: q, mode: 'insensitive' } },
+          { alias: { equals: q.slice(0, 3) } }
+        ]
+      },
+      include: { players: true }
+    }) : null;
+    if (nation || club) homeTeam = nation || club;
+  }
+
+  if (options.awayTeamKey) {
+    const q = options.awayTeamKey.toLowerCase().trim();
+    const nation = await prisma.nationalTeam.findFirst({
+      where: {
+        OR: [
+          { alias: q },
+          { name: { equals: q, mode: 'insensitive' } },
+          { alias: { equals: q.slice(0, 3) } }
+        ]
+      },
+      include: { players: true }
+    });
+    const club = !nation ? await prisma.footballClub.findFirst({
+      where: {
+        OR: [
+          { alias: q },
+          { name: { equals: q, mode: 'insensitive' } },
+          { alias: { equals: q.slice(0, 3) } }
+        ]
+      },
+      include: { players: true }
+    }) : null;
+    if (nation || club) awayTeam = nation || club;
+  }
 
   const homeTactics = parseTeamTactics(homeTeam?.tactics);
   const awayTactics = parseTeamTactics(awayTeam?.tactics);
 
-  const homeTeamName = isExhibition
-    ? `${homePlayer?.username || 'VIP'} All-Stars`
-    : (homeTeam?.name || `${homePlayer?.username || 'Home'} FC`);
-  const awayTeamName = isExhibition
-    ? (awayPlayer ? `${awayPlayer.username} Select XI` : 'VIP Legends XI')
-    : (awayTeam?.name || (awayPlayer ? `${awayPlayer.username} FC` : 'All-Star XI'));
+  const homeFlag = homeTeam?.flag || homeTeam?.badge || '';
+  const awayFlag = awayTeam?.flag || awayTeam?.badge || '';
 
-  const rawHomeRatings = homePlayer ? calculateDerivedRatings(homePlayer) : { atk: 65, mid: 65, def: 65 };
-  const rawAwayRatings = awayPlayer ? calculateDerivedRatings(awayPlayer) : { atk: 62, mid: 63, def: 64 };
+  let homeTeamName: string;
+  let awayTeamName: string;
+
+  if (options.homeTeamKey && options.awayTeamKey && homeTeam && awayTeam) {
+    // Explicit Team vs Team match (e.g. Portugal 🇵🇹 vs Spain 🇪🇸)
+    homeTeamName = `${homeFlag ? homeFlag + ' ' : ''}${homeTeam.name}`;
+    awayTeamName = `${awayTeam.name}${awayFlag ? ' ' + awayFlag : ''}`;
+  } else if (isExhibition) {
+    if (homeTeam && awayTeam && (homePlayer?.nationId || homePlayer?.clubId) && (awayPlayer?.nationId || awayPlayer?.clubId)) {
+      // Two players representing their respective teams in an exhibition friendly
+      homeTeamName = `${homeFlag ? homeFlag + ' ' : ''}${homeTeam.name} (${homePlayer?.username || 'VIP'})`;
+      awayTeamName = `${awayTeam.name}${awayFlag ? ' ' + awayFlag : ''} (${awayPlayer?.username || 'Opponent'})`;
+    } else {
+      homeTeamName = `${homePlayer?.username || 'VIP'} All-Stars`;
+      awayTeamName = awayPlayer ? `${awayPlayer.username} Select XI` : 'VIP Legends XI';
+    }
+  } else {
+    homeTeamName = homeTeam ? `${homeFlag ? homeFlag + ' ' : ''}${homeTeam.name}` : `${homePlayer?.username || 'Home'} FC`;
+    awayTeamName = awayTeam ? `${awayTeam.name}${awayFlag ? ' ' + awayFlag : ''}` : (awayPlayer ? `${awayPlayer.username} FC` : 'All-Star XI');
+  }
+
+  let rawHomeRatings = homePlayer ? calculateDerivedRatings(homePlayer) : { atk: 65, mid: 65, def: 65 };
+  let rawAwayRatings = awayPlayer ? calculateDerivedRatings(awayPlayer) : { atk: 62, mid: 63, def: 64 };
+
+  if (options.homeTeamKey && homeTeam) {
+    const players: any[] = homeTeam.players || [];
+    if (players.length > 0) {
+      const avgAtk = Math.round(players.reduce((sum: number, p: any) => sum + (p.fin + p.dri + p.pac) / 3, 0) / players.length);
+      const avgMid = Math.round(players.reduce((sum: number, p: any) => sum + (p.pas + p.vis + p.cmp) / 3, 0) / players.length);
+      const avgDef = Math.round(players.reduce((sum: number, p: any) => sum + (p.tck + p.int + p.phy) / 3, 0) / players.length);
+      rawHomeRatings = { atk: Math.max(50, avgAtk), mid: Math.max(50, avgMid), def: Math.max(50, avgDef) };
+    } else {
+      rawHomeRatings = { atk: 68, mid: 68, def: 68 };
+    }
+  }
+
+  if (options.awayTeamKey && awayTeam) {
+    const players: any[] = awayTeam.players || [];
+    if (players.length > 0) {
+      const avgAtk = Math.round(players.reduce((sum: number, p: any) => sum + (p.fin + p.dri + p.pac) / 3, 0) / players.length);
+      const avgMid = Math.round(players.reduce((sum: number, p: any) => sum + (p.pas + p.vis + p.cmp) / 3, 0) / players.length);
+      const avgDef = Math.round(players.reduce((sum: number, p: any) => sum + (p.tck + p.int + p.phy) / 3, 0) / players.length);
+      rawAwayRatings = { atk: Math.max(50, avgAtk), mid: Math.max(50, avgMid), def: Math.max(50, avgDef) };
+    } else {
+      rawAwayRatings = { atk: 67, mid: 67, def: 67 };
+    }
+  }
 
   const homeTactical = applyTacticalModifiers(rawHomeRatings, homeTactics);
   const awayTactical = applyTacticalModifiers(rawAwayRatings, awayTactics);
@@ -228,7 +325,17 @@ export async function simulateFullMatch(
   const scorers: { minute: number; player: string; team: string; assistBy?: string }[] = [];
   const cards: { minute: number; player: string; type: 'YELLOW' | 'RED'; team: string }[] = [];
 
+  const homeSquad: any[] = homeTeam?.players || [];
+  const awaySquad: any[] = awayTeam?.players || [];
+
+  const pickActor = (squad: any[], fallback: string, defaultPlayer?: string) => {
+    if (defaultPlayer) return defaultPlayer;
+    if (squad.length > 0) return squad[Math.floor(Math.random() * squad.length)].username;
+    return fallback;
+  };
+
   // 0' Kickoff
+  const kickoffActor = homePlayer?.username || (homeSquad.length > 0 ? homeSquad[0].username : 'Captain');
   const kickoffText = await generateAiMinuteCommentary({
     minute: 0,
     type: 'KICKOFF',
@@ -236,13 +343,13 @@ export async function simulateFullMatch(
     awayTeam: awayTeamName,
     homeScore: 0,
     awayScore: 0,
-    actorPlayer: homePlayer?.username || 'Captain'
+    actorPlayer: kickoffActor
   });
   events.push({
     minute: 0,
     header: `🏟️ KICKOFF — ${homeTeamName} (Mentality: ${homeTactics.teamMentality}) vs ${awayTeamName} (Mentality: ${awayTactics.teamMentality})`,
     text: kickoffText,
-    playerTags: [homePlayer?.username || 'Home Captain']
+    playerTags: [kickoffActor]
   });
 
   // Key match incidents across 90 minutes
@@ -261,8 +368,12 @@ export async function simulateFullMatch(
     const defendingTeam = isHomeAttack ? awayTeamName : homeTeamName;
     const attackingTactics = isHomeAttack ? homeTactics : awayTactics;
     const defendingTactics = isHomeAttack ? awayTactics : homeTactics;
-    const activeAttacker = isHomeAttack ? (homePlayer?.username || 'Striker') : (awayPlayer?.username || 'Striker');
-    const activeDefender = isHomeAttack ? (awayPlayer?.username || 'Centre-Back') : (homePlayer?.username || 'Centre-Back');
+    const activeAttacker = isHomeAttack
+      ? pickActor(homeSquad, `${homeTeam?.name || 'Home'} Striker`, homePlayer?.username)
+      : pickActor(awaySquad, `${awayTeam?.name || 'Away'} Striker`, awayPlayer?.username);
+    const activeDefender = isHomeAttack
+      ? pickActor(awaySquad, `${awayTeam?.name || 'Away'} Defender`, awayPlayer?.username)
+      : pickActor(homeSquad, `${homeTeam?.name || 'Home'} Defender`, homePlayer?.username);
 
     const roll = Math.random() * 100;
 
@@ -487,12 +598,21 @@ export async function simulateFullMatch(
   // MOTM calculation
   const isDraw = homeScore === awayScore;
   const isHomeWinner = homeScore > awayScore;
-  const motmOwner = (isHomeWinner || isDraw) ? homePlayer : (awayPlayer || homePlayer);
+
+  const winningSquad = (isHomeWinner || isDraw) ? homeSquad : awaySquad;
+  const candidateFromSquad = winningSquad.length > 0
+    ? winningSquad[Math.floor(Math.random() * winningSquad.length)]
+    : null;
+
+  const motmOwner = (isHomeWinner || isDraw)
+    ? (homePlayer || candidateFromSquad)
+    : (awayPlayer || candidateFromSquad || homePlayer);
+
   const motmPlayer = isHomeWinner
-    ? (homePlayer?.username || 'Captain')
+    ? (homePlayer?.username || candidateFromSquad?.username || `${homeTeamName} Star`)
     : isDraw
-      ? (homePlayer?.username || 'Star Midfielder')
-      : (awayPlayer?.username || 'Opponent Star');
+      ? (homePlayer?.username || candidateFromSquad?.username || 'Midfield Maestro')
+      : (awayPlayer?.username || candidateFromSquad?.username || `${awayTeamName} Star`);
   const motmTeam = (isHomeWinner || isDraw) ? homeTeamName : awayTeamName;
   const motmRating = +Math.min(10.0, 7.5 + (homePlayerGoals * 0.7) + (homePlayerAssists * 0.4) + Math.random() * 0.6).toFixed(1);
   const motmStats = `${homePlayerGoals} Goal(s), ${homePlayerAssists} Assist(s), ${homePlayerTackles} Tackle(s)`;

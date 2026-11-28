@@ -2,7 +2,7 @@ import { Message, EmbedBuilder, AttachmentBuilder, TextChannel, ActionRowBuilder
 import path from 'path';
 import fs from 'fs';
 import { simulateFullMatch, calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
-import { runLiveEpisodicMatch, MatchTeam } from '../engines/liveMatchEngine.js';
+import { runLiveEpisodicMatch, MatchTeam, buildLiveMatchTeam } from '../engines/liveMatchEngine.js';
 import { generateMatchScorecardGraphic } from '../utils/chartHelper.js';
 import { buildPlayerStatCardAttachment } from './playerCommands.js';
 import { prisma } from '../database/prisma.js';
@@ -11,13 +11,48 @@ import { THEME_COLORS, UI, makeDualProgressBar, subtext } from '../utils/themeHe
 import { logger } from '../utils/logger.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 
+/**
+ * Resolves a team query string (e.g. 'por', 'portugal', 'esp', 'spain') to NationalTeam or FootballClub
+ */
+export async function resolveTeam(query: string) {
+  if (!query) return null;
+  const q = query.trim().toLowerCase();
+  const nation = await prisma.nationalTeam.findFirst({
+    where: {
+      OR: [
+        { alias: q },
+        { name: { equals: q, mode: 'insensitive' } },
+        { alias: { equals: q.slice(0, 3) } }
+      ]
+    },
+    include: { players: true }
+  });
+  if (nation) return { team: nation, type: 'nation' as const };
+
+  const club = await prisma.footballClub.findFirst({
+    where: {
+      OR: [
+        { alias: q },
+        { name: { equals: q, mode: 'insensitive' } },
+        { alias: { equals: q.slice(0, 3) } }
+      ]
+    },
+    include: { players: true }
+  });
+  if (club) return { team: club, type: 'club' as const };
+
+  return null;
+}
+
 export async function handleFriendlyCommand(message: Message, args: string[]) {
   const player = await prisma.player.findUnique({
     where: { id: message.author.id },
     include: { nation: true, club: true }
   });
 
-  if (!player || player.vipTier < 1) {
+  const isAdmin = message.member?.permissions.has('Administrator');
+
+  if (!isAdmin && (!player || player.vipTier < 1)) {
     const embed = new EmbedBuilder()
       .setColor(THEME_COLORS.GOLD)
       .setTitle('👑 VIP Status Required for Friendly Exhibitions')
@@ -37,11 +72,23 @@ export async function handleFriendlyCommand(message: Message, args: string[]) {
 
   const opponent = message.mentions.users.first();
 
+  // If two team arguments are passed (e.g. -friendly por esp or -friendly portugal spain)
+  if (!opponent && args.length >= 2) {
+    const homeTeamResolved = await resolveTeam(args[0]);
+    const awayTeamResolved = await resolveTeam(args[1]);
+    if (homeTeamResolved && awayTeamResolved) {
+      return await runSimulatedMatchCommand(message, args, true, {
+        homeTeamKey: homeTeamResolved.team.alias,
+        awayTeamKey: awayTeamResolved.team.alias
+      });
+    }
+  }
+
   // If no opponent mentioned or args[0] is 'setup' / 'menu', display interactive Friendly Matchmaker
   if (!opponent || args[0]?.toLowerCase() === 'setup') {
-    const derived = calculateDerivedRatings(player);
+    const derived = player ? calculateDerivedRatings(player) : { atk: 65, mid: 65, def: 65 };
     const ovr = Math.round((derived.atk + derived.mid + derived.def) / 3);
-    const hostTeamName = `${player.username} All-Stars`;
+    const hostTeamName = player ? `${player.username} All-Stars` : 'Admin All-Stars';
 
     const embed = new EmbedBuilder()
       .setColor(THEME_COLORS.GOLD)
@@ -49,11 +96,12 @@ export async function handleFriendlyCommand(message: Message, args: string[]) {
       .setDescription(
         `> Welcome to the VIP Exhibition Pitch! Host zero-risk exhibition friendlies where the Man of the Match earns **+1 to +2 permanent stat points** and defeats suffer zero attribute loss.\n\n` +
         `👑 **Host:** ${message.author} • **Team:** \`${hostTeamName}\` (OVR: \`${ovr}\`)\n` +
-        `⚡ **Stamina Available:** \`${player.stamina}/100\` (Exhibition drains ~15-20 stamina)\n\n` +
+        `⚡ **Stamina Available:** \`${player?.stamina || 100}/100\` (Exhibition drains ~15-20 stamina)\n\n` +
         `${UI.DIVIDER}\n` +
         `### 🎮 How to Kickoff:\n` +
-        `• Click **"⚽ Play vs Legends XI"** below to start an instant solo match against the AI All-Stars.\n` +
-        `• Or run **\`-friendly @player\`** to challenge any member in the server to a head-to-head friendly!\n`
+        `• Run **\`-friendly <team1> <team2>\`** (e.g. **\`-friendly por esp\`**) to start an exhibition between two nations or clubs!\n` +
+        `• Run **\`-friendly @player\`** to challenge any member in the server to a head-to-head friendly!\n` +
+        `• Click **"⚽ Play vs Legends XI"** below to start an instant solo match against the AI All-Stars.\n`
       )
       .setFooter({ text: 'Beyond The Final Whistle • VIP Friendly Hub' })
       .setTimestamp();
@@ -102,11 +150,19 @@ export async function handleFriendlyCommand(message: Message, args: string[]) {
   }
 
   // If opponent is another human player: Send Challenge Card with Accept/Decline buttons!
+  const oppPlayer = await prisma.player.findUnique({
+    where: { id: opponent.id },
+    include: { nation: true, club: true }
+  });
+
+  const p1TeamName = player?.nation ? `${player.nation.flag} ${player.nation.name}` : player?.club ? `${player.club.badge} ${player.club.name}` : 'VIP All-Stars';
+  const p2TeamName = oppPlayer?.nation ? `${oppPlayer.nation.flag} ${oppPlayer.nation.name}` : oppPlayer?.club ? `${oppPlayer.club.badge} ${oppPlayer.club.name}` : 'Select XI';
+
   const challengeEmbed = new EmbedBuilder()
     .setColor(THEME_COLORS.GOLD)
     .setTitle('🤝 VIP ALL-STAR EXHIBITION CHALLENGE')
     .setDescription(
-      `👑 ${message.author} has challenged ${opponent} to an **All-Star Exhibition Match**!\n\n` +
+      `👑 ${message.author} (**${p1TeamName}**) has challenged ${opponent} (**${p2TeamName}**) to an **All-Star Exhibition Match**!\n\n` +
       `🛡️ **Zero-Risk Guarantee:** Neither player will lose attributes on defeat.\n` +
       `🌟 **MOTM Reward:** The Man of the Match wins a permanent **+1 to +2 stat boost**!\n` +
       `⚡ **Stamina:** Only drains 50% standard match stamina.\n\n` +
@@ -170,22 +226,54 @@ export async function handleMatchCommand(message: Message, args: string[]) {
     return await handleBatchMatchCommand(message, args.slice(1));
   }
   if (sub === 'friendly' || sub === 'exhibition' || sub === 'allstar') {
+    if (args.length >= 3) {
+      const homeTeamResolved = await resolveTeam(args[1]);
+      const awayTeamResolved = await resolveTeam(args[2]);
+      if (homeTeamResolved && awayTeamResolved) {
+        return await runSimulatedMatchCommand(message, args.slice(3), true, {
+          homeTeamKey: homeTeamResolved.team.alias,
+          awayTeamKey: awayTeamResolved.team.alias
+        });
+      }
+    }
     return await runSimulatedMatchCommand(message, args.slice(1), true);
   }
+
+  // Check if args[0] and args[1] are teams (e.g. -match por esp)
+  if (args.length >= 2) {
+    const homeTeamResolved = await resolveTeam(args[0]);
+    const awayTeamResolved = await resolveTeam(args[1]);
+    if (homeTeamResolved && awayTeamResolved) {
+      return await runSimulatedMatchCommand(message, args.slice(2), false, {
+        homeTeamKey: homeTeamResolved.team.alias,
+        awayTeamKey: awayTeamResolved.team.alias
+      });
+    }
+  }
+
   return await runSimulatedMatchCommand(message, args, false);
 }
 
-async function runSimulatedMatchCommand(message: Message, args: string[], isExhibition: boolean) {
+async function runSimulatedMatchCommand(
+  message: Message,
+  args: string[],
+  isExhibition: boolean,
+  teamOptions?: { homeTeamKey: string; awayTeamKey: string }
+) {
   const opponent = message.mentions.users.first();
   const thinkingMsg = await sendThinkingMessage(
     message,
     isExhibition
-      ? 'Scheduling VIP All-Star Exhibition Match (Zero Risk)...'
-      : 'Simulating 90 minutes of tactical football...'
+      ? (teamOptions ? `Scheduling Exhibition Match: ${teamOptions.homeTeamKey.toUpperCase()} vs ${teamOptions.awayTeamKey.toUpperCase()}...` : 'Scheduling VIP All-Star Exhibition Match (Zero Risk)...')
+      : (teamOptions ? `Simulating ${teamOptions.homeTeamKey.toUpperCase()} vs ${teamOptions.awayTeamKey.toUpperCase()}...` : 'Simulating 90 minutes of tactical football...')
   );
 
   try {
-    const result = await simulateFullMatch(message.author.id, opponent?.id, { isExhibition });
+    const result = await simulateFullMatch(message.author.id, opponent?.id, {
+      isExhibition,
+      homeTeamKey: teamOptions?.homeTeamKey,
+      awayTeamKey: teamOptions?.awayTeamKey
+    });
 
     // 1. Post Match Commentary Highlights Embed
     const motmEmoji = getEmoji(message.guild, 'motm');
@@ -469,18 +557,33 @@ export async function handleLiveMatchCommand(message: Message, args: string[]) {
   }
 
   const isFullBroadcast = args.includes('full') || args.includes('broadcast');
-  // tickDelayMs omitted → engine uses random 20–30s per commentary message
-  // halfTimePause: 3min for full broadcast, 30s normal (feels like a real half-time break)
   const halfTimePause = isFullBroadcast ? 180000 : 30000;
+
+  // Filter out flags to check if team aliases are supplied (e.g. -match live por esp)
+  const teamArgs = args.filter(a => !['full', 'broadcast'].includes(a.toLowerCase()));
+  let team1: MatchTeam;
+  let team2: MatchTeam;
+
+  if (teamArgs.length >= 2) {
+    const t1 = await resolveTeam(teamArgs[0]);
+    const t2 = await resolveTeam(teamArgs[1]);
+    if (t1 && t2) {
+      team1 = await buildLiveMatchTeam(t1.team.alias, true);
+      team2 = await buildLiveMatchTeam(t2.team.alias, false);
+    } else {
+      team1 = getBalancedMorocco();
+      team2 = getBalancedMexico();
+    }
+  } else {
+    team1 = getBalancedMorocco();
+    team2 = getBalancedMexico();
+  }
 
   await message.reply(
     `🏟️ **Live Match Broadcast initialized!**\n` +
-    `⚡ Setting up tactical clash in ${liveChannel.toString()} — grab your seats!\n` +
+    `⚡ Setting up tactical clash between **${team1.flag} ${team1.name}** and **${team2.flag} ${team2.name}** in ${liveChannel.toString()} — grab your seats!\n` +
     subtext('📡 Commentary drops every 20–30 seconds in real-time. Stay tuned!')
   );
-
-  const team1 = getBalancedMorocco();
-  const team2 = getBalancedMexico();
 
   try {
     await runLiveEpisodicMatch(message.client, liveChannel, team1, team2, {

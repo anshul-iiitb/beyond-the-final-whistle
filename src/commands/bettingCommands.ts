@@ -2,7 +2,7 @@ import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Te
 import { prisma } from '../database/prisma.js';
 import { placeBet, MAX_BET_AMOUNT, settleFixtureBets } from '../engines/bettingEngine.js';
 import { calculateAlgorithmicOdds, calculateTeamStrengthRating } from '../engines/fixtureEngine.js';
-import { runLiveEpisodicMatch, MatchTeam } from '../engines/liveMatchEngine.js';
+import { runLiveEpisodicMatch, MatchTeam, buildLiveMatchTeam } from '../engines/liveMatchEngine.js';
 import { formatK } from '../utils/formatHelper.js';
 import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
 import { parseTeamTactics } from './tacticsCommand.js';
@@ -236,70 +236,8 @@ export async function handleFixtureAdminCommand(message: Message, args: string[]
 
     await message.reply(`▶️ **Starting Live Episodic Match for Fixture #${fixture.fixtureNumber}:** ${fixture.homeTeamName} vs ${fixture.awayTeamName}...`);
 
-    // Build MatchTeam objects for both sides
-    const buildLiveTeam = async (teamKey: string, isHome: boolean): Promise<MatchTeam> => {
-      const nation = await prisma.nationalTeam.findFirst({
-        where: { OR: [{ alias: teamKey }, { id: teamKey }] },
-        include: { players: true }
-      });
-      const club = !nation ? await prisma.footballClub.findFirst({
-        where: { OR: [{ alias: teamKey }, { id: teamKey }] },
-        include: { players: true }
-      }) : null;
-      const team: any = nation || club;
-
-      const tactics = parseTeamTactics(team?.tactics);
-
-      let lineupIds: string[] = [];
-      try { lineupIds = JSON.parse(team?.lineup || '[]'); } catch { lineupIds = []; }
-
-      const getP = (idx: number, pos: 'ATK' | 'MID' | 'DEF') => {
-        const p = (lineupIds[idx] ? team?.players?.find((pl: any) => pl.id === lineupIds[idx]) : null) ||
-                  team?.players?.find((pl: any) => pl.position === pos) ||
-                  team?.players?.[idx];
-        return {
-          id: p?.id || `bot_${teamKey}_${pos}`,
-          name: p?.username || `${team?.name || teamKey} ${pos}`,
-          position: pos,
-          playstyle: p?.playstyle || 'PCH',
-          flag: (team as any)?.flag || (team as any)?.badge || '⚽',
-          discordId: p?.id,
-          fin: p?.fin || 65, pas: p?.pas || 65, tck: p?.tck || 65, dri: p?.dri || 65,
-          int: p?.int || 65, pac: p?.pac || 65, cmp: p?.cmp || 65, vis: p?.vis || 65,
-          phy: p?.phy || 65, wrk: p?.wrk || 65,
-          goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 0,
-          dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
-        };
-      };
-
-      const specialistName = (type: string) => {
-        const specId = type === 'fk' ? team?.fkTakerId : type === 'corner' ? team?.cornerTakerId : team?.penTakerId;
-        const match = team?.players?.find((pl: any) => pl.id === specId);
-        return match?.username || getP(0, 'ATK').name;
-      };
-
-      return {
-        name: team?.name || teamKey.toUpperCase(),
-        alias: team?.alias || teamKey,
-        flag: team?.flag || team?.badge || '⚽',
-        tactics,
-        freeKickTakerName: specialistName('fk'),
-        cornerTakerName: specialistName('corner'),
-        penaltyTakerName: specialistName('pen'),
-        captainName: team?.players?.find((pl: any) => pl.id === team?.captainId)?.username,
-        players: {
-          atk: getP(0, 'ATK'),
-          mid: getP(1, 'MID'),
-          def: getP(2, 'DEF')
-        },
-        score: 0,
-        possession: 50,
-        color: isHome ? [30, 64, 175] : [220, 38, 38]
-      };
-    };
-
-    const homeMatchTeam = await buildLiveTeam(fixture.homeTeamKey, true);
-    const awayMatchTeam = await buildLiveTeam(fixture.awayTeamKey, false);
+    const homeMatchTeam = await buildLiveMatchTeam(fixture.homeTeamKey, true);
+    const awayMatchTeam = await buildLiveMatchTeam(fixture.awayTeamKey, false);
 
     const channel = message.channel as TextChannel;
     const simResult = await runLiveEpisodicMatch(message.client, channel, homeMatchTeam, awayMatchTeam, {

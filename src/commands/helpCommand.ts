@@ -164,8 +164,8 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
         {
           name: '⚽ Match Engines & VIP Exhibitions',
           value:
-            '• `-match [@user]` / `-livematch [full]` / `-batchmatch [N]` — 90m tactical matches with halftime box scores, fair MOTM tie-breakers & AI Gazette.\n' +
-            '• `-friendly [@user]` — 👑 **VIP All-Star Exhibition** (zero stat loss, +1-2 MOTM boost, challenge button, AI Legends XI).\n' +
+            '• `-match [@user|team1 team2]` / `-match live [team1 team2]` — 90m tactical simulation or live broadcast (e.g. `-match por esp` or `-match live por esp`).\n' +
+            '• `-friendly [@user|team1 team2]` — 👑 **VIP Exhibition** (zero stat loss, +1-2 MOTM boost). Kick off direct Nation/Club clash (e.g. `-friendly por esp`) or challenge rival players in `#friendly-matches`!\n' +
             '• `-intel` (`-scout`) — Tactical scouting report on upcoming opponents (+1 to +6 roll boost).\n' +
             '• `-intstats [@user]` / `-clubstats [@user]` — Tournament and club career telemetry.\n' +
             '• `-potw` (`-form`) — Player of the Week race tracked from matchday performance.'

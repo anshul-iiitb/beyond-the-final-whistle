@@ -2,10 +2,11 @@ import { TextChannel, EmbedBuilder, AttachmentBuilder, Client } from 'discord.js
 import path from 'path';
 import fs from 'fs';
 import { generatePossessionPieChart, generateMatchScorecardGraphic } from '../utils/chartHelper.js';
-import { TeamTactics } from '../commands/tacticsCommand.js';
+import { TeamTactics, parseTeamTactics } from '../commands/tacticsCommand.js';
 import { generateAiMinuteCommentary, generateAiNewsArticle, MatchEventData } from '../services/aiEngine.js';
 import { calculatePlaystyleMastery } from './matchSimulationEngine.js';
 import { logger } from '../utils/logger.js';
+import { prisma } from '../database/prisma.js';
 
 export interface MatchPlayer {
   id: string;
@@ -66,6 +67,83 @@ export interface LiveMatchOptions {
   tickDelayMs?: number;        // Delay between incident messages (default 3200ms)
   halfTimePauseMs?: number;    // Half-time pause (default 8000ms for fast broadcast, 180000ms for official)
   newsChannelId?: string;      // Destination for AI Gazette (#news)
+}
+
+/**
+ * Builds a full MatchTeam object for live episodic simulation from database records
+ */
+export async function buildLiveMatchTeam(teamKey: string, isHome: boolean): Promise<MatchTeam> {
+  const q = teamKey.toLowerCase().trim();
+  const nation = await prisma.nationalTeam.findFirst({
+    where: {
+      OR: [
+        { alias: q },
+        { name: { equals: q, mode: 'insensitive' } },
+        { id: q }
+      ]
+    },
+    include: { players: true }
+  });
+  const club = !nation ? await prisma.footballClub.findFirst({
+    where: {
+      OR: [
+        { alias: q },
+        { name: { equals: q, mode: 'insensitive' } },
+        { id: q }
+      ]
+    },
+    include: { players: true }
+  }) : null;
+  const team: any = nation || club;
+
+  const tactics = parseTeamTactics(team?.tactics);
+
+  let lineupIds: string[] = [];
+  try { lineupIds = JSON.parse(team?.lineup || '[]'); } catch { lineupIds = []; }
+
+  const getP = (idx: number, pos: 'ATK' | 'MID' | 'DEF'): MatchPlayer => {
+    const p = (lineupIds[idx] ? team?.players?.find((pl: any) => pl.id === lineupIds[idx]) : null) ||
+              team?.players?.find((pl: any) => pl.position === pos) ||
+              team?.players?.[idx];
+    return {
+      id: p?.id || `bot_${teamKey}_${pos}`,
+      name: p?.username || `${team?.name || teamKey.toUpperCase()} ${pos}`,
+      position: pos,
+      playstyle: p?.playstyle || 'PCH',
+      flag: (team as any)?.flag || (team as any)?.badge || '⚽',
+      discordId: p?.id,
+      fin: p?.fin || 65, pas: p?.pas || 65, tck: p?.tck || 65, dri: p?.dri || 65,
+      int: p?.int || 65, pac: p?.pac || 65, cmp: p?.cmp || 65, vis: p?.vis || 65,
+      phy: p?.phy || 65, wrk: p?.wrk || 65,
+      goals: 0, assists: 0, shots: 0, tackles: 0, interceptions: 0, passesCompleted: 0,
+      dribblesWon: 0, fouls: 0, yellowCards: 0, redCards: 0, rating: 6.0
+    };
+  };
+
+  const specialistName = (type: string) => {
+    const specId = type === 'fk' ? team?.fkTakerId : type === 'corner' ? team?.cornerTakerId : team?.penTakerId;
+    const match = team?.players?.find((pl: any) => pl.id === specId);
+    return match?.username || getP(0, 'ATK').name;
+  };
+
+  return {
+    name: team?.name || teamKey.toUpperCase(),
+    alias: team?.alias || teamKey,
+    flag: team?.flag || team?.badge || '⚽',
+    tactics,
+    freeKickTakerName: specialistName('fk'),
+    cornerTakerName: specialistName('corner'),
+    penaltyTakerName: specialistName('pen'),
+    captainName: team?.players?.find((pl: any) => pl.id === team?.captainId)?.username,
+    players: {
+      atk: getP(0, 'ATK'),
+      mid: getP(1, 'MID'),
+      def: getP(2, 'DEF')
+    },
+    score: 0,
+    possession: 50,
+    color: isHome ? [30, 64, 175] : [220, 38, 38]
+  };
 }
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
