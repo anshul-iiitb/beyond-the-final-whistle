@@ -1105,3 +1105,137 @@ export async function handleUnlockTeamCommand(message: Message, args: string[], 
     );
   }
 }
+
+/**
+ * Admin command to appoint a Team Captain for any National Team or Club
+ * 
+ * -setcaptain <nation|club> <alias> @player
+ * -setcaptain <alias> @player
+ * -setcap <nation|club> <alias> @player
+ */
+export async function handleSetCaptainCommand(message: Message, args: string[]) {
+  if (!isAuthorized(message)) {
+    return await message.reply('❌ Unauthorized: Administrator permissions required.');
+  }
+
+  // Find mentioned user or target user ID from mentions or args
+  let targetUser = message.mentions?.users?.first?.();
+  let targetUserId = targetUser?.id;
+
+  if (!targetUserId) {
+    for (const arg of args) {
+      const mentionMatch = arg.match(/^<@!?(\d+)>$/);
+      if (mentionMatch) {
+        targetUserId = mentionMatch[1];
+        break;
+      } else if (/^\d{17,20}$/.test(arg)) {
+        targetUserId = arg;
+        break;
+      }
+    }
+  }
+
+  // Filter out mention/ID from args to extract type and alias
+  const nonTargetArgs = args.filter(arg => !arg.match(/^<@!?\d+>$/) && !/^\d{17,20}$/.test(arg));
+
+  if (nonTargetArgs.length === 0 || !targetUserId) {
+    return await message.reply(
+      '❌ **Usage:** `-setcaptain <nation|club> <alias> @player`\n' +
+      '*Example:* `-setcaptain nation por @player` or `-setcaptain club rm @player`'
+    );
+  }
+
+  let type: 'nation' | 'club' = 'nation';
+  let alias = '';
+
+  const firstArg = nonTargetArgs[0]?.toLowerCase().trim();
+  const secondArg = nonTargetArgs[1]?.toLowerCase().trim();
+
+  if (firstArg === 'nation' || firstArg === 'club') {
+    type = firstArg;
+    alias = secondArg;
+  } else {
+    alias = firstArg;
+    // Auto-detect whether alias belongs to national team or club
+    const nationExists = await prisma.nationalTeam.findUnique({ where: { alias } });
+    if (nationExists) {
+      type = 'nation';
+    } else {
+      const clubExists = await prisma.footballClub.findUnique({ where: { alias } });
+      if (clubExists) {
+        type = 'club';
+      } else {
+        type = 'nation';
+      }
+    }
+  }
+
+  if (!alias) {
+    return await message.reply(
+      '❌ **Usage:** `-setcaptain <nation|club> <alias> @player`\n' +
+      '*Example:* `-setcaptain nation por @player` or `-setcaptain club rm @player`'
+    );
+  }
+
+  const targetPlayer = await prisma.player.findUnique({
+    where: { id: targetUserId }
+  });
+
+  if (!targetPlayer) {
+    return await message.reply(`❌ Player with ID \`${targetUserId}\` has not created a profile yet.`);
+  }
+
+  if (type === 'nation') {
+    const nation = await prisma.nationalTeam.findUnique({
+      where: { alias },
+      include: { players: true }
+    });
+
+    if (!nation) {
+      return await message.reply(`❌ National team with alias \`${alias}\` not found.`);
+    }
+
+    if (targetPlayer.nationId !== nation.id) {
+      return await message.reply(
+        `❌ **${targetPlayer.username}** (<@${targetPlayer.id}>) is not a member of **${nation.name}** ${nation.flag}!\n` +
+        `They must join first using \`-joinnation ${nation.alias}\`.`
+      );
+    }
+
+    await prisma.nationalTeam.update({
+      where: { id: nation.id },
+      data: { captainId: targetPlayer.id }
+    });
+
+    return await message.reply(
+      `👑 **Team Captain Appointed!**\n` +
+      `**${targetPlayer.username}** (<@${targetPlayer.id}>) is now the official **Team Captain 👑 (C)** of **${nation.name}** ${nation.flag}!`
+    );
+  } else {
+    const club = await prisma.footballClub.findUnique({
+      where: { alias },
+      include: { players: true }
+    });
+
+    if (!club) {
+      return await message.reply(`❌ Football club with alias \`${alias}\` not found.`);
+    }
+
+    if (targetPlayer.clubId !== club.id) {
+      return await message.reply(
+        `❌ **${targetPlayer.username}** (<@${targetPlayer.id}>) is not a registered player of **${club.name}** ${club.badge}!\n` +
+        `They must join first using \`-joinclub ${club.alias}\`.`
+      );
+    }
+
+    await prisma.footballClub.update({
+      where: { id: club.id },
+      data: { captainId: targetPlayer.id }
+    });
+
+    return await message.reply(
+      `👑 **Club Captain Appointed!**\n` +
+      `**${targetPlayer.username}** (<@${targetPlayer.id}>) is now the official **Club Captain 👑 (C)** of **${club.name}** ${club.badge}!`
+    );
+  }
+}

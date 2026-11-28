@@ -38,7 +38,8 @@ import {
   displayTeamLimitsOverview,
   handleLockTeamCommand,
   handleUnlockTeamCommand,
-  handleSetupModRoleCommand
+  handleSetupModRoleCommand,
+  handleSetCaptainCommand
 } from '../commands/adminCommands.js';
 import { handleHelpCommand } from '../commands/helpCommand.js';
 import { handleBTFWGitPull, handleBTFWGitPullBack } from '../services/gitService.js';
@@ -367,6 +368,10 @@ export async function onMessageCreate(message: Message) {
       case 'squadlimit':
       case 'maxplayers':
         await handleSetLimitCommand(message, args);
+        break;
+      case 'setcaptain':
+      case 'setcap':
+        await handleSetCaptainCommand(message, args);
         break;
       case 'teamlimits':
       case 'squadlimits':

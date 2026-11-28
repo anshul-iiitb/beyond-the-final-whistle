@@ -217,6 +217,7 @@ export function buildHelpMenuPayload(page: number, guild?: Guild | null, client?
             '• `-setup` — Automatically construct campus channels, friendly ground & VIP lounge.\n' +
             '• `-setupmod` — Configure Match Moderator role (locks out rival team rooms, enables admin chat).\n' +
             '• `-setupemojis` — Auto-install 14 custom BTFW server emojis.\n' +
+            '• `-setcaptain <nation|club> <alias> @player` — Appoint team captain for any nation or club.\n' +
             '• `-setlimit <nation|club> <alias|all> <limit>` • `-teamlimits` — Squad roster limits.\n' +
             '• `-locknation <alias>` • `-unlocknation <alias>` — Lock/unlock nations from player registration.\n' +
             '• `-setprice <item|boots|cars|reset> <amt>` — Live dynamic pricing control.\n' +

@@ -121,7 +121,8 @@ export const ONBOARDING_WHITELIST = new Set([
   'playstyle', 'setplaystyle', 'pickplaystyle', 'chooseplaystyle', 'styles', 'roles',
   'joinnation', 'nation', 'nations',
   'profile', 'p', 'bio', 'setdesc',
-  'help', 'setup', 'setupemojis', 'gitpull'
+  'help', 'setup', 'setupemojis', 'gitpull',
+  'setcaptain', 'setcap', 'setlimit', 'teamlimits'
 ]);
 
 /**
