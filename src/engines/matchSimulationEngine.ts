@@ -100,9 +100,6 @@ export function calculateDerivedRatings(player: {
     : rawPos === 'DEFENDER' ? 'DEF'
     : rawPos;
 
-  // Capped at +10 max from collected TP (+1 per 4 TP)
-  const tpBoost = Math.min(10, Math.floor((player.trainingPoints || 0) / 4));
-
   // Position-locked boots: strika -> ATK, passa -> MID, bully -> DEF
   const bootBonusAtk = (pos === 'ATK' && player.activeBoots === 'strika') ? 10 : 0;
   const bootBonusMid = (pos === 'MID' && player.activeBoots === 'passa') ? 10 : 0;
@@ -116,9 +113,9 @@ export function calculateDerivedRatings(player: {
   const rawDef = Math.round((player.tck * 2 + player.int * 2 + player.mrk + player.phy) / 6);
 
   return {
-    atk: Math.min(99, rawAtk + bootBonusAtk + (pos === 'ATK' ? intelBonus + tpBoost : 0)),
-    mid: Math.min(99, rawMid + bootBonusMid + (pos === 'MID' ? intelBonus + tpBoost : 0)),
-    def: Math.min(99, rawDef + bootBonusDef + (pos === 'DEF' ? intelBonus + tpBoost : 0))
+    atk: Math.min(99, rawAtk + bootBonusAtk + (pos === 'ATK' ? intelBonus : 0)),
+    mid: Math.min(99, rawMid + bootBonusMid + (pos === 'MID' ? intelBonus : 0)),
+    def: Math.min(99, rawDef + bootBonusDef + (pos === 'DEF' ? intelBonus : 0))
   };
 }
 
