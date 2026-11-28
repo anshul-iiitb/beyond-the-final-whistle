@@ -343,12 +343,13 @@ export async function compileTextToBlueprint(
     (preferredName ? `Tournament Format Name: ${preferredName}\n\n` : '') +
     `Convert this tournament structure and rules into valid JSON Blueprint:\n\n${rawInput.trim()}`;
 
-  // Prioritize ultra-reliable fast low-cost model, with free fallbacks
+  // 100% Free OpenRouter models only (zero cost)
   const models = [
-    'openai/gpt-4o-mini',
     'openrouter/free',
-    'liquid/lfm-3-1.7b:free',
     'nvidia/nemotron-3.5-lightning:free',
+    'recursive/flint-v1.0:free',
+    'particle-ai/particle-1:free',
+    'baidu/ernie-5.5-flash-preview:free',
     'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
   ];
 
@@ -379,14 +380,15 @@ export async function compileTextToBlueprint(
 
       if (response.ok) {
         const data: any = await response.json();
-        const content = data?.choices?.[0]?.message?.content?.trim();
-        if (content) {
-          rawJsonText = content;
+        const msg = data?.choices?.[0]?.message;
+        const candidate = msg?.content?.trim() || msg?.reasoning?.trim();
+        if (candidate) {
+          rawJsonText = candidate;
           break;
         }
       } else {
         const errBody = await response.text().catch(() => '');
-        lastError = new Error(`Model ${model} returned ${response.status}: ${errBody}`);
+        lastError = new Error(`Free model ${model} returned ${response.status}: ${errBody}`);
       }
     } catch (err: any) {
       lastError = err;

@@ -27,12 +27,20 @@ export interface MatchSummaryData {
   tournamentName?: string;
 }
 
+const FREE_COMMENTARY_MODELS = [
+  'openrouter/free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'recursive/flint-v1.0:free',
+  'particle-ai/particle-1:free',
+  'baidu/ernie-5.5-flash-preview:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free'
+];
+
 async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise<string | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
-  const openaiKey = process.env['openai-key'] || process.env.OPENAI_API_KEY;
+  if (!apiKey || apiKey.trim() === '') return null;
 
-  // Try OpenRouter first with openai/gpt-4o-mini
-  if (apiKey && apiKey.trim() !== '') {
+  for (const model of FREE_COMMENTARY_MODELS) {
     try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -43,55 +51,25 @@ async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise
           'X-Title': 'Beyond The Final Whistle Football Bot'
         },
         body: JSON.stringify({
-          model: 'openai/gpt-4o-mini',
+          model,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
           temperature: 0.85,
-          max_tokens: 1000
+          max_tokens: 1200
         }),
-        signal: AbortSignal.timeout(10000)
+        signal: AbortSignal.timeout(12000)
       });
 
       if (response.ok) {
         const data: any = await response.json();
-        const content = data?.choices?.[0]?.message?.content?.trim();
+        const msg = data?.choices?.[0]?.message;
+        const content = msg?.content?.trim() || msg?.reasoning?.trim();
         if (content) return content;
       }
     } catch (err: any) {
-      logger.warn({ err: err.message }, 'OpenRouter AI completion error, trying fallback');
-    }
-  }
-
-  // Fallback to direct OpenAI API with gpt-4o-mini
-  if (openaiKey && openaiKey.trim() !== '') {
-    try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiKey.trim()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: 0.85,
-          max_tokens: 1000
-        }),
-        signal: AbortSignal.timeout(10000)
-      });
-
-      if (response.ok) {
-        const data: any = await response.json();
-        const content = data?.choices?.[0]?.message?.content?.trim();
-        if (content) return content;
-      }
-    } catch (err: any) {
-      logger.warn({ err: err.message }, 'Direct OpenAI completion error');
+      logger.warn({ model, err: err.message }, 'Free OpenRouter model error, trying next free fallback');
     }
   }
 
