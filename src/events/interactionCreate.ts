@@ -16,6 +16,7 @@ import { formatK } from '../utils/formatHelper.js';
 import { logger } from '../utils/logger.js';
 import { sendThinkingMessage, updateLoadingMessage } from '../utils/loadingHelper.js';
 import { validateCommandAccess } from '../engines/campusEngine.js';
+import { buildHelpMenuPayload } from '../commands/helpCommand.js';
 
 const INTERACTION_CMD_PREFIX_MAP: Array<{ prefix: string; exact?: boolean; cmd: string }> = [
   { prefix: 'sptrain_select_', cmd: 'sptrain' },
@@ -353,6 +354,17 @@ export async function onInteractionCreate(interaction: Interaction) {
         files: payload.files,
         components: payload.components,
         attachments: []
+      });
+    }
+
+    // 3f. Help Menu Pagination: help_page_1, help_page_2, etc.
+    if (customId.startsWith('help_page_')) {
+      await interaction.deferUpdate();
+      const page = parseInt(customId.replace('help_page_', ''), 10) || 1;
+      const payload = buildHelpMenuPayload(page, interaction.guild, interaction.client);
+      return await interaction.editReply({
+        embeds: [payload.embed],
+        components: payload.components
       });
     }
 

@@ -1,4 +1,4 @@
-import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Guild } from 'discord.js';
+import { Message, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Guild, PermissionFlagsBits } from 'discord.js';
 import { prisma } from '../database/prisma.js';
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { THEME_COLORS, UI, subtext } from '../utils/themeHelper.js';
@@ -116,11 +116,12 @@ export async function handleIntSetCommand(message: Message, args: string[]) {
   const role = args[0]?.toLowerCase();
   const targetUser = message.mentions.users.first();
 
-  const validRoles = ['vc', 'atk', 'mid', 'def', 'fk', 'corner', 'pen'];
+  const validRoles = ['cap', 'captain', 'c', 'vc', 'atk', 'mid', 'def', 'fk', 'corner', 'pen'];
   if (!role || !validRoles.includes(role) || !targetUser) {
     return await message.reply(
-      '❌ **Usage:** `-intset <vc|atk|mid|def|fk|corner|pen> @player`\n' +
-      '• `vc`: Appoint Vice-Captain\n' +
+      '❌ **Usage:** `-intset <cap|vc|atk|mid|def|fk|corner|pen> @player`\n' +
+      '• `cap`: Appoint Team Captain 👑\n' +
+      '• `vc`: Appoint Vice-Captain 🎖️\n' +
       '• `atk` / `mid` / `def`: Set Starting Lineup position\n' +
       '• `fk` / `corner` / `pen`: Designate Set-Piece specialist'
     );
@@ -136,9 +137,9 @@ export async function handleIntSetCommand(message: Message, args: string[]) {
   }
 
   const nation = caller.nation;
-  const isLeader = caller.id === nation.captainId || caller.id === nation.viceCaptainId || message.member?.permissions.has('Administrator');
+  const isLeader = caller.id === nation.captainId || caller.id === nation.viceCaptainId || message.member?.permissions.has(PermissionFlagsBits.Administrator) || message.author.id === '478599245276905495';
   if (!isLeader) {
-    return await message.reply('❌ Only the national team **Captain** or **Vice-Captain** can set team assignments!');
+    return await message.reply('❌ Only the national team **Captain**, **Vice-Captain**, or an **Administrator** can set team assignments!');
   }
 
   // Ensure target is member of same national team
@@ -159,6 +160,17 @@ export async function handleIntSetCommand(message: Message, args: string[]) {
   let roleTitle = '';
 
   switch (role) {
+    case 'cap':
+    case 'captain':
+    case 'c': {
+      const canSetCap = caller.id === nation.captainId || !nation.captainId || message.member?.permissions.has(PermissionFlagsBits.Administrator) || message.author.id === '478599245276905495';
+      if (!canSetCap) {
+        return await message.reply('❌ Only the current **Captain** or a server **Administrator** can appoint or transfer the captaincy armband 👑!');
+      }
+      updateData.captainId = targetUser.id;
+      roleTitle = 'Team Captain 👑 (C)';
+      break;
+    }
     case 'vc':
       updateData.viceCaptainId = targetUser.id;
       roleTitle = 'Vice-Captain 🎖️';
@@ -199,5 +211,106 @@ export async function handleIntSetCommand(message: Message, args: string[]) {
 
   await message.reply(
     `✅ Successfully designated **${targetUser.username}** as **${nation.name}**'s **${roleTitle}**!`
+  );
+}
+
+export async function handleClubSetCommand(message: Message, args: string[]) {
+  const role = args[0]?.toLowerCase();
+  const targetUser = message.mentions.users.first();
+
+  const validRoles = ['cap', 'captain', 'c', 'vc', 'atk', 'mid', 'def', 'fk', 'corner', 'pen'];
+  if (!role || !validRoles.includes(role) || !targetUser) {
+    return await message.reply(
+      '❌ **Usage:** `-clubset <cap|vc|atk|mid|def|fk|corner|pen> @player`\n' +
+      '• `cap`: Appoint Club Captain 👑\n' +
+      '• `vc`: Appoint Vice-Captain 🎖️\n' +
+      '• `atk` / `mid` / `def`: Set Starting Lineup position\n' +
+      '• `fk` / `corner` / `pen`: Designate Set-Piece specialist'
+    );
+  }
+
+  const caller = await prisma.player.findUnique({
+    where: { id: message.author.id },
+    include: { club: true }
+  });
+
+  if (!caller?.clubId || !caller.club) {
+    return await message.reply('❌ You are not affiliated with any football club. Join one with `-joinclub <alias>`.');
+  }
+
+  const club = caller.club;
+  const isLeader = caller.id === club.captainId || caller.id === club.viceCaptainId || message.member?.permissions.has(PermissionFlagsBits.Administrator) || message.author.id === '478599245276905495';
+  if (!isLeader) {
+    return await message.reply('❌ Only the club **Captain**, **Vice-Captain**, or an **Administrator** can set team assignments!');
+  }
+
+  const targetPlayer = await prisma.player.findUnique({ where: { id: targetUser.id } });
+  if (!targetPlayer || targetPlayer.clubId !== club.id) {
+    return await message.reply(`❌ **${targetUser.username}** is not a registered player of **${club.name}**!`);
+  }
+
+  let lineupIds: string[] = [];
+  try {
+    lineupIds = JSON.parse(club.lineup || '[]');
+  } catch {
+    lineupIds = [];
+  }
+  while (lineupIds.length < 3) lineupIds.push('');
+
+  let updateData: any = {};
+  let roleTitle = '';
+
+  switch (role) {
+    case 'cap':
+    case 'captain':
+    case 'c': {
+      const canSetCap = caller.id === club.captainId || !club.captainId || message.member?.permissions.has(PermissionFlagsBits.Administrator) || message.author.id === '478599245276905495';
+      if (!canSetCap) {
+        return await message.reply('❌ Only the current **Captain** or a server **Administrator** can appoint the club captaincy armband 👑!');
+      }
+      updateData.captainId = targetUser.id;
+      roleTitle = 'Club Captain 👑 (C)';
+      break;
+    }
+    case 'vc':
+      updateData.viceCaptainId = targetUser.id;
+      roleTitle = 'Vice-Captain 🎖️';
+      break;
+    case 'atk':
+      lineupIds[0] = targetUser.id;
+      updateData.lineup = JSON.stringify(lineupIds);
+      roleTitle = 'Starting Striker (ATK) ⚡';
+      break;
+    case 'mid':
+      lineupIds[1] = targetUser.id;
+      updateData.lineup = JSON.stringify(lineupIds);
+      roleTitle = 'Starting Playmaker (MID) 🎯';
+      break;
+    case 'def':
+      lineupIds[2] = targetUser.id;
+      updateData.lineup = JSON.stringify(lineupIds);
+      roleTitle = 'Starting Anchor (DEF) 🛡️';
+      break;
+    case 'fk':
+      updateData.fkTakerId = targetUser.id;
+      roleTitle = 'Direct Free Kick Specialist 🎯';
+      break;
+    case 'corner':
+      updateData.cornerTakerId = targetUser.id;
+      roleTitle = 'Corner Kick Specialist 🚩';
+      break;
+    case 'pen':
+      updateData.penTakerId = targetUser.id;
+      roleTitle = 'Penalty Taker 🥅';
+      break;
+  }
+
+  await prisma.footballClub.update({
+    where: { id: club.id },
+    data: updateData
+  });
+
+  await message.reply(
+    `✅ Successfully designated **${targetUser.username}** as **${club.name}**'s **${roleTitle}**!`
   );
 }

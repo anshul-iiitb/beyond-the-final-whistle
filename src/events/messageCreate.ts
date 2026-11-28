@@ -7,7 +7,7 @@ import { handleTravelCommand, handleLocationsCommand, handleShowroomCommand, han
 import { handleTrainCommand, handleSpTrainCommand, handleRecoveryCommand, handleConvertCommand } from '../commands/trainingCommands.js';
 import { handleAdvertCommand, handleCoachingCommand, handleMeetGreetCommand, handleChirpCommand } from '../commands/socialCommands.js';
 import { handleBuyCommand, handleUseCommand, handleIntelCommand } from '../commands/marketCommands.js';
-import { handleIntTeamCommand, handleIntSetCommand } from '../commands/intTeamCommand.js';
+import { handleIntTeamCommand, handleIntSetCommand, handleClubSetCommand } from '../commands/intTeamCommand.js';
 import { handleAvatarCommand, handleAvatarBuyCommand, handleAvatarClaimCommand, handleEquipCommand, handleThemeCommand, handleInventoryCommand } from '../commands/cosmeticCommands.js';
 import {
   handleAuctionHouseCommand,
@@ -121,7 +121,11 @@ export async function onMessageCreate(message: Message) {
         await handleIntTeamCommand(message, args);
         break;
       case 'intset':
+      case 'teamset':
         await handleIntSetCommand(message, args);
+        break;
+      case 'clubset':
+        await handleClubSetCommand(message, args);
         break;
 
       // Spatial Campus & Showroom
@@ -402,7 +406,7 @@ export async function onMessageCreate(message: Message) {
       case 'help':
       case 'commands':
       case 'guide':
-        await handleHelpCommand(message);
+        await handleHelpCommand(message, args);
         break;
 
       default:
