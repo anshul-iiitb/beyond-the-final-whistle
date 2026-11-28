@@ -66,10 +66,38 @@ export const COMMAND_LOCATION_MAP: Record<string, string> = {
   bid: 'ah'
 };
 
-const CHANNEL_ONLY_COMMANDS: Record<string, { channelKeyword: string; label: string }> = {
-  chirp: { channelKeyword: 'twitter', label: '🐦 TwitFeed' },
-  tweet: { channelKeyword: 'twitter', label: '🐦 TwitFeed' }
-};
+/**
+ * Locks #twitter so regular players can view and vote on tweet embeds via buttons,
+ * while only the bot posts new tweets there.
+ */
+export async function lockTwitterFeedChannel(guild: Guild): Promise<string | null> {
+  const twitterCh = guild.channels.cache.find(
+    c => c.isTextBased() && c.name.toLowerCase().includes('twitter')
+  );
+  if (!twitterCh || !('permissionOverwrites' in twitterCh)) return null;
+
+  await twitterCh.permissionOverwrites.edit(guild.roles.everyone.id, {
+    ViewChannel: true,
+    ReadMessageHistory: true,
+    SendMessages: false,
+    SendMessagesInThreads: false,
+    CreatePublicThreads: false,
+    CreatePrivateThreads: false
+  }).catch(() => {});
+
+  const botId = guild.client.user?.id;
+  if (botId) {
+    await twitterCh.permissionOverwrites.edit(botId, {
+      ViewChannel: true,
+      SendMessages: true,
+      EmbedLinks: true,
+      AttachFiles: true,
+      ReadMessageHistory: true
+    }).catch(() => {});
+  }
+
+  return twitterCh.id;
+}
 
 /**
  * Resolves the Discord channel corresponding to a BTFW campus location ID.
@@ -100,20 +128,6 @@ export async function validateCommandAccess(options: {
 }): Promise<{ allowed: boolean; message?: string }> {
   const { cmd, userId, guild, channelId } = options;
   const normalizedCmd = cmd.toLowerCase();
-
-  const channelSpec = CHANNEL_ONLY_COMMANDS[normalizedCmd];
-  if (channelSpec && guild) {
-    const targetCh = guild.channels.cache.find(
-      c => c.isTextBased() && c.name.toLowerCase().includes(channelSpec.channelKeyword)
-    );
-    if (targetCh && channelId !== targetCh.id) {
-      return {
-        allowed: false,
-        message: `❌ You are in the wrong location! Travel/switch to <#${targetCh.id}> (**${channelSpec.label}**) to use \`-${normalizedCmd}\`.`
-      };
-    }
-    return { allowed: true };
-  }
 
   const requiredLocId = COMMAND_LOCATION_MAP[normalizedCmd];
   if (!requiredLocId) {

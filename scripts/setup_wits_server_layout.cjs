@@ -194,7 +194,7 @@ client.once('clientReady', async () => {
         { name: '๑•\'🤖│bot-cmds', type: ChannelType.GuildText, readOnly: false, topic: 'Use general bot commands here: -profile, -lb, -give, -setdesc.' },
         { name: '๑•\'📷│media', type: ChannelType.GuildText, readOnly: false, topic: 'Showcase player cards, vehicles, trophies, and match clips.' },
         { name: '๑•\'💡│suggestions', type: ChannelType.GuildText, readOnly: false, topic: 'Post your ideas, improvements, and bot feedback.' },
-        { name: '๑•\'🐦│twitter', type: ChannelType.GuildText, readOnly: false, topic: 'In-game TwitFeed! Use -tweet <text> to earn or lose followers with 👍/👎.' },
+        { name: '๑•\'🐦│twitter', type: ChannelType.GuildText, readOnly: true, topic: 'In-game TwitFeed! Run -tweet <text> anywhere — the bot posts your tweet here for 👍/👎 voting.' },
         { name: '๑•\'🔒│admin-only', type: ChannelType.GuildText, adminOnly: true, topic: 'Staff bot control panel: -vip, -additem, -addvar, -gitpull.' }
       ]
     },
@@ -496,7 +496,7 @@ client.once('clientReady', async () => {
         `**Step 3: Complete Daily Training Drills**\n` +
         `Run \`-train\` every 30 minutes to accumulate Training Points (TP). When stamina drops, visit <#${createdChannelsMap['๑•\'🧖│player-sauna']?.id || 'player-sauna'}> and run \`-recovery\`.\n\n` +
         `**Step 4: Earn Follower Clout & Commercial Deals**\n` +
-        `Post regular updates in <#${createdChannelsMap['๑•\'🐦│twitter']?.id || 'twitter'}> using \`-tweet <text>\` to get 👍 fan likes. At 100k+ followers, travel to the Photoshoot Hall (\`-travel ph\`) and run \`-advert\` for big cash payouts!\n\n` +
+        `Run \`-tweet <text>\` in any channel — the bot publishes it to locked <#${createdChannelsMap['๑•\'🐦│twitter']?.id || 'twitter'}> for 👍 fan likes! At 100k+ followers, travel to the Photoshoot Hall (\`-travel ph\`) and run \`-advert\` for big cash payouts!\n\n` +
         `**Step 5: Prepare for Matchday**\n` +
         `Visit <#${createdChannelsMap['๑•\'🕵️│intel-hub']?.id || 'intel-hub'}> for free \`-intel\`, buy boots at <#${createdChannelsMap['๑•\'🛍️│global-market']?.id || 'global-market'}>, and challenge other players using \`-match @player\`!`
       )

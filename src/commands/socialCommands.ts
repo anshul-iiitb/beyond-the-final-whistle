@@ -151,7 +151,23 @@ export async function handleChirpCommand(message: Message, args: string[]) {
       .setStyle(ButtonStyle.Danger)
   );
 
-  const sentMsg = await message.reply({ embeds: [embed], components: [row] });
+  const twitterCh = message.guild?.channels.cache.find(
+    c => c.isTextBased() && c.name.toLowerCase().includes('twitter')
+  ) as TextChannel | undefined;
+
+  let sentMsg;
+  if (twitterCh) {
+    sentMsg = await twitterCh.send({ embeds: [embed], components: [row] });
+    if (message.channelId === twitterCh.id) {
+      await message.delete().catch(() => {});
+    } else {
+      const linkSuffix = sentMsg.url ? ` ([View Tweet](${sentMsg.url}))` : '';
+      await message.reply(`🐦 **Tweet Published!** Your post is now live in <#${twitterCh.id}>!${linkSuffix}`);
+    }
+  } else {
+    sentMsg = await message.reply({ embeds: [embed], components: [row] });
+  }
+
   await prisma.playerTweet.update({
     where: { id: tweet.id },
     data: { discordMessageId: sentMsg.id }

@@ -44,7 +44,7 @@ export async function handleHelpCommand(message: Message) {
           '  `tc` Training Center (`-train`) • `rf` Research Lab (`-sptrain`, `-convert`)\n' +
           '  `ch` Player Clubhouse (`-recovery`, `-coaching`, `-meetgreet`)\n' +
           '  `gm` Global Market (`-buy`, `-showroom`, `-avatar`) • `ph` Photoshoot Hall (`-advert`)\n' +
-          '  `ih` Intel Hub (`-intel`) • `ah` Auction House (`-ah`, `-bid`). TwitFeed (`-tweet`) is locked to `#twitter`.'
+          '  `ih` Intel Hub (`-intel`) • `ah` Auction House (`-ah`, `-bid`).'
       },
       {
         name: '🏋️ Training & Clubhouse Recovery (-ch)',
@@ -76,7 +76,7 @@ export async function handleHelpCommand(message: Message) {
         value:
           '• `-advert` — 6 Brand Endorsements at `ph`:\n' +
           `  ${heineken} Heineken (100k) • ${adidas} Adidas (1M) • 👑 **VIP Signature** (+300k ${coin} @ 1M fans) • ${cocacola} Coca-Cola (5M) • ${netflix} Netflix (6M) • ${nike} Nike (8M)\n` +
-          `• \`-tweet <text>\` / \`-chirp\` — Post to TwitFeed w/ 👍/👎 votes (\`+100k\` / \`-50k\` ${followers} for author, \`+5k\` ${coin} per voter + DMs).`
+          `• \`-tweet <text>\` / \`-chirp\` — Run from any channel; bot posts directly to read-only \`#twitter\` w/ 👍/👎 votes (\`+100k\` / \`-50k\` ${followers}, \`+5k\` ${coin}/vote + DMs).`
       },
       {
         name: '⚽ Match Engines & VIP Exhibitions',

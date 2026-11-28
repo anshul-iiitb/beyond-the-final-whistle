@@ -7,7 +7,7 @@
 
 ## 🌟 Highlights
 
-- **Spatial Football Campus**: 7 unified facilities connected by spatial travel (`-travel tc`, `rf`, `ch`, `gm`, `ph`, `ih`, `ah`), with all facility commands and TwitFeed (`#twitter`) strictly locked to their respective Discord channel and location.
+- **Spatial Football Campus**: 7 unified facilities connected by spatial travel (`-travel tc`, `rf`, `ch`, `gm`, `ph`, `ih`, `ah`), with all facility commands strictly locked to their respective Discord channel and location (`-tweet` works anywhere and publishes to locked `#twitter`).
 - **Vehicle Showroom**: 16 luxury cars and hypercars slashing base travel cooldowns from 20 minutes down to 1 minute.
 - **15 Granular Football Attributes**:
   - *Attacking*: Finishing (`FIN`), Shot Power (`POW`), Heading (`HEA`)
@@ -52,7 +52,7 @@
 | **Socials** | `-advert [brand]` | Sign commercial brand deal at Photoshoot Hall (`ph`) |
 | | `-coaching` | Coach academy youth at Player Clubhouse (`ch`, +50k coins, 2h cooldown) |
 | | `-meetgreet` | Autograph signing session at Player Clubhouse (`ch`, +50k followers, 2h cooldown) |
-| | `-chirp <text>` | Post tweet to TwitFeed (`#twitter`, 👍 +100k, 👎 -50k) |
+| | `-chirp <text>` / `-tweet` | Post from any channel — bot publishes to locked `#twitter` (👍 +100k, 👎 -50k) |
 | **Auctions** | `-ah` / `-bid <amt> [lot#]` | View or bid on collectible auctions (`ah`) |
 | **Matches** | `-match [@user]` | Simulate 90-minute match with AI commentary & newspaper |
 | | `-intstats [@user]` | International tournament statistics |

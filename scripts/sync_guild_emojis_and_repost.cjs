@@ -214,7 +214,7 @@ client.once('clientReady', async () => {
       `### 3️⃣ Complete Daily Training Drills\n` +
       `Run \`-train\` every 30 minutes to accumulate Training Points (${E.tp}). When stamina drops, visit the Player Sauna (\`-travel ps\`) and run \`-recovery\`.\n\n` +
       `### 4️⃣ Build Fan Clout & Sign Brand Deals\n` +
-      `Post updates in <#${channels.find(c => c && c.name.includes('twitter'))?.id || 'twitter'}> using \`-tweet <text>\` to get 👍 fan likes. At 100k+ followers, visit the Photoshoot Hall (\`-travel ph\`) and run \`-advert\` for big cash payouts!\n\n` +
+      `Run \`-tweet <text>\` in any channel — the bot publishes it to locked <#${channels.find(c => c && c.name.includes('twitter'))?.id || 'twitter'}> for 👍 fan likes! At 100k+ followers, visit the Photoshoot Hall (\`-travel ph\`) and run \`-advert\` for big cash payouts!\n\n` +
       `### 5️⃣ Matchday Preparation & Tactical Intel\n` +
       `Visit the Intel Hub (\`-travel ih\`) for free \`-intel\`, buy performance boots at the Global Market (\`-travel gm\`), and challenge players using \`-match @player\`!\n\n` +
       `${DIVIDER}\n` +

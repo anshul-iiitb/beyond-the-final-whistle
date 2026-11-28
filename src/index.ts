@@ -3,7 +3,7 @@ import { BTFWClient } from './client/BTFWClient.js';
 import { onMessageCreate } from './events/messageCreate.js';
 import { onMessageReactionAdd } from './events/messageReactionAdd.js';
 import { onInteractionCreate } from './events/interactionCreate.js';
-import { syncMemberLocationVisibility } from './engines/campusEngine.js';
+import { syncMemberLocationVisibility, lockTwitterFeedChannel } from './engines/campusEngine.js';
 import { syncMemberGameRoles } from './utils/roleSyncHelper.js';
 import { EmbedBuilder, TextChannel } from 'discord.js';
 import { startKeepAliveServer, startKeepAliveWorker } from './services/keepAliveService.js';
@@ -35,9 +35,10 @@ async function bootstrap() {
 
   client.on('ready', async () => {
     logger.info(`⚽ Beyond The Final Whistle is LIVE as ${client.user?.tag}! Ready for kickoff.`);
-    // Fetch and warm up server emojis across all guilds
+    // Fetch and warm up server emojis & enforce read-only #twitter across all guilds
     for (const guild of client.guilds.cache.values()) {
       await guild.emojis.fetch().catch(() => {});
+      await lockTwitterFeedChannel(guild).catch(() => {});
     }
     await loadConfigCache(true);
     startDailyLifecycleWorker(client);

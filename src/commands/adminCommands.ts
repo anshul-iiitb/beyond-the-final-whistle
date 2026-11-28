@@ -10,7 +10,7 @@ import {
   setItemPriceOverrides,
   updateAuctionAutomationConfig,
 } from '../services/configService.js';
-import { syncMemberLocationVisibility } from '../engines/campusEngine.js';
+import { syncMemberLocationVisibility, lockTwitterFeedChannel } from '../engines/campusEngine.js';
 import { syncMemberGameRoles } from '../utils/roleSyncHelper.js';
 import { calculateDerivedRatings } from '../engines/matchSimulationEngine.js';
 import { installCustomServerEmojis, getEmoji } from '../utils/emojiHelper.js';
@@ -131,6 +131,12 @@ export async function handleSetupCommand(message: Message) {
       });
     }
     createdList.push(`• **VIP Council Lounge:** <#${vipChannel.id}>`);
+
+    // Lock #twitter read-only for members (bot posts tweet embeds directly there)
+    const lockedTwitterId = await lockTwitterFeedChannel(guild);
+    if (lockedTwitterId) {
+      createdList.push(`• **TwitFeed (Read-Only):** <#${lockedTwitterId}>`);
+    }
 
     // Auto-install custom emojis
     const emojiResults = await installCustomServerEmojis(guild);
